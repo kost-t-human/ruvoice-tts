@@ -1,0 +1,7 @@
+.gradle/
+build/
+*.iml
+.idea/
+local.properties
+app/src/main/assets/silero/*.ptl
+tools/*.pt
