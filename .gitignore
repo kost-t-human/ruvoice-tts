@@ -5,3 +5,4 @@ build/
 local.properties
 app/src/main/assets/silero/*.ptl
 tools/*.pt
+.kotlin/
