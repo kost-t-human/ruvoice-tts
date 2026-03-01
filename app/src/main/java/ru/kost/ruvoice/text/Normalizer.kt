@@ -88,14 +88,18 @@ object Normalizer {
         return prefix + stem + ending
     }
 
-    private val numberRe = Regex("""(№|§)?(-?)(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю))?(%)?""")
+    private val numberRe = Regex("""(№|§)?(?<!\d)(-?)(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю)(?![а-яё]))?(%)?""")
 
     fun numbers(text: String): String = numberRe.replace(text) { m ->
         val (mark, minus, intPart, frac, suffix, percent) = m.destructured
-        val n = intPart.toLongOrNull() ?: return@replace m.value
         val sb = StringBuilder()
         when (mark) { "№" -> sb.append("номер "); "§" -> sb.append("параграф ") }
         if (minus.isNotEmpty()) sb.append("минус ")
+        if (intPart.length > 12) {
+            sb.append(intPart.map { cardinal((it - '0').toLong()) }.joinToString(" "))
+            return@replace sb.toString()
+        }
+        val n = intPart.toLongOrNull() ?: return@replace m.value
         if (frac.isNotEmpty()) {
             val fracN = frac.toLong()
             val denom = when (frac.length) { 1 -> Triple("десятая", "десятых", "десятых"); 2 -> Triple("сотая", "сотых", "сотых"); else -> Triple("тысячная", "тысячных", "тысячных") }
