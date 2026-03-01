@@ -1,0 +1,56 @@
+package ru.kost.ruvoice.text
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class NumbersTest {
+    private fun n(s: String) = Normalizer.numbers(s)
+
+    @Test fun units() {
+        assertEquals("ноль", n("0"))
+        assertEquals("один", n("1"))
+        assertEquals("девятнадцать", n("19"))
+        assertEquals("сорок два", n("42"))
+        assertEquals("сто", n("100"))
+        assertEquals("двести пятьдесят один", n("251"))
+    }
+
+    @Test fun thousandsFeminine() {
+        assertEquals("одна тысяча", n("1000"))
+        assertEquals("две тысячи пятьсот", n("2500"))
+        assertEquals("пять тысяч", n("5000"))
+        assertEquals("двадцать одна тысяча", n("21000"))
+        assertEquals("одна тысяча девятьсот семнадцать год", n("1917 год"))
+    }
+
+    @Test fun millionsAndBillions() {
+        assertEquals("один миллион", n("1000000"))
+        assertEquals("два миллиона триста тысяч", n("2300000"))
+        assertEquals("пять миллиардов", n("5000000000"))
+    }
+
+    @Test fun decimalsAndPercent() {
+        assertEquals("три целых пять десятых", n("3.5"))
+        assertEquals("три целых пять десятых", n("3,5"))
+        assertEquals("одна целая двадцать пять сотых", n("1,25"))
+        assertEquals("пятьдесят процентов", n("50%"))
+        assertEquals("один процент", n("1%"))
+        assertEquals("двадцать два процента", n("22%"))
+    }
+
+    @Test fun negativeAndSpecial() {
+        assertEquals("минус пять", n("-5"))
+        assertEquals("номер семь", n("№7"))
+        assertEquals("параграф три", n("§3"))
+        assertEquals("в две тысячи двадцать четвёртом году", n("в 2024-м году"))
+        assertEquals("пятого мая", n("5-го мая"))
+        assertEquals("третий", n("3-й"))
+        assertEquals("второй", n("2-й"))
+        assertEquals("первое", n("1-е"))
+    }
+
+    @Test fun textAroundIsKept() {
+        assertEquals("глава двенадцать, страница три", n("глава 12, страница 3"))
+        assertEquals("без чисел", n("без чисел"))
+    }
+}
