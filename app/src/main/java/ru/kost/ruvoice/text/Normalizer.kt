@@ -113,4 +113,44 @@ object Normalizer {
         if (percent.isNotEmpty()) sb.append(' ').append(plural(n, Triple("процент", "процента", "процентов")))
         sb.toString()
     }
+
+    private val digraphs = listOf(
+        "sch" to "ш", "tch" to "ч", "sh" to "ш", "ch" to "ч", "th" to "з", "ph" to "ф", "wh" to "в", "qu" to "кв",
+        "ck" to "к", "oo" to "у", "ee" to "и", "ea" to "и", "ou" to "ау", "ay" to "эй", "ey" to "эй", "ai" to "эй",
+        "oa" to "оу", "ie" to "и", "kn" to "н", "wr" to "р", "gh" to "", "ng" to "нг", "ew" to "ью",
+    )
+    private val singles = mapOf('a' to "а", 'b' to "б", 'c' to "к", 'd' to "д", 'e' to "е", 'f' to "ф", 'g' to "г",
+        'h' to "х", 'i' to "и", 'j' to "дж", 'k' to "к", 'l' to "л", 'm' to "м", 'n' to "н", 'o' to "о", 'p' to "п",
+        'q' to "к", 'r' to "р", 's' to "с", 't' to "т", 'u' to "а", 'v' to "в", 'w' to "в", 'x' to "кс", 'y' to "й",
+        'z' to "з")
+    // ponytail: транслитерация по таблице, не G2P; «iphone» → «айфон» через частные правила ниже
+    private val wordFixes = mapOf("iphone" to "айфон", "google" to "гугл", "the" to "зэ", "new" to "нью",
+        "york" to "йорк", "queen" to "квин", "photo" to "фото", "charlie" to "чарли", "sherlock" to "шерлок",
+        "windows" to "виндовс", "john" to "джон")
+    private val latinWordRe = Regex("[a-z]+")
+
+    fun latin(text: String): String = latinWordRe.replace(text.lowercase()) { m ->
+        wordFixes[m.value] ?: run {
+            val w = m.value
+            val sb = StringBuilder()
+            var i = 0
+            while (i < w.length) {
+                val d = digraphs.firstOrNull { w.startsWith(it.first, i) }
+                if (d != null) { sb.append(d.second); i += d.first.length }
+                else { sb.append(singles[w[i]] ?: ""); i++ }
+            }
+            // немое e на конце
+            if (w.length > 2 && w.endsWith("e") && !w.endsWith("ee")) sb.setLength(sb.length - 1)
+            sb.toString()
+        }
+    }
+
+    fun symbols(text: String, allowed: String): String {
+        val sb = StringBuilder(text.length)
+        for (c in text.replace('—', '–').replace('‑', '-')) if (c in allowed) sb.append(c)
+        return sb.toString().replace(Regex("\\s+"), " ").trim()
+    }
+
+    fun prepare(text: String, allowed: String): String =
+        symbols(latin(numbers(text.lowercase())), allowed)
 }
