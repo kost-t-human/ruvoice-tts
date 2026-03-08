@@ -31,4 +31,16 @@ class SsmlTest {
         assertEquals(listOf(Segment("а", rate = 0.8f)), Ssml.parse("<speak><prosody rate=\"80%\">а</prosody></speak>"))
         assertEquals(listOf(Segment("а", rate = 1.2f)), Ssml.parse("<speak><prosody rate=\"1.2\">а</prosody></speak>"))
     }
+
+    @Test fun pitchWordTable() {
+        assertEquals(listOf(Segment("а", pitch = 0.6f)), Ssml.parse("<speak><prosody pitch=\"x-low\">а</prosody></speak>"))
+    }
+
+    @Test fun entityDecoding() {
+        assertEquals(listOf(Segment("а & б <в> «г»")), Ssml.parse("<speak>а &amp; б &lt;в&gt; &#171;г&#187;</speak>"))
+    }
+
+    @Test fun unmatchedClosingProsody() {
+        assertEquals(listOf(Segment("а б")), Ssml.parse("<speak>а</prosody> б</speak>"))
+    }
 }
