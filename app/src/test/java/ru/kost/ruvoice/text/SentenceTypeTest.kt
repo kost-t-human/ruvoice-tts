@@ -20,4 +20,12 @@ class SentenceTypeTest {
         val ids = SentenceType.typeIds("а? б.", "general_q|st", 7, d)
         assertEquals(listOf(2L, 2L, 2L, 2L, 0L, 0L, 2L), ids.toList())
     }
+
+    @Test fun alternativeQuestionWord() {
+        assertEquals("alternative_q", SentenceType.classify("Чай или кофе?", d))
+    }
+
+    @Test fun orInsideWordIsNotAlternative() {
+        assertEquals("general_q", SentenceType.classify("Ты пилила доску?", d))
+    }
 }

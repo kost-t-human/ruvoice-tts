@@ -6,7 +6,11 @@ object SentenceType {
     private val quoteOpen = setOf('"', '«', '“', '„')
     private val quoteClose = setOf('"', '»', '”', '’')
     private val wordRe = Regex("[а-яёa-z]+", RegexOption.IGNORE_CASE)
-    val sentSplit = Regex("(?<=[.!?])\\s+")
+    private val sentSplit = Regex("(?<=[.!?])\\s+")
+    private val wsRe = Regex("\\s+")
+    // \b в java.util.regex зависит от JDK (unicode-aware ≤18, ASCII-only 19+) — не полагаемся
+    // на него для кириллицы, используем явные lookaround по классу букв.
+    private val altRe = Regex("(?<![а-яё])или(?![а-яё])")
 
     private fun stripOuterQuotes(s0: String): String {
         var s = s0.trim()
@@ -16,7 +20,7 @@ object SentenceType {
     }
 
     private fun normalize(s: String): String =
-        stripOuterQuotes(s).replace("+", "").replace('ё', 'е').replace('Ё', 'Е').replace(Regex("\\s+"), " ").trim()
+        stripOuterQuotes(s).replace("+", "").replace('ё', 'е').replace('Ё', 'Е').replace(wsRe, " ").trim()
 
     private fun hasWhPrefix(text: String, d: SileroData): Boolean {
         val content = mutableListOf<String>()
@@ -39,7 +43,7 @@ object SentenceType {
             val q = normalize(tail)
             if (d.tagRe.containsMatchIn(q)) return "tag_q"
             if (hasWhPrefix(q, d)) return "wh_q"
-            if (Regex("\\bили\\b", RegexOption.IGNORE_CASE).containsMatchIn(q)) return "alternative_q"
+            if (altRe.containsMatchIn(q.lowercase())) return "alternative_q"
             return "general_q"
         }
         if (clean.endsWith("!")) return "exclam"
