@@ -52,4 +52,12 @@ class SileroData(json: String) {
 
     /** Символы, допустимые во входе модели: без служебных `_~|`. */
     val allowed: String get() = symbols.substring(3)
+
+    fun sequence(accented: String): LongArray {
+        val ids = ArrayList<Long>(accented.length + 2)
+        ids += symbolToId.getValue(sos).toLong()
+        for (c in accented) symbolToId[c]?.let { ids += it.toLong() }
+        ids += symbolToId.getValue(eos).toLong()
+        return ids.toLongArray()
+    }
 }
