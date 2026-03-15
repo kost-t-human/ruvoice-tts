@@ -49,7 +49,7 @@ class StressTest {
     @Test fun nbspTreatedAsWordSeparator() {
         // NBSP (U+00A0): JVM \s его не матчит, Python \s матчит. «в» без гласной остаётся как есть,
         // у «доме» firstVowel-заглушка ставит ударение перед первой гласной («о»): «д+оме».
-        assertEquals("в д+оме", Stress(d, firstVowel).apply("в доме"))
+        assertEquals("в\u00A0д+оме", Stress(d, firstVowel).apply("в\u00A0доме"))
     }
 
     @Test fun punctuationAndHyphenPreserved() {

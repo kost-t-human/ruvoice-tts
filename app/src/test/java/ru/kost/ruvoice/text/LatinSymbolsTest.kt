@@ -33,7 +33,7 @@ class LatinSymbolsTest {
     @Test fun nbspNormalizedBeforeFiltering() {
         // NBSP (U+00A0) не входит в allowed и не входит в JVM \s: раньше он просто вырезался
         // фильтром символов, и «в доме» слипалось в «вдоме». Сначала NBSP должен стать обычным пробелом.
-        assertEquals("в доме", Normalizer.symbols("в доме", allowed))
+        assertEquals("в доме", Normalizer.symbols("в\u00A0доме", allowed))
     }
 
     @Test fun prepareWholePipeline() {
