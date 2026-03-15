@@ -40,6 +40,18 @@ class StressTest {
         assertEquals("мам+а", s.apply("мама"))
     }
 
+    @Test fun userDictKeepsOriginalCapitalization() {
+        // словарное значение хранится строчными, регистр восстанавливаем по исходному слову
+        val s = Stress(d, firstVowel, mapOf("мама" to "мам+а"))
+        assertEquals("Мам+а", s.apply("Мама"))
+    }
+
+    @Test fun nbspTreatedAsWordSeparator() {
+        // NBSP (U+00A0): JVM \s его не матчит, Python \s матчит. «в» без гласной остаётся как есть,
+        // у «доме» firstVowel-заглушка ставит ударение перед первой гласной («о»): «д+оме».
+        assertEquals("в д+оме", Stress(d, firstVowel).apply("в доме"))
+    }
+
     @Test fun punctuationAndHyphenPreserved() {
         assertEquals("кт+о-то, +а т+ы?", Stress(d, firstVowel).apply("кто-то, а ты?"))
     }

@@ -11,8 +11,11 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val vowels = "аоуыэиеяёю"
     private val tok = BertTokenizer(d)
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
-    private val splitRe = Regex("([\\s.,!?;:<>=()/\\\\]+)")
+    // JVM \s матчит только ASCII-пробелы; Python \s матчит любой Unicode-пробел (NBSP и т.п.),
+    // поэтому класс явно расширен \p{Zs} и прочими Unicode-разделителями.
+    private val splitRe = Regex("([\\s\\p{Zs}\\u0085\\u2028\\u2029\\u001C-\\u001F.,!?;:<>=()/\\\\]+)")
     private val nonCyr = Regex("[^А-Яа-яёЁ]")
+    private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
 
     fun apply(sentence: String): String = userDictPass(accentorPass(homographPass(sentence)))
 
@@ -33,13 +36,14 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         val sb = StringBuilder(sentence)
         var offset = 0
         for ((i, h) in hits.withIndex()) {
-            val pred = if (probs[i] >= 0.5f) 1 else 0
+            // torch.round: half-to-even, ровно 0.5 округляется в 0.
+            val pred = if (probs[i] > 0.5f) 1 else 0
             var variant = d.homodict.getValue(h.word.lowercase()).sorted()[pred]
-            val nVowels = variant.count { it.lowercaseChar() in vowels }
             val stressIdx = variant.indexOf('+')
             variant = variant.replace("+", "")
             variant = variant.mapIndexed { k, c -> if (k < h.word.length && h.word[k].isLowerCase()) c.lowercaseChar() else if (k < h.word.length) c.uppercaseChar() else c }.joinToString("")
-            if (nVowels > 1 || true) { variant = variant.substring(0, stressIdx) + "+" + variant.substring(stressIdx) }
+            // stress_single_vowel=True, put_stress=True в Python — ударение ставится всегда
+            variant = variant.substring(0, stressIdx) + "+" + variant.substring(stressIdx)
             sb.replace(h.start + offset, h.end + offset, variant)
             offset += variant.length - (h.end - h.start)
         }
@@ -137,9 +141,17 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     }
 
     // ---- user dictionary ----
-    private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
     private fun userDictPass(sentence: String): String {
         if (userDict.isEmpty()) return sentence
-        return wordRe.replace(sentence) { m -> userDict[m.value.replace("+", "").lowercase()] ?: m.value }
+        return wordRe.replace(sentence) { m ->
+            val orig = m.value.replace("+", "")
+            val value = userDict[orig.lowercase()] ?: return@replace m.value
+            val stressIdx = value.indexOf('+')
+            var cased = value.replace("+", "")
+                .mapIndexed { k, c -> if (k < orig.length && orig[k].isLowerCase()) c.lowercaseChar() else if (k < orig.length) c.uppercaseChar() else c }
+                .joinToString("")
+            if (stressIdx >= 0) cased = cased.substring(0, stressIdx) + "+" + cased.substring(stressIdx)
+            cased
+        }
     }
 }

@@ -145,9 +145,14 @@ object Normalizer {
         }
     }
 
+    // JVM \s матчит только ASCII-пробелы; Python \s матчит любой Unicode-пробел (NBSP U+00A0 и т.п.).
+    // Сначала приводим все такие пробелы к обычному, иначе они просто выпадают на фильтрации и слова слипаются.
+    private val wsClass = Regex("[\\s\\p{Zs}\\u0085\\u2028\\u2029\\u001C-\\u001F]")
+
     fun symbols(text: String, allowed: String): String {
-        val sb = StringBuilder(text.length)
-        for (c in text.replace('—', '–').replace('‑', '-')) if (c in allowed) sb.append(c)
+        val normalized = text.replace('—', '–').replace('‑', '-').replace(wsClass, " ")
+        val sb = StringBuilder(normalized.length)
+        for (c in normalized) if (c in allowed) sb.append(c)
         return sb.toString().replace(Regex("\\s+"), " ").trim()
     }
 

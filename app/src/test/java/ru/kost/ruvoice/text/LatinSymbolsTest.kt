@@ -30,6 +30,12 @@ class LatinSymbolsTest {
         assertEquals("дом тот", Normalizer.symbols("дом (тот)", allowed)) // скобок в алфавите нет, они удаляются
     }
 
+    @Test fun nbspNormalizedBeforeFiltering() {
+        // NBSP (U+00A0) не входит в allowed и не входит в JVM \s: раньше он просто вырезался
+        // фильтром символов, и «в доме» слипалось в «вдоме». Сначала NBSP должен стать обычным пробелом.
+        assertEquals("в доме", Normalizer.symbols("в доме", allowed))
+    }
+
     @Test fun prepareWholePipeline() {
         assertEquals("в две тысячи двадцать четвёртом году вышел айфон пятнадцать.",
             Normalizer.prepare("В 2024-м году вышел iPhone 15.", allowed))
