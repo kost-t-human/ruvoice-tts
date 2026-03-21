@@ -15,7 +15,7 @@ class SileroModels(private val context: Context) : StressModels {
     private var tts: Module? = null
     private var acc: Module? = null
     private var homo: Module? = null
-    val isLoaded get() = tts != null
+    val isLoaded get() = tts != null && acc != null && homo != null
 
     private fun unpack(name: String): File {
         val dir = File(context.filesDir, "silero").apply { mkdirs() }
@@ -29,11 +29,16 @@ class SileroModels(private val context: Context) : StressModels {
     }
 
     @Synchronized fun ensureLoaded() {
-        if (tts != null) return
+        if (isLoaded) return
         val t = System.currentTimeMillis()
-        tts = LiteModuleLoader.load(unpack("tts.ptl").path)
-        acc = LiteModuleLoader.load(unpack("accentor.ptl").path)
-        homo = LiteModuleLoader.load(unpack("homo.ptl").path)
+        try {
+            tts = LiteModuleLoader.load(unpack("tts.ptl").path)
+            acc = LiteModuleLoader.load(unpack("accentor.ptl").path)
+            homo = LiteModuleLoader.load(unpack("homo.ptl").path)
+        } catch (e: Exception) {
+            tts = null; acc = null; homo = null
+            throw e
+        }
         Log.i(TAG, "модели загружены за ${System.currentTimeMillis() - t} мс")
     }
 
@@ -59,6 +64,7 @@ class SileroModels(private val context: Context) : StressModels {
 
     override fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray): FloatArray {
         ensureLoaded()
+        if (ids.isEmpty()) return FloatArray(0)
         val b = ids.size; val len = ids.maxOf { it.size }
         val flat = LongArray(b * len) { data.bertPad.toLong() }
         for ((i, row) in ids.withIndex()) row.copyInto(flat, i * len)
