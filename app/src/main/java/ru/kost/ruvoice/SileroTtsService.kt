@@ -17,6 +17,8 @@ import java.util.Locale
 object Pipeline {
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int): List<Segment> {
         val src = text.toString()
+        // Последний абзац запроса намеренно без паузы абзаца — свою паузу до следующей
+        // реплики читалка/пользователь и так делают между вызовами.
         val segments = if (Ssml.isSsml(src)) Ssml.parse(src) else
             Splitter.paragraphs(src).mapIndexed { i, p -> Segment(p, paragraph = true) }.let { if (it.isEmpty()) it else it.dropLast(1) + it.last().copy(paragraph = false) }
         val out = ArrayList<Segment>()
@@ -39,7 +41,11 @@ class SileroTtsService : TextToSpeechService() {
     private lateinit var prefs: Prefs
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var stopped = false
-    private val unload = Runnable { models.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }
+    // ponytail: выгрузка на отдельном потоке — release() и synthesize() делят монитор models,
+    // поэтому release() просто дождётся текущего forward, а не заблокирует main на его время.
+    private val unload = Runnable {
+        Thread { models.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }.start()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -49,15 +55,17 @@ class SileroTtsService : TextToSpeechService() {
     }
 
     private fun warmUp() {
-        models.ensureLoaded()
-        val seq = models.data.sequence("прив+ет.")
-        models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size))
+        synchronized(models) {
+            models.ensureLoaded()
+            val seq = models.data.sequence("прив+ет.")
+            models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size))
+        }
         scheduleUnload()
     }
 
     private fun scheduleUnload() {
         handler.removeCallbacks(unload)
-        handler.postDelayed(unload, prefs.idleMinutes * 60_000L)
+        handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
     override fun onDestroy() { handler.removeCallbacks(unload); models.release(); super.onDestroy() }
@@ -67,8 +75,11 @@ class SileroTtsService : TextToSpeechService() {
     override fun onGetLanguage(): Array<String> = arrayOf("rus", "RUS", "")
     override fun onLoadLanguage(lang: String?, country: String?, variant: String?): Int {
         val r = onIsLanguageAvailable(lang, country, variant)
-        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE) runCatching { models.ensureLoaded() }.onFailure {
-            Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
+        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE) {
+            runCatching { models.ensureLoaded() }.onFailure {
+                Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
+            }
+            scheduleUnload()
         }
         return r
     }
@@ -92,33 +103,41 @@ class SileroTtsService : TextToSpeechService() {
             models.ensureLoaded()
             val d = models.data
             val sr = prefs.sampleRate
-            val speaker = request.voiceName?.removePrefix("ru-ru-")?.takeIf { it in d.speakers } ?: prefs.voice
+            val speaker = request.voiceName?.removePrefix("ru-ru-")?.takeIf { it in d.speakers }
+                ?: prefs.voice.takeIf { it in d.speakers }
+                ?: "xenia".takeIf { it in d.speakers }
+                ?: d.speakers.keys.first()
             val speakerId = d.speakers.getValue(speaker)
             val rate = (request.speechRate / 100f).coerceIn(0.5f, 3f)
             val pitch = (request.pitch / 100f).coerceIn(0.5f, 2f)
             val stress = Stress(d, models, prefs.userDict())
             val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs)
-            callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1)
+            if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             for (seg in segments) {
                 if (stopped) break
                 val prepared = Normalizer.prepare(seg.text, d.allowed)
                 if (prepared.any { it in d.alphabet }) {
-                    val audio = try {
-                        val accented = stress.apply(prepared)
-                        val seq = d.sequence(accented)
-                        val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d), seq.size, d)
-                        models.synthesize(seq, speakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { pitch * seg.pitch }, typeIds)
-                    } catch (e: Exception) {
-                        Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
+                    // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
+                    // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
+                    val audio = synchronized(models) {
+                        try {
+                            models.ensureLoaded()
+                            val accented = stress.apply(prepared)
+                            val seq = d.sequence(accented)
+                            val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d), seq.size, d)
+                            models.synthesize(seq, speakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { pitch * seg.pitch }, typeIds)
+                        } catch (e: Exception) {
+                            Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
+                        }
                     }
                     if (audio != null) {
                         Pcm.fadeEdges(audio, sr, 5)
                         val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, rate)
-                        write(callback, pcm)
-                        Log.d(SileroModels.TAG, "unit ${audio.size * 1000 / sr} мс")
+                        if (!write(callback, pcm)) return
+                        Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                     }
                 }
-                if (seg.breakMs > 0) write(callback, Pcm.silence(sr, seg.breakMs))
+                if (seg.breakMs > 0) if (!write(callback, Pcm.silence(sr, seg.breakMs))) return
             }
             callback.done()
             Log.i(SileroModels.TAG, "запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., ${System.currentTimeMillis() - t0} мс")
@@ -130,14 +149,16 @@ class SileroTtsService : TextToSpeechService() {
         }
     }
 
-    private fun write(callback: SynthesisCallback, pcm: ShortArray) {
+    /** false — клиент ушёл (framework вернул не SUCCESS), дальше синтезировать незачем. */
+    private fun write(callback: SynthesisCallback, pcm: ShortArray): Boolean {
         val bytes = Pcm.toBytes(pcm)
         val max = callback.maxBufferSize
         var off = 0
         while (off < bytes.size && !stopped) {
             val n = minOf(max, bytes.size - off)
-            callback.audioAvailable(bytes, off, n)
+            if (callback.audioAvailable(bytes, off, n) != TextToSpeech.SUCCESS) { stopped = true; return false }
             off += n
         }
+        return true
     }
 }
