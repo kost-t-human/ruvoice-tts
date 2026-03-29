@@ -37,8 +37,9 @@ object Pipeline {
 }
 
 class SileroTtsService : TextToSpeechService() {
-    private lateinit var models: SileroModels
-    private lateinit var prefs: Prefs
+    // by lazy: TextToSpeechService.onCreate() зовёт onLoadLanguage раньше тела нашего onCreate.
+    private val models: SileroModels by lazy { SileroModels(this) }
+    private val prefs: Prefs by lazy { Prefs(this) }
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var stopped = false
     // ponytail: выгрузка на отдельном потоке — release() и synthesize() делят монитор models,
@@ -49,8 +50,6 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onCreate() {
         super.onCreate()
-        prefs = Prefs(this)
-        models = SileroModels(this)
         Thread { runCatching { warmUp() }.onFailure { Log.e(SileroModels.TAG, "прогрев", it) } }.start()
     }
 
