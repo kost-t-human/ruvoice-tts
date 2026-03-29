@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout android:orientation="vertical" android:padding="16dp"
+        android:layout_width="match_parent" android:layout_height="wrap_content">
+        <TextView android:text="@string/voice" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <Spinner android:id="@+id/voice" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/sample_rate" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <Spinner android:id="@+id/sampleRate" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/pause_sentence" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/pauseSentence" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/pause_paragraph" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/pauseParagraph" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/idle_minutes" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/idleMinutes" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/user_dict" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/userDict" android:inputType="textMultiLine" android:minLines="6" android:gravity="top"
+            android:fontFamily="monospace" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content">
+            <Button android:id="@+id/save" android:text="@string/save" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/preview" android:text="@string/preview" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+        </LinearLayout>
+        <TextView android:text="@string/about" android:layout_marginTop="24dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+    </LinearLayout>
+</ScrollView>
