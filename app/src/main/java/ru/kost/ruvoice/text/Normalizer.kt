@@ -84,13 +84,20 @@ object Normalizer {
             stem in stressedEnding -> e.second
             else -> e.first
         }
-        val prefix = if (head > 0) cardinal(head) + " " else ""
+        // в порядковых «тысяча девятьсот…», без «одна»
+        val prefix = if (head > 0) cardinal(head).removePrefix("одна ") + " " else ""
         return prefix + stem + ending
     }
 
     private val numberRe = Regex("""(№|§)?(?<!\d)(-?)(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю)(?![а-яё]))?(%)?""")
 
-    fun numbers(text: String): String = numberRe.replace(text) { m ->
+    // «в 1917 году» → порядковое: год → -й, года → -го, году → -м
+    private val yearRe = Regex("""(?<![\d-])(\d{3,4})(\s+)(год|года|году)(?![а-яё])""")
+    private val yearSuffix = mapOf("год" to "й", "года" to "го", "году" to "м")
+
+    fun numbers(text: String): String = numberRe.replace(yearRe.replace(text) { m ->
+        m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3]) + m.groupValues[2] + m.groupValues[3]
+    }) { m ->
         val (mark, minus, intPart, frac, suffix, percent) = m.destructured
         val sb = StringBuilder()
         when (mark) { "№" -> sb.append("номер "); "§" -> sb.append("параграф ") }

@@ -20,7 +20,10 @@ class NumbersTest {
         assertEquals("две тысячи пятьсот", n("2500"))
         assertEquals("пять тысяч", n("5000"))
         assertEquals("двадцать одна тысяча", n("21000"))
-        assertEquals("одна тысяча девятьсот семнадцать год", n("1917 год"))
+        assertEquals("тысяча девятьсот семнадцатый год", n("1917 год"))
+        assertEquals("в тысяча девятьсот семнадцатом году", n("в 1917 году"))
+        assertEquals("с две тысячи первого года", n("с 2001 года"))
+        assertEquals("одна тысяча девятьсот семнадцать", n("1917"))
     }
 
     @Test fun millionsAndBillions() {
