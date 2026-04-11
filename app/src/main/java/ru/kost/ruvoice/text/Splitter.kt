@@ -1,7 +1,8 @@
 package ru.kost.ruvoice.text
 
 object Splitter {
-    private val sentenceEnd = Regex("(?<=[.!?…])\\s+")
+    // Не разбивать после одной буквы с точкой — инициалы («Л. Н. Толстой»), сокращения («т. е.», «г.»).
+    private val sentenceEnd = Regex("(?<=[.!?…])(?<!\\s[а-яёa-z]\\.)(?<!^[а-яёa-z]\\.)\\s+", RegexOption.IGNORE_CASE)
 
     fun paragraphs(text: String): List<String> = text.split(Regex("\\n+")).map { it.trim() }.filter { it.isNotEmpty() }
 

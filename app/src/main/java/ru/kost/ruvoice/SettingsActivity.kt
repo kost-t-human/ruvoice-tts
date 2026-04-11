@@ -1,29 +1,24 @@
 package ru.kost.ruvoice
 
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
 import android.os.Bundle
-import android.util.Log
-import android.view.View
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import ru.kost.ruvoice.audio.Pcm
-import ru.kost.ruvoice.text.Normalizer
-import ru.kost.ruvoice.text.SentenceType
-import ru.kost.ruvoice.text.Stress
+import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var prefs: Prefs
     private val rates = listOf(48000, 24000)
+    private var tts: TextToSpeech? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
         prefs = Prefs(this)
-        // Только разбор JSON (SileroModels.data — lazy), без загрузки .ptl: список голосов
-        // берём из модели, а не из вручную вписанного списка, чтобы он не разошёлся с ней.
-        val voices = SileroModels(this).data.speakers.keys.sorted()
+        // Список голосов берём из модели (SileroModels.data — общий на процесс), а не из
+        // вручную вписанного списка, чтобы он не разошёлся с ней.
+        val voices = SileroModels.data(this).speakers.keys.sorted()
         val voice = findViewById<Spinner>(R.id.voice).apply {
             adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, voices)
             setSelection(voices.indexOf(prefs.voice).coerceAtLeast(0))
@@ -50,44 +45,32 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.preview).setOnClickListener { btn ->
             save()
             btn.isEnabled = false
-            Thread { preview(btn) }.start()
+            preview(btn as Button)
         }
     }
 
-    private fun preview(button: View) {
-        val models = SileroModels(this)
-        try {
-            val d = models.data
-            val text = getString(R.string.preview_text)
-            val prepared = Normalizer.prepare(text, d.allowed)
-            val sr = prefs.sampleRate
-            // Тот же монитор, что у SileroModels.release()/ensureLoaded() и у сервиса —
-            // release() по простою не может destroy() модуль посреди этого forward.
-            val audio = synchronized(models) {
-                models.ensureLoaded()
-                val seq = d.sequence(Stress(d, models, prefs.userDict()).apply(prepared))
-                models.synthesize(seq, d.speakers.getValue(prefs.voice), sr, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f },
-                    SentenceType.typeIds(prepared, SentenceType.classify(text, d), seq.size, d))
+    // Прослушивание идёт через платформенный TextToSpeech, а не напрямую через SileroModels:
+    // так проверяется тот же путь, которым звук получит читалка (наш сервис как движок).
+    private fun preview(button: Button) {
+        tts?.shutdown()
+        tts = TextToSpeech(this, { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale("ru", "RU")
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { runOnUiThread { button.isEnabled = true } }
+                    override fun onError(utteranceId: String?) { runOnUiThread { button.isEnabled = true } }
+                })
+                tts?.speak(getString(R.string.preview_text), TextToSpeech.QUEUE_FLUSH, null, "preview")
+            } else runOnUiThread {
+                Toast.makeText(this, getString(R.string.preview_failed, ""), Toast.LENGTH_LONG).show()
+                button.isEnabled = true
             }
-            Pcm.fadeEdges(audio, sr)
-            val pcm = Pcm.toPcm16(audio)
-            val track = AudioTrack.Builder()
-                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                .setAudioFormat(AudioFormat.Builder().setSampleRate(sr).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                .setBufferSizeInBytes(pcm.size * 2).setTransferMode(AudioTrack.MODE_STATIC).build()
-            try {
-                track.write(pcm, 0, pcm.size)
-                track.play()
-                Thread.sleep(pcm.size * 1000L / sr + 200)
-            } finally {
-                track.release()
-            }
-        } catch (e: Exception) {
-            Log.e(SileroModels.TAG, "прослушивание не удалось", e)
-            runOnUiThread { Toast.makeText(this, getString(R.string.preview_failed, e.message ?: ""), Toast.LENGTH_LONG).show() }
-        } finally {
-            models.release()
-            runOnUiThread { button.isEnabled = true }
-        }
+        }, packageName)
+    }
+
+    override fun onDestroy() {
+        tts?.shutdown()
+        super.onDestroy()
     }
 }

@@ -108,7 +108,7 @@ object Normalizer {
         }
         val n = intPart.toLongOrNull() ?: return@replace m.value
         if (frac.isNotEmpty()) {
-            val fracN = frac.toLong()
+            val fracN = frac.toLongOrNull() ?: return@replace m.value
             val denom = when (frac.length) { 1 -> Triple("десятая", "десятых", "десятых"); 2 -> Triple("сотая", "сотых", "сотых"); else -> Triple("тысячная", "тысячных", "тысячных") }
             sb.append(cardinal(n, feminine = true)).append(if (n % 10 == 1L && n % 100 != 11L) " целая " else " целых ")
             sb.append(cardinal(fracN, feminine = true)).append(' ').append(plural(fracN, denom))

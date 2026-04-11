@@ -14,6 +14,12 @@ class SplitterTest {
             Splitter.sentences("Он ждал. Никто не пришёл! Почему? Всё… Конец"))
     }
 
+    @Test fun keepsInitialsTogether() {
+        assertEquals(listOf("Л. Н. Толстой родился в 1828 г. в Ясной Поляне.", "Он писал."),
+            Splitter.sentences("Л. Н. Толстой родился в 1828 г. в Ясной Поляне. Он писал."))
+        assertEquals(listOf("Раз.", "Два!"), Splitter.sentences("Раз. Два!"))
+    }
+
     @Test fun longSentenceSplitsAtComma() {
         val long = (1..30).joinToString(", ") { "слово$it" } + "."
         val parts = Splitter.sentences(long, maxLen = 80)

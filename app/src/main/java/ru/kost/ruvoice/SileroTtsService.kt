@@ -67,14 +67,17 @@ class SileroTtsService : TextToSpeechService() {
         handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
-    override fun onDestroy() { handler.removeCallbacks(unload); models.release(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; models.release(); super.onDestroy() }
 
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int =
         if (lang == "rus") TextToSpeech.LANG_COUNTRY_AVAILABLE else TextToSpeech.LANG_NOT_SUPPORTED
     override fun onGetLanguage(): Array<String> = arrayOf("rus", "RUS", "")
     override fun onLoadLanguage(lang: String?, country: String?, variant: String?): Int {
         val r = onIsLanguageAvailable(lang, country, variant)
-        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE) {
+        // TextToSpeechService.onCreate() зовёт этот метод синхронно на главном потоке — грузить
+        // модели прямо тут нельзя, это надолго заблокирует главный поток. Прогрев (onCreate выше)
+        // и так грузит их отдельным потоком, поэтому с главного потока просто отвечаем по языку.
+        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE && Looper.myLooper() != Looper.getMainLooper()) {
             runCatching { models.ensureLoaded() }.onFailure {
                 Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
             }
@@ -115,7 +118,7 @@ class SileroTtsService : TextToSpeechService() {
             for (seg in segments) {
                 if (stopped) break
                 val prepared = Normalizer.prepare(seg.text, d.allowed)
-                if (prepared.any { it in d.alphabet }) {
+                if (prepared.any { it != '+' && it in d.alphabet }) {
                     // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
                     // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
                     val audio = synchronized(models) {
@@ -125,7 +128,8 @@ class SileroTtsService : TextToSpeechService() {
                             val seq = d.sequence(accented)
                             val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d), seq.size, d)
                             models.synthesize(seq, speakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { pitch * seg.pitch }, typeIds)
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
+                            // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
                             Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
                         }
                     }

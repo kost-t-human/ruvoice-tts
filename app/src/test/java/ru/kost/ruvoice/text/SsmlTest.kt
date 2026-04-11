@@ -33,7 +33,11 @@ class SsmlTest {
     }
 
     @Test fun pitchWordTable() {
-        assertEquals(listOf(Segment("а", pitch = 0.6f)), Ssml.parse("<speak><prosody pitch=\"x-low\">а</prosody></speak>"))
+        assertEquals(listOf(Segment("а", pitch = 0.75f)), Ssml.parse("<speak><prosody pitch=\"x-low\">а</prosody></speak>"))
+    }
+
+    @Test fun xmlProlog() {
+        assertEquals(listOf(Segment("а")), Ssml.parse("<?xml version=\"1.0\"?><speak>а</speak>"))
     }
 
     @Test fun entityDecoding() {

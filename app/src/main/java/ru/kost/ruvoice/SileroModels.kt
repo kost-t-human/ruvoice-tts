@@ -7,34 +7,22 @@ import org.pytorch.LiteModuleLoader
 import org.pytorch.Module
 import org.pytorch.Tensor
 import ru.kost.ruvoice.text.StressModels
-import java.io.File
 import kotlin.math.exp
 
 class SileroModels(private val context: Context) : StressModels {
-    val data: SileroData by lazy { SileroData(context.assets.open("silero/silero_ru.json").bufferedReader().readText()) }
+    val data: SileroData get() = data(context)
     private var tts: Module? = null
     private var acc: Module? = null
     private var homo: Module? = null
     val isLoaded get() = tts != null && acc != null && homo != null
 
-    private fun unpack(name: String): File {
-        val dir = File(context.filesDir, "silero").apply { mkdirs() }
-        val dst = File(dir, name)
-        val expected = context.assets.openFd("silero/$name").use { it.length }
-        if (dst.exists() && dst.length() == expected) return dst
-        val part = File(dir, "$name.part")
-        context.assets.open("silero/$name").use { i -> part.outputStream().use { o -> i.copyTo(o, 1 shl 20) } }
-        if (!part.renameTo(dst)) throw java.io.IOException("не удалось сохранить $name")
-        return dst
-    }
-
     @Synchronized fun ensureLoaded() {
         if (isLoaded) return
         val t = System.currentTimeMillis()
         try {
-            tts = LiteModuleLoader.load(unpack("tts.ptl").path)
-            acc = LiteModuleLoader.load(unpack("accentor.ptl").path)
-            homo = LiteModuleLoader.load(unpack("homo.ptl").path)
+            tts = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts.ptl")
+            acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
+            homo = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/homo.ptl")
         } catch (e: Exception) {
             tts = null; acc = null; homo = null
             throw e
@@ -97,5 +85,12 @@ class SileroModels(private val context: Context) : StressModels {
         return out[0].toTensor().dataAsFloatArray
     }
 
-    companion object { const val TAG = "RuVoice" }
+    companion object {
+        const val TAG = "RuVoice"
+        // json (2.5 МБ) разбирается один раз на процесс — не на каждый SileroModels(context).
+        @Volatile private var shared: SileroData? = null
+        fun data(context: Context): SileroData = shared ?: synchronized(this) {
+            shared ?: SileroData(context.applicationContext.assets.open("silero/silero_ru.json").bufferedReader().readText()).also { shared = it }
+        }
+    }
 }

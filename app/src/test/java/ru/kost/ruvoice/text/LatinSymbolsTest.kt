@@ -2,6 +2,7 @@ package ru.kost.ruvoice.text
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.kost.ruvoice.TestData
 
 class LatinSymbolsTest {
     private val allowed = "!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
@@ -40,5 +41,16 @@ class LatinSymbolsTest {
         assertEquals("в две тысячи двадцать четвёртом году вышел айфон пятнадцать.",
             Normalizer.prepare("В 2024-м году вышел iPhone 15.", allowed))
         assertEquals("глава три. конец.", Normalizer.prepare("  Глава  3.   Конец.  ", allowed))
+    }
+
+    // Контракт нормализатора (спецификация §2): Normalizer.prepare на golden.json обязан
+    // совпадать байт в байт с тем, что сохранил Python-пайплайн Silero.
+    @Test fun prepareMatchesGolden() {
+        val d = TestData.data()
+        val g = TestData.golden()
+        for (i in 0 until g.length()) {
+            val o = g.getJSONObject(i)
+            assertEquals(o.getString("text"), o.getString("prepared"), Normalizer.prepare(o.getString("text"), d.allowed))
+        }
     }
 }

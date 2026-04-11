@@ -5,12 +5,16 @@ data class Segment(val text: String, val rate: Float = 1f, val pitch: Float = 1f
 object Ssml {
     private val strength = mapOf("x-weak" to 25, "weak" to 75, "medium" to 150, "strong" to 300, "x-strong" to 1000)
     private val rateWords = mapOf("x-slow" to 0.5f, "slow" to 0.8f, "medium" to 1f, "fast" to 1.2f, "x-fast" to 1.5f)
-    private val pitchWords = mapOf("x-low" to 0.6f, "low" to 0.8f, "medium" to 1f, "high" to 1.2f, "x-high" to 1.4f)
-    private val tagRe = Regex("<(/?)([a-zA-Z]+)([^>]*?)(/?)>")
+    // Таблица пакета Silero (pitch2value), не показатели SSML-стандарта.
+    private val pitchWords = mapOf("x-low" to 0.75f, "low" to 0.85f, "medium" to 1f, "high" to 1.15f, "x-high" to 1.25f)
+    private val tagRe = Regex("<\\?.*?\\?>|<(/?)([a-zA-Z]+)([^>]*?)(/?)>")
     private val attrRe = Regex("([a-zA-Z]+)\\s*=\\s*\"([^\"]*)\"")
     private val entityRe = Regex("&(#x[0-9a-fA-F]+|#[0-9]+|amp|lt|gt|quot|apos);")
 
-    fun isSsml(text: CharSequence) = text.trimStart().startsWith("<speak")
+    fun isSsml(text: CharSequence): Boolean {
+        val t = text.trimStart()
+        return t.startsWith("<speak") || t.startsWith("<?xml")
+    }
 
     private fun attrs(s: String) = attrRe.findAll(s).associate { it.groupValues[1] to it.groupValues[2] }
 
