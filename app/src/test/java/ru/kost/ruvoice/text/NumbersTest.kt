@@ -24,6 +24,7 @@ class NumbersTest {
         assertEquals("в тысяча девятьсот семнадцатом году", n("в 1917 году"))
         assertEquals("с две тысячи первого года", n("с 2001 года"))
         assertEquals("одна тысяча девятьсот семнадцать", n("1917"))
+        assertEquals("в две тысячи двадцать втором году", n("в 2022 году"))
     }
 
     @Test fun millionsAndBillions() {
