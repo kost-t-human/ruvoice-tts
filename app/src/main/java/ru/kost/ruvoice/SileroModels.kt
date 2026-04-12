@@ -64,7 +64,10 @@ class SileroModels(private val context: Context) : StressModels {
         return FloatArray(b) { (1.0 / (1.0 + exp(-logits[it].toDouble()))).toFloat() }
     }
 
-    fun synthesize(seq: LongArray, speakerId: Int, sampleRate: Int, rates: FloatArray, pitches: FloatArray, typeIds: LongArray): FloatArray {
+    /** durs[i] — число фреймов, занятых i-м входным символом seq (включая sos/eos). */
+    data class Synth(val audio: FloatArray, val durs: FloatArray)
+
+    fun synthesize(seq: LongArray, speakerId: Int, sampleRate: Int, rates: FloatArray, pitches: FloatArray, typeIds: LongArray): Synth {
         ensureLoaded()
         val n = seq.size.toLong()
         val out = tts!!.forward(
@@ -82,7 +85,7 @@ class SileroModels(private val context: Context) : StressModels {
             IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n))),
             IValue.optionalNull()
         ).toTuple()
-        return out[0].toTensor().dataAsFloatArray
+        return Synth(out[0].toTensor().dataAsFloatArray, out[1].toTensor().dataAsFloatArray)
     }
 
     companion object {

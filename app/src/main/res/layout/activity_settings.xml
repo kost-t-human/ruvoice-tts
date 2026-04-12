@@ -12,11 +12,18 @@
         <EditText android:id="@+id/pauseSentence" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         <TextView android:text="@string/pause_paragraph" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
         <EditText android:id="@+id/pauseParagraph" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/pause_comma" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/pauseComma" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         <TextView android:text="@string/idle_minutes" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
         <EditText android:id="@+id/idleMinutes" android:inputType="number" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         <TextView android:text="@string/user_dict" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
         <EditText android:id="@+id/userDict" android:inputType="textMultiLine" android:minLines="6" android:gravity="top"
             android:fontFamily="monospace" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/user_replace" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/userReplace" android:inputType="textMultiLine" android:minLines="6" android:gravity="top"
+            android:fontFamily="monospace" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/preview_hint" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/previewText" android:inputType="text" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content">
             <Button android:id="@+id/save" android:text="@string/save" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
             <Button android:id="@+id/preview" android:text="@string/preview" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>

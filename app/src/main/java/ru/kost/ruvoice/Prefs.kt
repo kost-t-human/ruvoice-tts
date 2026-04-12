@@ -2,6 +2,7 @@ package ru.kost.ruvoice
 
 import android.content.Context
 import java.io.File
+import ru.kost.ruvoice.text.Replacements
 
 class Prefs(private val context: Context) {
     private val p = context.getSharedPreferences("ruvoice", Context.MODE_PRIVATE)
@@ -9,9 +10,11 @@ class Prefs(private val context: Context) {
     var sampleRate: Int get() = p.getInt("sr", 48000); set(v) = p.edit().putInt("sr", v).apply()
     var sentencePauseMs: Int get() = p.getInt("pause_sentence", 0); set(v) = p.edit().putInt("pause_sentence", v).apply()
     var paragraphPauseMs: Int get() = p.getInt("pause_paragraph", 300); set(v) = p.edit().putInt("pause_paragraph", v).apply()
+    var commaPauseMs: Int get() = p.getInt("pause_comma", 100); set(v) = p.edit().putInt("pause_comma", v).apply()
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
 
     val userDictFile: File get() = File(context.filesDir, "user_stress.txt")
+    val userReplaceFile: File get() = File(context.filesDir, "user_replace.txt")
 
     /** Строки «слово сл+ово»; пустые и с # пропускаются. */
     fun userDict(): Map<String, String> {
@@ -21,4 +24,7 @@ class Prefs(private val context: Context) {
             val parts = t.split(Regex("\\s+")); if (parts.size < 2) null else parts[0].lowercase() to parts[1].lowercase()
         }.toMap()
     }
+
+    fun replacements(): Replacements =
+        Replacements.parse(if (userReplaceFile.exists()) userReplaceFile.readLines() else emptyList())
 }

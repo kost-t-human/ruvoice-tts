@@ -9,6 +9,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import android.speech.tts.Voice
 import android.util.Log
+import ru.kost.ruvoice.audio.Pauses
 import ru.kost.ruvoice.audio.Pcm
 import ru.kost.ruvoice.audio.Tempo
 import ru.kost.ruvoice.text.*
@@ -113,11 +114,14 @@ class SileroTtsService : TextToSpeechService() {
             val rate = (request.speechRate / 100f).coerceIn(0.5f, 3f)
             val pitch = (request.pitch / 100f).coerceIn(0.5f, 2f)
             val stress = Stress(d, models, prefs.userDict())
+            val replacements = prefs.replacements()
             val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs)
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             for (seg in segments) {
                 if (stopped) break
-                val prepared = Normalizer.prepare(seg.text, d.allowed)
+                // Замены применяются до нормализации текста; тип предложения классифицируется
+                // по исходному seg.text — замена его не касается.
+                val prepared = Normalizer.prepare(replacements.apply(seg.text), d.allowed)
                 if (prepared.any { it != '+' && it in d.alphabet }) {
                     // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
                     // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
@@ -127,7 +131,13 @@ class SileroTtsService : TextToSpeechService() {
                             val accented = stress.apply(prepared)
                             val seq = d.sequence(accented)
                             val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d), seq.size, d)
-                            models.synthesize(seq, speakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { pitch * seg.pitch }, typeIds)
+                            val synth = models.synthesize(seq, speakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { pitch * seg.pitch }, typeIds)
+                            if (prefs.commaPauseMs > 0) {
+                                // seq = sos + accented + eos, индексы совпадают с durs напрямую.
+                                val commaIds = listOfNotNull(d.symbolToId[','], d.symbolToId[';'], d.symbolToId[':']).toHashSet()
+                                val pauseIdx = seq.indices.filter { seq[it].toInt() in commaIds }.toIntArray()
+                                Pauses.insert(synth.audio, synth.durs, pauseIdx, sr * prefs.commaPauseMs / 1000)
+                            } else synth.audio
                         } catch (e: Throwable) {
                             // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
                             Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
