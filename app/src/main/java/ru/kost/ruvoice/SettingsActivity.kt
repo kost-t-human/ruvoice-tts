@@ -63,7 +63,7 @@ class SettingsActivity : AppCompatActivity() {
                 })
                 tts?.speak(getString(R.string.preview_text), TextToSpeech.QUEUE_FLUSH, null, "preview")
             } else runOnUiThread {
-                Toast.makeText(this, getString(R.string.preview_failed, ""), Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.preview_failed, status.toString()), Toast.LENGTH_LONG).show()
                 button.isEnabled = true
             }
         }, packageName)

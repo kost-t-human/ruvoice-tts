@@ -9,6 +9,6 @@
     <string name="save">Сохранить</string>
     <string name="preview">Прослушать</string>
     <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.</string>
-    <string name="preview_failed">Не удалось: %1$s</string>
+    <string name="preview_failed">Движок не ответил (код %1$s)</string>
     <string name="about">Синтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
 </resources>
