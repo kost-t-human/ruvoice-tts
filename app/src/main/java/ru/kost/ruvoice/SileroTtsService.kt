@@ -16,7 +16,11 @@ import ru.kost.ruvoice.text.*
 import java.util.Locale
 
 object Pipeline {
-    fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int): List<Segment> {
+    // Маркер паузы: {pause:N}, N — мс, режет текст сегмента на куски (см. plan ниже).
+    private val pauseMarker = Regex("\\{pause:(\\d+)\\}")
+
+    fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
+             replacements: Replacements = Replacements.parse(emptyList())): List<Segment> {
         val src = text.toString()
         // Последний абзац запроса намеренно без паузы абзаца — свою паузу до следующей
         // реплики читалка/пользователь и так делают между вызовами.
@@ -24,14 +28,31 @@ object Pipeline {
             Splitter.paragraphs(src).mapIndexed { i, p -> Segment(p, paragraph = true) }.let { if (it.isEmpty()) it else it.dropLast(1) + it.last().copy(paragraph = false) }
         val out = ArrayList<Segment>()
         for (seg in segments) {
-            val sents = Splitter.sentences(seg.text)
-            for ((i, s) in sents.withIndex()) {
-                val last = i == sents.size - 1
-                out += Segment(s, seg.rate, seg.pitch,
-                    breakMs = sentencePauseMs + (if (last) seg.breakMs else 0) + (if (last && seg.paragraph) paragraphPauseMs else 0),
-                    paragraph = last && seg.paragraph)
+            // Замены — до разбиения на предложения; маркер {pause:N} (пришедший из замены или
+            // стоявший прямо в тексте) режет результат на куски, между которыми — пауза N мс.
+            val txt = replacements.apply(seg.text)
+            val pieces = pauseMarker.split(txt)
+            val pauses = pauseMarker.findAll(txt).map { m -> m.groupValues[1].toLongOrNull()?.coerceIn(0, 10000)?.toInt() ?: 10000 }.toList()
+            for ((pi, piece) in pieces.withIndex()) {
+                val lastPiece = pi == pieces.size - 1
+                val sents = Splitter.sentences(piece)
+                for ((i, s) in sents.withIndex()) {
+                    val lastInPiece = i == sents.size - 1
+                    val last = lastInPiece && lastPiece
+                    val breakMs = if (lastInPiece && !lastPiece) pauses[pi]
+                        else sentencePauseMs + (if (last) seg.breakMs else 0) + (if (last && seg.paragraph) paragraphPauseMs else 0)
+                    out += Segment(s, seg.rate, seg.pitch, breakMs = breakMs, paragraph = last && seg.paragraph)
+                }
+                if (sents.isEmpty()) {
+                    if (!lastPiece) {
+                        // кусок пуст — маркер в начале текста или два маркера подряд; пауза N уходит
+                        // в предыдущий добавленный сегмент, а если его ещё нет — заводим пустой
+                        val n = pauses[pi]
+                        if (out.isNotEmpty()) out[out.size - 1] = out.last().copy(breakMs = out.last().breakMs + n)
+                        else out += Segment("", seg.rate, seg.pitch, breakMs = n)
+                    } else if (seg.breakMs > 0) out += seg
+                }
             }
-            if (sents.isEmpty() && seg.breakMs > 0) out += seg
         }
         return out
     }
@@ -115,13 +136,13 @@ class SileroTtsService : TextToSpeechService() {
             val pitch = (request.pitch / 100f).coerceIn(0.5f, 2f)
             val stress = Stress(d, models, prefs.userDict())
             val replacements = prefs.replacements()
-            val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs)
+            val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements)
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             for (seg in segments) {
                 if (stopped) break
-                // Замены применяются до нормализации текста; тип предложения классифицируется
-                // по исходному seg.text — замена его не касается.
-                val prepared = Normalizer.prepare(replacements.apply(seg.text), d.allowed)
+                // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
+                // по этому же тексту — так и надо.
+                val prepared = Normalizer.prepare(seg.text, d.allowed)
                 if (prepared.any { it != '+' && it in d.alphabet }) {
                     // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
                     // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.

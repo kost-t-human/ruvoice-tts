@@ -7,7 +7,7 @@
     <string name="pause_comma">Пауза после запятой, мс</string>
     <string name="idle_minutes">Выгружать модели через, мин</string>
     <string name="user_dict">Словарь ударений (слово сл+ово, по строке)</string>
-    <string name="user_replace">Замены (ключ = замена; пустая замена — пропустить; в замене можно ставить + для ударения с учётом соседних слов)</string>
+    <string name="user_replace">Замены (ключ = замена; пустая замена — пропустить; в замене можно ставить + для ударения с учётом соседних слов). Ключ с ~ — regex: ~regex = $1. Замена {skip} — то же, что пустая. Маркер {pause:500} в замене — пауза 500 мс.</string>
     <string name="save">Сохранить</string>
     <string name="preview">Прослушать</string>
     <string name="preview_hint">Текст для прослушивания</string>
