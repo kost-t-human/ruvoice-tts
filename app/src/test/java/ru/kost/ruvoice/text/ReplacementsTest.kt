@@ -33,4 +33,19 @@ class ReplacementsTest {
         val r = Replacements.parse(listOf("# коммент", "без равенства", "", "кот = к+от"))
         assertEquals("к+от", r.apply("кот"))
     }
+
+    @Test fun regexRuleWithBackreferences() {
+        val r = Replacements.parse(listOf("""~(\d+)-(\d+) = $1 по $2"""))
+        assertEquals("стр. 5 по 7 и 10 по 12", r.apply("стр. 5-7 и 10-12"))
+    }
+
+    @Test fun brokenRegexRuleIsSkippedSilently() {
+        val r = Replacements.parse(listOf("~[( = что-то", "кот = к+от"))
+        assertEquals("к+от", r.apply("кот"))
+    }
+
+    @Test fun skipMarkerActsAsEmptyReplacement() {
+        val r = Replacements.parse(listOf("Автор = {skip}"))
+        assertEquals("Глава 1", r.apply("Глава 1 Автор"))
+    }
 }
