@@ -13,7 +13,14 @@ import java.util.regex.PatternSyntaxException
 class Replacements private constructor(private val rules: List<Pair<Regex, String>>) {
     fun apply(text: String): String {
         var result = text
-        for ((re, repl) in rules) result = re.replace(result, repl)
+        for ((re, repl) in rules) {
+            // regex-правило может ссылаться на несуществующую группу ($2 при одной группе) или
+            // содержать одинокий $ — это всплывает только при подстановке, а не при компиляции
+            // regex; такое правило просто пропускаем, остальные не должны падать из-за него.
+            result = try { re.replace(result, repl) }
+                catch (e: IndexOutOfBoundsException) { result }
+                catch (e: IllegalArgumentException) { result }
+        }
         // после удаления ключей могли остаться двойные или краевые пробелы
         return result.replace(Regex(" {2,}"), " ").trim()
     }

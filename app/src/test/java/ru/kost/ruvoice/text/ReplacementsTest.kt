@@ -48,4 +48,17 @@ class ReplacementsTest {
         val r = Replacements.parse(listOf("Автор = {skip}"))
         assertEquals("Глава 1", r.apply("Глава 1 Автор"))
     }
+
+    @Test fun regexRuleWithMissingGroupDoesNotCrashOtherRules() {
+        // $2 при одной группе — на подстановке вылетает IndexOutOfBoundsException, правило
+        // должно быть пропущено (текст этого куска остаётся как есть), но не ронять apply()
+        val r = Replacements.parse(listOf("""~(\d+) = $2""", "кот = к+от"))
+        assertEquals("5 к+от", r.apply("5 кот"))
+    }
+
+    @Test fun regexRuleWithLoneDollarDoesNotCrashOtherRules() {
+        // одинокий $ в замене — IllegalArgumentException на подстановке, правило пропускается
+        val r = Replacements.parse(listOf("""~цена(\d+) = $ руб.""", "кот = к+от"))
+        assertEquals("цена100 к+от", r.apply("цена100 кот"))
+    }
 }

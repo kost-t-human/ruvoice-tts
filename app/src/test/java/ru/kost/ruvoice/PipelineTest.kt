@@ -46,4 +46,9 @@ class PipelineTest {
         val s = Pipeline.plan("Раз.{pause:99999}Два.", d, sentencePauseMs = 0, paragraphPauseMs = 0)
         assertEquals(listOf(Segment("Раз.", breakMs = 10000), Segment("Два.")), s)
     }
+
+    @Test fun severalSentencesInPieceBeforeMarker() {
+        val s = Pipeline.plan("Раз. Два.{pause:500}Три.", d, sentencePauseMs = 0, paragraphPauseMs = 0)
+        assertEquals(listOf(Segment("Раз."), Segment("Два.", breakMs = 500), Segment("Три.")), s)
+    }
 }
