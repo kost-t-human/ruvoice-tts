@@ -412,7 +412,18 @@ object Normalizer {
         "windows" to "виндовс", "john" to "джон")
     private val latinWordRe = Regex("[a-z]+")
 
-    fun latin(text: String): String = latinWordRe.replace(text.lowercase()) { m ->
+    // 12. Омоглифы: латинская буква внутри преимущественно кириллического слова — опечатка
+    // раскладки («прoблема» с латинской «o»), а не английское слово — возвращаем в кириллицу.
+    private val homoglyphMap = mapOf('a' to 'а', 'c' to 'с', 'e' to 'е', 'o' to 'о', 'p' to 'р', 'x' to 'х', 'y' to 'у')
+    private val mixedWordRe = Regex("""\p{L}+""")
+    private fun fixHomoglyphs(text: String) = mixedWordRe.replace(text) { m ->
+        val w = m.value
+        val cyr = w.count { it in 'а'..'я' || it == 'ё' }
+        val lat = w.count { it in 'a'..'z' }
+        if (cyr > 0 && lat > 0 && cyr > lat) w.map { homoglyphMap[it] ?: it }.joinToString("") else w
+    }
+
+    fun latin(text: String): String = latinWordRe.replace(fixHomoglyphs(text.lowercase())) { m ->
         wordFixes[m.value] ?: run {
             val w = m.value
             val sb = StringBuilder()

@@ -89,4 +89,9 @@ class RulesTest {
         assertEquals("два миллиона", n("2 млн"))
         assertEquals("двадцать одна тысяча", n("21 тыс."))
     }
+
+    @Test fun homoglyphs() {
+        assertEquals("проблема", Normalizer.latin("прoблема"))
+        assertEquals("айфон", Normalizer.latin("iphone"))
+    }
 }
