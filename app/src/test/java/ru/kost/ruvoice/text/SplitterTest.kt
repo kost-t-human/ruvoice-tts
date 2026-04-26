@@ -20,6 +20,12 @@ class SplitterTest {
         assertEquals(listOf("Раз.", "Два!"), Splitter.sentences("Раз. Два!"))
     }
 
+    @Test fun keepsAbbreviationStopWordsTogether() {
+        assertEquals(listOf("Смотри стр. 5 и рис. 2.", "Дальше идёт текст."),
+            Splitter.sentences("Смотри стр. 5 и рис. 2. Дальше идёт текст."))
+        assertEquals(listOf("Он ушёл.", "Она осталась."), Splitter.sentences("Он ушёл. Она осталась."))
+    }
+
     @Test fun longSentenceSplitsAtComma() {
         val long = (1..30).joinToString(", ") { "слово$it" } + "."
         val parts = Splitter.sentences(long, maxLen = 80)
