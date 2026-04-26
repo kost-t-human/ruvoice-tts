@@ -12,6 +12,11 @@ class RulesTest {
             n("12 345 678 человек"))
     }
 
+    @Test fun thousandsSeparatorOnlyNonBreakingSpace() {
+        // review t17 п.3 (Normalizer.kt:99): обычный пробел — не разделитель разрядов.
+        assertEquals("Глава один двести читателей", n("Глава 1 200 читателей"))
+    }
+
     @Test fun footnotes() {
         assertEquals("текст дальше", n("текст[1] дальше"))
     }
@@ -19,9 +24,15 @@ class RulesTest {
     @Test fun romanNumerals() {
         assertEquals("в двадцатом веке", n("в xx веке"))
         assertEquals("глава четвёртая", n("глава iv"))
-        assertEquals("людовик четырнадцать", n("людовик xiv"))
         assertEquals("в лесу и в поле", n("в лесу и в поле"))
         assertEquals("том первый", n("том i"))
+    }
+
+    @Test fun romanNumeralsNeedTriggerOrAllCaps() {
+        // review t17 п.2 (Normalizer.kt:114-141): без триггера и без CAPS строчное «mix»/«civ» —
+        // обычное слово, а не число; заглавный токен в исходнике («XIV») — число и без триггера.
+        assertEquals("это был mix двух стилей", n("это был mix двух стилей"))
+        assertEquals("Людовик четырнадцать", n("Людовик XIV"))
     }
 
     @Test fun dates() {
@@ -33,10 +44,20 @@ class RulesTest {
     }
 
     @Test fun time() {
-        assertEquals("четырнадцать часов тридцать минут", n("14:30"))
-        assertEquals("один час пять минут", n("1:05"))
-        assertEquals("двадцать один час", n("21:00"))
-        assertEquals("семь часов одна минута", n("7:01"))
+        assertEquals("в четырнадцать часов тридцать минут", n("в 14:30"))
+        assertEquals("в один час пять минут", n("в 1:05"))
+        assertEquals("в двадцать один час", n("в 21:00"))
+        assertEquals("семь часов одна минута утра", n("7:01 утра"))
+    }
+
+    @Test fun timeWithoutTriggerStaysPlainNumbers() {
+        // review t17 п.1 (Normalizer.kt:176): «3:16» без предлога/«утра»/чч:мм:сс — это ссылка
+        // на стих («Иоанна 3:16»), а не время, числа читаются по отдельности.
+        assertEquals("Иоанна три шестнадцать", n("Иоанна 3:16"))
+    }
+
+    @Test fun timeWithSecondsIsAlwaysTriggered() {
+        assertEquals("двадцать три часа пятьдесят девять минут одна секунда", n("23:59:01"))
     }
 
     @Test fun yearsWithG() {
@@ -52,11 +73,24 @@ class RulesTest {
         assertEquals("тысяча девятьсот девяностых", Normalizer.ordinal(1990, "х"))
     }
 
+    @Test fun ordinalRoundThousands() {
+        // review t17 п.5 (Normalizer.kt:80): у ordinalStems нет основы под 0, круглая тысяча
+        // «2000» проваливалась в cardinal-фолбэк вместо «двухтысячный».
+        assertEquals("двухтысячный", Normalizer.ordinal(2000, "й"))
+        assertEquals("в тысяча девятьсот девяностом – двухтысячном годах", n("в 1990–2000 гг."))
+    }
+
     @Test fun cardinalGenitiveSuffixes() {
         assertEquals("в пяти километрах", n("в 5-ти километрах"))
         assertEquals("двух", n("2-ух"))
         assertEquals("трёх", n("3-ёх"))
         assertEquals("двадцати пяти", n("25-ти"))
+    }
+
+    @Test fun cardinalGenitiveSuffixBeforeUnitAbbreviation() {
+        // review t17 п.4 (Normalizer.kt:228-284): суффикс числа перед сокращением единицы —
+        // единица тоже должна раскрыться, а не остаться «км».
+        assertEquals("в пяти километров от города", n("в 5-ти км от города"))
     }
 
     @Test fun units() {

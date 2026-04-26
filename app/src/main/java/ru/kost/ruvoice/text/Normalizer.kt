@@ -67,10 +67,16 @@ object Normalizer {
         "й" to Triple("ый", "ой", "ий"), "го" to Triple("ого", "ого", "ьего"), "му" to Triple("ому", "ому", "ьему"),
         "м" to Triple("ом", "ом", "ьем"), "х" to Triple("ых", "ых", "ьих"), "е" to Triple("ое", "ое", "ье"),
         "я" to Triple("ая", "ая", "ья"), "ю" to Triple("ую", "ую", "ью"))
+    // Круглые тысячи целиком — своя основа порядкового, а не «две тысячи» + окончание у нуля
+    // (review t17 п.5, Normalizer.kt:80): «2000-й» → «двухтысячный», не просто cardinal-фолбэк.
+    private val roundThousandStems = mapOf(1000L to "тысячн", 2000L to "двухтысячн", 3000L to "трёхтысячн",
+        4000L to "четырёхтысячн", 5000L to "пятитысячн", 6000L to "шеститысячн", 7000L to "семитысячн",
+        8000L to "восьмитысячн", 9000L to "девятитысячн")
 
     /** «2024-м» → «две тысячи двадцать четвёртом»: порядковым делаем только последнее слово. */
     fun ordinal(n: Long, suffix: String): String {
         val e = endings[suffix] ?: return cardinal(n)
+        roundThousandStems[n]?.let { stem -> return stem + (if (stem in stressedEnding) e.second else e.first) }
         val last = when {
             n % 100 == 0L && n % 1000 != 0L -> (n % 1000).toInt()
             n % 100 in 1..19 -> (n % 100).toInt()
@@ -95,8 +101,9 @@ object Normalizer {
     private val yearRe = Regex("""(?<![\d-])(\d{3,4})(\s+)(год|года|году)(?![а-яё])""")
     private val yearSuffix = mapOf("год" to "й", "года" to "го", "году" to "м")
 
-    // 1. Разряды тысяч, разделённые NBSP/узким пробелом: «12 345» → «12345».
-    private val thousandsRe = Regex("""(\d)[\s\p{Zs}](\d{3})(?!\d)""")
+    // 1. Разряды тысяч, разделённые НЕразрывным/узким/тонким пробелом (НЕ обычным — review t17 п.3,
+    // Normalizer.kt:99: «1 200» с обычным пробелом должно остаться двумя числами).
+    private val thousandsRe = Regex("""(\d)[   ](\d{3})(?!\d)""")
     private fun glueThousands(text: String): String {
         var s = text
         while (true) {
@@ -111,12 +118,14 @@ object Normalizer {
     private fun removeFootnotes(text: String) = footnoteRe.replace(text, "").replace(Regex(" {2,}"), " ")
 
     // 3. Римские цифры: «xx век» → «20-м веке» → (после numberRe) «двадцатом веке».
-    // Одиночная буква (v, x, i, m, c, d, l) считается числом, только если рядом есть
-    // слово-триггер (глава/часть/том… перед или век/столетие… после) — иначе это
-    // случайное латинское слово, а не число.
+    // Слово из латинских «римских» букв конвертируем, только если рядом есть слово-триггер
+    // (глава/часть/том… перед или век/столетие… после), ИЛИ токен в исходном тексте целиком
+    // заглавный (XIV, MIX) — иначе это случайное латинское слово («mix», «civil») (review t17
+    // п.2, Normalizer.kt:114-141). Буквы матчим в обоих регистрах, т.к. numbers() может получить
+    // текст ещё до lowercase() — при вызове через prepare() регистр всё равно теряется раньше.
     private val romanStrictRe = Regex("""^m{0,4}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$""")
     private val romanRe = Regex(
-        """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxvi]+)(?![\p{L}\d])""" +
+        """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxviMDCLXVI]+)(?![\p{L}\d])""" +
             """(?:\s+(век|века|веке|веков|столетие|столетия|столетии)(?![а-яё]))?"""
     )
     private val romanValues = mapOf('i' to 1, 'v' to 5, 'x' to 10, 'l' to 50, 'c' to 100, 'd' to 500, 'm' to 1000)
@@ -137,9 +146,11 @@ object Normalizer {
 
     private fun romanNumerals(text: String) = romanRe.replace(text) { m ->
         val (before, token, after) = m.destructured
-        if (!romanStrictRe.matches(token)) return@replace m.value
-        if (token.length == 1 && before.isEmpty() && after.isEmpty()) return@replace m.value
-        val value = romanToInt(token)
+        val lower = token.lowercase()
+        if (!romanStrictRe.matches(lower)) return@replace m.value
+        val isAllUpper = token.all { it.isUpperCase() }
+        if (before.isEmpty() && after.isEmpty() && !isAllUpper) return@replace m.value
+        val value = romanToInt(lower)
         val suffix = if (after.isNotEmpty()) romanAfterSuffix[after] else romanBeforeSuffix[before]
         val sb = StringBuilder()
         if (before.isNotEmpty()) sb.append(before).append(' ')
@@ -172,18 +183,37 @@ object Normalizer {
         }
     }
 
-    // 5. Время «чч:мм»: минуты опускаются, если равны нулю.
-    private val timeRe = Regex("""(?<!\d)(\d{1,2}):(\d{2})(?!\d)""")
+    // 5. Время «чч:мм[:сс]»: читаем словами, только если рядом есть триггер — предлог перед
+    // (в/к/до/с/около/после/на), слово после (утра/дня/вечера/ночи) или сам формат чч:мм:сс.
+    // Без триггера «3:16» — это скорее «глава:стих» («Иоанна 3:16»), а не время: оставляем
+    // числа по отдельности, их потом читает numberRe (review t17 п.1, Normalizer.kt:176).
+    private val timeRe = Regex(
+        """(?:(?<![\p{L}])(в|к|до|с|около|после|на)\s+)?(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)""" +
+            """(?:\s+(утра|дня|вечера|ночи))?"""
+    )
     private fun times(text: String) = timeRe.replace(text) { m ->
-        val (h, mi) = m.destructured
+        val (prep, h, mi, sec, after) = m.destructured
         val hour = h.toInt(); val minute = mi.toInt()
         if (hour !in 0..23 || minute !in 0..59) return@replace m.value
+        val second = sec.toIntOrNull()
+        if (sec.isNotEmpty() && (second == null || second !in 0..59)) return@replace m.value
+        val hasTrigger = prep.isNotEmpty() || after.isNotEmpty() || sec.isNotEmpty()
         val sb = StringBuilder()
-        sb.append(cardinal(hour.toLong())).append(' ').append(plural(hour.toLong(), Triple("час", "часа", "часов")))
-        if (minute > 0) {
-            sb.append(' ').append(cardinal(minute.toLong(), feminine = true)).append(' ')
-                .append(plural(minute.toLong(), Triple("минута", "минуты", "минут")))
+        if (prep.isNotEmpty()) sb.append(prep).append(' ')
+        if (hasTrigger) {
+            sb.append(cardinal(hour.toLong())).append(' ').append(plural(hour.toLong(), Triple("час", "часа", "часов")))
+            if (minute > 0) {
+                sb.append(' ').append(cardinal(minute.toLong(), feminine = true)).append(' ')
+                    .append(plural(minute.toLong(), Triple("минута", "минуты", "минут")))
+            }
+            if (second != null && second > 0) {
+                sb.append(' ').append(cardinal(second.toLong(), feminine = true)).append(' ')
+                    .append(plural(second.toLong(), Triple("секунда", "секунды", "секунд")))
+            }
+        } else {
+            sb.append(h).append(' ').append(mi)
         }
+        if (after.isNotEmpty()) sb.append(' ').append(after)
         sb.toString()
     }
 
@@ -283,6 +313,19 @@ object Normalizer {
         }
     }
 
+    // 7b. Число с родительным суффиксом (-ти/-х/-ми…) сразу перед единицей измерения: сначала
+    // само число, потом plural() единицы — количественная форма, а не форма предлога
+    // (review t17 п.4, Normalizer.kt:228-284: «5-ти км» иначе уходит в cardinalGenitiveSuffix
+    // раньше unit-регэкспа, и единица остаётся нераскрытой).
+    // ponytail: единица в количественной форме («пяти километров»), а не в падеже предлога
+    // («пяти километрах») — для полного склонения единиц нужны падежи, здесь не покрыто.
+    private val cardinalGenSuffixUnitRe = Regex("""(\d+)-(ти|и|ух|ех|ёх|х|ми)\s*($unitAltPattern)(?![\p{L}\d/.])""")
+    private fun cardinalGenitiveSuffixUnit(text: String) = cardinalGenSuffixUnitRe.replace(text) { m ->
+        val n = m.groupValues[1].toIntOrNull() ?: return@replace m.value
+        val u = unitTable.getValue(m.groupValues[3])
+        genitiveCardinal(n) + " " + plural(n.toLong(), u.forms) + u.suffix
+    }
+
     // 9. Составные номера разделов «1.2.3» — читаются по частям через «точка».
     // Ровно два числа через точку («1.2») остаются датой/дробью — их не трогаем.
     private val sectionRe = Regex("""(?<![\d.])(\d+)(\.\d+){2,}(?![\d.])""")
@@ -364,6 +407,7 @@ object Normalizer {
         s = dates(s)
         s = times(s)
         s = yearsWithG(s)
+        s = cardinalGenitiveSuffixUnit(s)
         s = cardinalGenitiveSuffix(s)
         s = units(s)
         s = sectionNumbers(s)
