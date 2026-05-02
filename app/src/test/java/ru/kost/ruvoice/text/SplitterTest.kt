@@ -26,6 +26,11 @@ class SplitterTest {
         assertEquals(listOf("Он ушёл.", "Она осталась."), Splitter.sentences("Он ушёл. Она осталась."))
     }
 
+    @Test fun okIsNotAnAbbreviationStopWord() {
+        // review t17 п.6 (Splitter.kt:10): «ок» — разговорное слово в диалогах, не сокращение.
+        assertEquals(listOf("Хорошо, ок.", "Идём дальше."), Splitter.sentences("Хорошо, ок. Идём дальше."))
+    }
+
     @Test fun longSentenceSplitsAtComma() {
         val long = (1..30).joinToString(", ") { "слово$it" } + "."
         val parts = Splitter.sentences(long, maxLen = 80)
