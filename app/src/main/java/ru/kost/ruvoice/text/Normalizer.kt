@@ -98,7 +98,7 @@ object Normalizer {
     private val numberRe = Regex("""(№|§)?(?<!\d)(-?)(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю)(?![а-яё]))?(%)?""")
 
     // «в 1917 году» → порядковое: год → -й, года → -го, году → -м
-    private val yearRe = Regex("""(?<![\d-])(\d{3,4})(\s+)(год|года|году)(?![а-яё])""")
+    private val yearRe = Regex("""(?<![\d-])(\d{3,4})(\s+)(год|года|году)(?![а-яё])""", RegexOption.IGNORE_CASE)
     private val yearSuffix = mapOf("год" to "й", "года" to "го", "году" to "м")
 
     // 1. Разряды тысяч, разделённые НЕразрывным/узким/тонким пробелом (НЕ обычным — review t17 п.3,
@@ -113,6 +113,30 @@ object Normalizer {
         }
     }
 
+    // 1b. Обычный пробел (в отличие от NBSP/узкого/тонкого) склеивает разряды тысяч не всегда —
+    // только когда группа круглая («000») или сразу следует ещё одна группа из трёх цифр
+    // («1 200 000»), иначе это, вероятнее всего, два разных числа подряд (review t17 п.2).
+    // ponytail: эвристика по локальному контексту, не полный грамматический разбор — «1 200 рублей»
+    // (одна некруглая группа без продолжения) так и читается как «один двести», не «тысяча двести».
+    private val thousandsSpaceRe = Regex("""(\d) (\d{3})(?!\d)""")
+    private val moreGroupAheadRe = Regex("""^ \d{3}(?!\d)""")
+    private fun glueThousandsSpace(text: String): String {
+        var s = text
+        while (true) {
+            var changed = false
+            val r = thousandsSpaceRe.replace(s) { m ->
+                val group = m.groupValues[2]
+                val tail = s.substring(m.range.last + 1)
+                if (group == "000" || moreGroupAheadRe.containsMatchIn(tail)) {
+                    changed = true
+                    m.groupValues[1] + group
+                } else m.value
+            }
+            if (!changed) return r
+            s = r
+        }
+    }
+
     // 2. Сноски вида «[1]» — вырезаются, двойной пробел на их месте схлопывается.
     private val footnoteRe = Regex("""\[\d+\]""")
     private fun removeFootnotes(text: String) = footnoteRe.replace(text, "").replace(Regex(" {2,}"), " ")
@@ -121,12 +145,13 @@ object Normalizer {
     // Слово из латинских «римских» букв конвертируем, только если рядом есть слово-триггер
     // (глава/часть/том… перед или век/столетие… после), ИЛИ токен в исходном тексте целиком
     // заглавный (XIV, MIX) — иначе это случайное латинское слово («mix», «civil») (review t17
-    // п.2, Normalizer.kt:114-141). Буквы матчим в обоих регистрах, т.к. numbers() может получить
-    // текст ещё до lowercase() — при вызове через prepare() регистр всё равно теряется раньше.
+    // п.2, Normalizer.kt:114-141). IGNORE_CASE — регистр слов-триггеров и самого токена теперь
+    // доступен: prepare() больше не лоуэркейсит текст до numbers() (review t17 round2 п.1).
     private val romanStrictRe = Regex("""^m{0,4}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$""")
     private val romanRe = Regex(
-        """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxviMDCLXVI]+)(?![\p{L}\d])""" +
-            """(?:\s+(век|века|веке|веков|столетие|столетия|столетии)(?![а-яё]))?"""
+        """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxvi]+)(?![\p{L}\d])""" +
+            """(?:\s+(век|века|веке|веков|столетие|столетия|столетии)(?![а-яё]))?""",
+        RegexOption.IGNORE_CASE
     )
     private val romanValues = mapOf('i' to 1, 'v' to 5, 'x' to 10, 'l' to 50, 'c' to 100, 'd' to 500, 'm' to 1000)
     private val romanAfterSuffix = mapOf("век" to "й", "века" to "го", "веке" to "м", "веков" to "х",
@@ -148,10 +173,14 @@ object Normalizer {
         val (before, token, after) = m.destructured
         val lower = token.lowercase()
         if (!romanStrictRe.matches(lower)) return@replace m.value
-        val isAllUpper = token.all { it.isUpperCase() }
-        if (before.isEmpty() && after.isEmpty() && !isAllUpper) return@replace m.value
+        // Без триггера считаем числом только заглавный токен без «m» (review t17 round2 п.1,
+        // тест «MIX стилей» → «микс стилей»): бытовые слова с «m» в начале («mix», «mid») тоже
+        // валидны по строгой грамматике (M+IX=1009), а реальные capslock-числа без триггера на
+        // тысячи почти не бывают — годы такого вида читает отдельное правило дат/годов.
+        val eligibleAlone = token.all { it.isUpperCase() } && 'm' !in lower
+        if (before.isEmpty() && after.isEmpty() && !eligibleAlone) return@replace m.value
         val value = romanToInt(lower)
-        val suffix = if (after.isNotEmpty()) romanAfterSuffix[after] else romanBeforeSuffix[before]
+        val suffix = if (after.isNotEmpty()) romanAfterSuffix[after.lowercase()] else romanBeforeSuffix[before.lowercase()]
         val sb = StringBuilder()
         if (before.isNotEmpty()) sb.append(before).append(' ')
         if (suffix != null) sb.append(value).append('-').append(suffix) else sb.append(value)
@@ -189,7 +218,8 @@ object Normalizer {
     // числа по отдельности, их потом читает numberRe (review t17 п.1, Normalizer.kt:176).
     private val timeRe = Regex(
         """(?:(?<![\p{L}])(в|к|до|с|около|после|на)\s+)?(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)""" +
-            """(?:\s+(утра|дня|вечера|ночи))?"""
+            """(?:\s+(утра|дня|вечера|ночи))?""",
+        RegexOption.IGNORE_CASE
     )
     private fun times(text: String) = timeRe.replace(text) { m ->
         val (prep, h, mi, sec, after) = m.destructured
@@ -218,14 +248,16 @@ object Normalizer {
     }
 
     // 6. Годы с «г.»/«гг.»: сначала диапазоны и «-х гг.», потом одиночные «г.» с предлогом/без.
-    private val yearGRangeWithPrepRe = Regex("""(в|во)\s+(\d{4})\s*[-–—]\s*(\d{4})\s*(?:гг\.|годах)""")
-    private val yearGRangeBareRe = Regex("""(?<![а-яё\d])(\d{4})\s*[-–—]\s*(\d{4})\s*гг\.""")
-    private val yearGXWithPrepRe = Regex("""(в|во)\s+(\d{3,4})\s*-?\s*х\s*гг\.""")
-    private val yearGXBareRe = Regex("""(?<![а-яё\d-])(\d{3,4})\s*-?\s*х\s*гг\.""")
-    private val yearGLeftoverRe = Regex("""гг\.""")
-    private val yearGPrepVRe = Regex("""(в|во)\s+(\d{3,4})\s*г\.""")
-    private val yearGPrepOtherRe = Regex("""(с начала|с конца|с|до|после|от|около)\s+(\d{3,4})\s*г\.""")
-    private val yearGBareRe = Regex("""(?<![а-яё\d])(\d{3,4})\s*г\.""")
+    private val yearGRangeWithPrepRe =
+        Regex("""(в|во)\s+(\d{4})\s*[-–—]\s*(\d{4})\s*(?:гг\.|годах)""", RegexOption.IGNORE_CASE)
+    private val yearGRangeBareRe = Regex("""(?<![а-яё\d])(\d{4})\s*[-–—]\s*(\d{4})\s*гг\.""", RegexOption.IGNORE_CASE)
+    private val yearGXWithPrepRe = Regex("""(в|во)\s+(\d{3,4})\s*-?\s*х\s*гг\.""", RegexOption.IGNORE_CASE)
+    private val yearGXBareRe = Regex("""(?<![а-яё\d-])(\d{3,4})\s*-?\s*х\s*гг\.""", RegexOption.IGNORE_CASE)
+    private val yearGLeftoverRe = Regex("""гг\.""", RegexOption.IGNORE_CASE)
+    private val yearGPrepVRe = Regex("""(в|во)\s+(\d{3,4})\s*г\.""", RegexOption.IGNORE_CASE)
+    private val yearGPrepOtherRe =
+        Regex("""(с начала|с конца|с|до|после|от|около)\s+(\d{3,4})\s*г\.""", RegexOption.IGNORE_CASE)
+    private val yearGBareRe = Regex("""(?<![а-яё\d])(\d{3,4})\s*г\.""", RegexOption.IGNORE_CASE)
 
     private fun yearsWithG(text: String): String {
         var s = text
@@ -262,7 +294,7 @@ object Normalizer {
         17 to "семнадцати", 18 to "восемнадцати", 19 to "девятнадцати")
     private val genitiveTens = mapOf(20 to "двадцати", 30 to "тридцати", 40 to "сорока", 50 to "пятидесяти",
         60 to "шестидесяти", 70 to "семидесяти", 80 to "восьмидесяти", 90 to "девяноста")
-    private val cardinalGenSuffixRe = Regex("""(\d+)-(ти|и|ух|ех|ёх)(?![а-яё])""")
+    private val cardinalGenSuffixRe = Regex("""(\d+)-(ти|и|ух|ех|ёх)(?![а-яё])""", RegexOption.IGNORE_CASE)
 
     private fun genitiveCardinal(n: Int): String = when {
         n in 1..19 -> genitiveUnits.getValue(n)
@@ -296,11 +328,11 @@ object Normalizer {
     )
     private val unitAltPattern = unitTable.keys.joinToString("|") { Regex.escape(it) }
     // ponytail: «г.»/«кг.» в конце предложения не читаются словом — редкий случай, не покрыт тестами.
-    private val unitRe = Regex("""(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/.])""")
+    private val unitRe = Regex("""(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/.])""", RegexOption.IGNORE_CASE)
 
     private fun units(text: String) = unitRe.replace(text) { m ->
         val (numStr, unitKey) = m.destructured
-        val u = unitTable.getValue(unitKey)
+        val u = unitTable.getValue(unitKey.lowercase())
         val hasFrac = numStr.contains(',') || numStr.contains('.')
         if (u.feminine && !hasFrac) {
             val n = numStr.toLongOrNull() ?: return@replace m.value
@@ -319,10 +351,11 @@ object Normalizer {
     // раньше unit-регэкспа, и единица остаётся нераскрытой).
     // ponytail: единица в количественной форме («пяти километров»), а не в падеже предлога
     // («пяти километрах») — для полного склонения единиц нужны падежи, здесь не покрыто.
-    private val cardinalGenSuffixUnitRe = Regex("""(\d+)-(ти|и|ух|ех|ёх|х|ми)\s*($unitAltPattern)(?![\p{L}\d/.])""")
+    private val cardinalGenSuffixUnitRe =
+        Regex("""(\d+)-(ти|и|ух|ех|ёх|х|ми)\s*($unitAltPattern)(?![\p{L}\d/.])""", RegexOption.IGNORE_CASE)
     private fun cardinalGenitiveSuffixUnit(text: String) = cardinalGenSuffixUnitRe.replace(text) { m ->
         val n = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-        val u = unitTable.getValue(m.groupValues[3])
+        val u = unitTable.getValue(m.groupValues[3].lowercase())
         genitiveCardinal(n) + " " + plural(n.toLong(), u.forms) + u.suffix
     }
 
@@ -342,21 +375,23 @@ object Normalizer {
 
     // 11. Сокращения. Предложные формы («на стр.» → «на странице») — раньше общего списка.
     // «тыс./млн/млрд» после числа — со склонением через plural(), «тыс.» ещё и с родом (жен.).
-    private val abbrevPrepRe = Regex("""(?<![\p{L}\d])(на|в|во|о|об|при)\s+(стр|гл|табл|рис)\.""")
+    private val abbrevPrepRe =
+        Regex("""(?<![\p{L}\d])(на|в|во|о|об|при)\s+(стр|гл|табл|рис)\.""", RegexOption.IGNORE_CASE)
     private val abbrevPrepWord = mapOf("стр" to "странице", "гл" to "главе", "табл" to "таблице", "рис" to "рисунке")
     private fun abbrevPrep(text: String) = abbrevPrepRe.replace(text) { m ->
         val (prep, abbr) = m.destructured
-        "$prep ${abbrevPrepWord.getValue(abbr)}"
+        "$prep ${abbrevPrepWord.getValue(abbr.lowercase())}"
     }
 
-    private val scaleAbbrevRe = Regex("""(\d+)\s*(тыс|млн|млрд)\.?(?![\p{L}])""")
+    private val scaleAbbrevRe = Regex("""(\d+)\s*(тыс|млн|млрд)\.?(?![\p{L}])""", RegexOption.IGNORE_CASE)
     private val scaleAbbrevForms = mapOf(
         "тыс" to Triple("тысяча", "тысячи", "тысяч"),
         "млн" to Triple("миллион", "миллиона", "миллионов"),
         "млрд" to Triple("миллиард", "миллиарда", "миллиардов"),
     )
     private fun scaleAbbrev(text: String) = scaleAbbrevRe.replace(text) { m ->
-        val (numStr, abbr) = m.destructured
+        val (numStr, abbrRaw) = m.destructured
+        val abbr = abbrRaw.lowercase()
         val n = numStr.toLongOrNull() ?: return@replace m.value
         val forms = scaleAbbrevForms.getValue(abbr)
         if (abbr == "тыс") cardinal(n, feminine = true) + " " + plural(n, forms)
@@ -364,32 +399,32 @@ object Normalizer {
     }
 
     private val abbrevSimple = listOf(
-        Regex("""(?<![\p{L}\d])и\s+т\.\s*д\.(?![\p{L}])""") to "и так далее",
-        Regex("""(?<![\p{L}\d])и\s+т\.\s*п\.(?![\p{L}])""") to "и тому подобное",
-        Regex("""(?<![\p{L}\d])в\s+т\.\s*ч\.(?![\p{L}])""") to "в том числе",
-        Regex("""(?<![\p{L}\d])т\.\s*е\.(?![\p{L}])""") to "то есть",
-        Regex("""(?<![\p{L}\d])т\.\s*к\.(?![\p{L}])""") to "так как",
-        Regex("""(?<![\p{L}\d])т\.\s*н\.(?![\p{L}])""") to "так называемый",
-        Regex("""(?<![\p{L}\d])пп\.(?![\p{L}])""") to "подпункт",
-        Regex("""(?<![\p{L}\d])п\.(?=\s*\d)""") to "пункт",
-        Regex("""(?<![\p{L}\d])стр\.(?![\p{L}])""") to "страница",
-        Regex("""(?<![\p{L}\d])рис\.(?![\p{L}])""") to "рисунок",
-        Regex("""(?<![\p{L}\d])табл\.(?![\p{L}])""") to "таблица",
-        Regex("""(?<![\p{L}\d])гл\.(?![\p{L}])""") to "глава",
-        Regex("""(?<![\p{L}\d])ср\.(?![\p{L}])""") to "сравни",
-        Regex("""(?<![\p{L}\d])св\.(?![\p{L}])""") to "святой",
-        Regex("""(?<![\p{L}\d])см\.(?![\p{L}])""") to "смотри",
-        Regex("""(?<![\p{L}\d])др\.(?![\p{L}])""") to "другие",
-        Regex("""(?<![\p{L}\d])пр\.(?![\p{L}])""") to "прочее",
-        Regex("""(?<![\p{L}\d])напр\.(?![\p{L}])""") to "например",
-        Regex("""(?<![\p{L}\d])проф\.(?![\p{L}])""") to "профессор",
-        Regex("""(?<![\p{L}\d])акад\.(?![\p{L}])""") to "академик",
-        Regex("""(?<![\p{L}\d])им\.(?![\p{L}])""") to "имени",
-        Regex("""(?<![\p{L}\d])ул\.(?![\p{L}])""") to "улица",
-        Regex("""(?<![\p{L}\d])руб\.(?![\p{L}])""") to "рублей",
-        Regex("""(?<![\p{L}\d])тыс\.(?![\p{L}])""") to "тысяч",
-        Regex("""(?<![\p{L}\d])млн\.?(?![\p{L}])""") to "миллионов",
-        Regex("""(?<![\p{L}\d])млрд\.?(?![\p{L}])""") to "миллиардов",
+        Regex("""(?<![\p{L}\d])и\s+т\.\s*д\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и так далее",
+        Regex("""(?<![\p{L}\d])и\s+т\.\s*п\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и тому подобное",
+        Regex("""(?<![\p{L}\d])в\s+т\.\s*ч\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "в том числе",
+        Regex("""(?<![\p{L}\d])т\.\s*е\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "то есть",
+        Regex("""(?<![\p{L}\d])т\.\s*к\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так как",
+        Regex("""(?<![\p{L}\d])т\.\s*н\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так называемый",
+        Regex("""(?<![\p{L}\d])пп\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "подпункт",
+        Regex("""(?<![\p{L}\d])п\.(?=\s*\d)""", RegexOption.IGNORE_CASE) to "пункт",
+        Regex("""(?<![\p{L}\d])стр\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "страница",
+        Regex("""(?<![\p{L}\d])рис\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "рисунок",
+        Regex("""(?<![\p{L}\d])табл\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "таблица",
+        Regex("""(?<![\p{L}\d])гл\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "глава",
+        Regex("""(?<![\p{L}\d])ср\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "сравни",
+        Regex("""(?<![\p{L}\d])св\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "святой",
+        Regex("""(?<![\p{L}\d])см\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "смотри",
+        Regex("""(?<![\p{L}\d])др\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "другие",
+        Regex("""(?<![\p{L}\d])пр\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "прочее",
+        Regex("""(?<![\p{L}\d])напр\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "например",
+        Regex("""(?<![\p{L}\d])проф\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "профессор",
+        Regex("""(?<![\p{L}\d])акад\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "академик",
+        Regex("""(?<![\p{L}\d])им\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "имени",
+        Regex("""(?<![\p{L}\d])ул\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "улица",
+        Regex("""(?<![\p{L}\d])руб\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "рублей",
+        Regex("""(?<![\p{L}\d])тыс\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "тысяч",
+        Regex("""(?<![\p{L}\d])млн\.?(?![\p{L}])""", RegexOption.IGNORE_CASE) to "миллионов",
+        Regex("""(?<![\p{L}\d])млрд\.?(?![\p{L}])""", RegexOption.IGNORE_CASE) to "миллиардов",
     )
 
     private fun abbreviations(text: String): String {
@@ -402,6 +437,7 @@ object Normalizer {
     fun numbers(text: String): String {
         var s = text
         s = glueThousands(s)
+        s = glueThousandsSpace(s)
         s = removeFootnotes(s)
         s = romanNumerals(s)
         s = dates(s)
@@ -414,7 +450,7 @@ object Normalizer {
         s = fractionsSlash(s)
         s = abbreviations(s)
         s = yearRe.replace(s) { m ->
-            m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3]) + m.groupValues[2] + m.groupValues[3]
+            m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]
         }
         return numberRe.replace(s) { m ->
             val (mark, minus, intPart, frac, suffix, percent) = m.destructured
@@ -432,7 +468,7 @@ object Normalizer {
                 sb.append(cardinal(n, feminine = true)).append(if (n % 10 == 1L && n % 100 != 11L) " целая " else " целых ")
                 sb.append(cardinal(fracN, feminine = true)).append(' ').append(plural(fracN, denom))
             } else if (suffix.isNotEmpty()) {
-                sb.append(ordinal(n, suffix))
+                sb.append(ordinal(n, suffix.lowercase()))
             } else {
                 sb.append(cardinal(n))
             }
@@ -494,6 +530,10 @@ object Normalizer {
         return sb.toString().replace(Regex("\\s+"), " ").trim()
     }
 
+    // Регистр НЕ приводим к нижнему здесь: numbers() должен видеть исходный регистр — иначе
+    // римские цифры в CAPS-токене («Людовик XIV») теряют признак «весь токен заглавный» ещё
+    // до romanNumerals(). latin() лоуэркейсит сам, так что дальше по пайплайну (символы/фильтр)
+    // всё как раньше (review t17 round2 п.1).
     fun prepare(text: String, allowed: String): String =
-        symbols(latin(numbers(text.lowercase())), allowed)
+        symbols(latin(numbers(text)), allowed)
 }

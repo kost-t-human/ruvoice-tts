@@ -2,10 +2,12 @@ package ru.kost.ruvoice.text
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.kost.ruvoice.TestData
 
 /** Тесты на новые правила нормализации (задача t17), TDD: ассерты написаны до реализации. */
 class RulesTest {
     private fun n(s: String) = Normalizer.numbers(s)
+    private fun p(s: String) = Normalizer.prepare(s, TestData.data().allowed)
 
     @Test fun thousandsSeparators() {
         assertEquals("двенадцать миллионов триста сорок пять тысяч шестьсот семьдесят восемь человек",
@@ -15,6 +17,14 @@ class RulesTest {
     @Test fun thousandsSeparatorOnlyNonBreakingSpace() {
         // review t17 п.3 (Normalizer.kt:99): обычный пробел — не разделитель разрядов.
         assertEquals("Глава один двести читателей", n("Глава 1 200 читателей"))
+    }
+
+    @Test fun thousandsSeparatorRegularSpaceHeuristic() {
+        // review t17 round2 п.2 (Normalizer.kt:99): обычный пробел склеивает разряды, только
+        // если группа круглая («000») или сразу следует ещё одна группа из трёх цифр.
+        assertEquals("пять тысяч рублей", n("5 000 рублей"))
+        assertEquals("один миллион двести тысяч человек", n("1 200 000 человек"))
+        assertEquals("глава один двести читателей", n("глава 1 200 читателей"))
     }
 
     @Test fun footnotes() {
@@ -33,6 +43,23 @@ class RulesTest {
         // обычное слово, а не число; заглавный токен в исходнике («XIV») — число и без триггера.
         assertEquals("это был mix двух стилей", n("это был mix двух стилей"))
         assertEquals("Людовик четырнадцать", n("Людовик XIV"))
+    }
+
+    @Test fun romanNumeralsLowercaseWithoutTriggerIsAnAcceptedLimitation() {
+        // review t17 round2 п.1: «людовик xiv» строчными и без триггера так и остаётся как есть —
+        // принятое ограничение (см. отчёт), в отличие от заглавного «XIV» без триггера.
+        assertEquals("людовик xiv", n("людовик xiv"))
+    }
+
+    @Test fun caseInsensitiveThroughPrepare() {
+        // review t17 round2 п.1 (Normalizer.kt: prepare()): регистр больше не теряется до
+        // numbers() — предлоги/сокращения/триггеры матчатся независимо от регистра исходника,
+        // а «MIX» без «m»-исключения из romanNumerals остаётся обычным словом, не числом 1009.
+        assertEquals("людовик четырнадцать правил", p("Людовик XIV правил"))
+        assertEquals("в тысяча девятьсот девяностом году", p("В 1990 Году"))
+        assertEquals("иоанна три шестнадцать", p("Иоанна 3:16"))
+        assertEquals("в двадцатом веке", p("в XX веке"))
+        assertEquals("микс стилей", p("MIX стилей"))
     }
 
     @Test fun dates() {
