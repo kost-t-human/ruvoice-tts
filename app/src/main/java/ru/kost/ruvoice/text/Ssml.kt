@@ -1,6 +1,6 @@
 package ru.kost.ruvoice.text
 
-data class Segment(val text: String, val rate: Float = 1f, val pitch: Float = 1f, val breakMs: Int = 0, val paragraph: Boolean = false)
+data class Segment(val text: String, val rate: Float = 1f, val pitch: Float = 1f, val breakMs: Int = 0, val paragraph: Boolean = false, val speech: Boolean = false)
 
 object Ssml {
     private val strength = mapOf("x-weak" to 25, "weak" to 75, "medium" to 150, "strong" to 300, "x-strong" to 1000)

@@ -51,4 +51,21 @@ class PipelineTest {
         val s = Pipeline.plan("Раз. Два.{pause:500}Три.", d, sentencePauseMs = 0, paragraphPauseMs = 0)
         assertEquals(listOf(Segment("Раз."), Segment("Два.", breakMs = 500), Segment("Три.")), s)
     }
+
+    @Test fun directSpeechDashAndQuoteDetected() {
+        // Splitter режет по «!» и на «— сказал он.» — тоже реплика по критерию (тот же тире-старт),
+        // авторская часть отдельным флагом не выделяется (см. ponytail-комментарий в Pipeline).
+        val s = Pipeline.plan("Он вошёл. — Привет! — сказал он. «Тише», — шепнул кто-то.", d, 0, 0)
+        assertEquals(listOf(false, true, true, true), s.map { it.speech })
+    }
+
+    @Test fun dashInsideWordIsNotSpeech() {
+        val s = Pipeline.plan("Дефис-внутри слова.", d, 0, 0)
+        assertEquals(listOf(false), s.map { it.speech })
+    }
+
+    @Test fun ssmlDirectSpeechDetectedBySameCriterion() {
+        val s = Pipeline.plan("<speak>— Реплика.</speak>", d, 0, 0)
+        assertEquals(listOf(true), s.map { it.speech })
+    }
 }

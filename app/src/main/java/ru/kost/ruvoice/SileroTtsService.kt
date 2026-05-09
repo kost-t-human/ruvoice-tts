@@ -18,6 +18,11 @@ import java.util.Locale
 object Pipeline {
     // Маркер паузы: {pause:N}, N — мс, режет текст сегмента на куски (см. plan ниже).
     private val pauseMarker = Regex("\\{pause:(\\d+)\\}")
+    // Прямая речь: после trim — тире/дефис с пробелом или открывающая кавычка.
+    // ponytail: авторская часть после реплики («— Пойдём, — сказал он.») от диалоговой не отделяется
+    // (то же предложение или сосед, начинающийся с того же тире) — общий флаг speech, разделять при жалобах.
+    private val speechStart = Regex("^([—–-]\\s|[«\"“„])")
+    private fun isSpeech(s: String) = speechStart.containsMatchIn(s.trim())
 
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
              replacements: Replacements = Replacements.parse(emptyList())): List<Segment> {
@@ -41,7 +46,7 @@ object Pipeline {
                     val last = lastInPiece && lastPiece
                     val breakMs = if (lastInPiece && !lastPiece) pauses[pi]
                         else sentencePauseMs + (if (last) seg.breakMs else 0) + (if (last && seg.paragraph) paragraphPauseMs else 0)
-                    out += Segment(s, seg.rate, seg.pitch, breakMs = breakMs, paragraph = last && seg.paragraph)
+                    out += Segment(s, seg.rate, seg.pitch, breakMs = breakMs, paragraph = last && seg.paragraph, speech = isSpeech(s))
                 }
                 if (sents.isEmpty()) {
                     if (!lastPiece) {
