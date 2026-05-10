@@ -92,6 +92,8 @@ class SettingsActivity : AppCompatActivity() {
                 e.toString()
             }
             runOnUiThread {
+                // экран могли закрыть, пока считали — окно без Activity уронит show()
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 AlertDialog.Builder(this)
                     .setMessage(report)
                     .setPositiveButton(R.string.close, null)
