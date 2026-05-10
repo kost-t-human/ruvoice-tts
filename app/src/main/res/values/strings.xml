@@ -14,6 +14,8 @@
     <string name="user_replace">Замены (ключ = замена; пустая замена — пропустить; в замене можно ставить + для ударения с учётом соседних слов). Ключ с ~ — regex: ~regex = $1. Замена {skip} — то же, что пустая. Маркер {pause:500} в замене — пауза 500 мс.</string>
     <string name="save">Сохранить</string>
     <string name="preview">Прослушать</string>
+    <string name="analyze">Разбор</string>
+    <string name="close">Закрыть</string>
     <string name="preview_hint">Текст для прослушивания</string>
     <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.\n— Пойдём домой, — сказал он тихо.</string>
     <string name="preview_failed">Движок не ответил (код %1$s)</string>

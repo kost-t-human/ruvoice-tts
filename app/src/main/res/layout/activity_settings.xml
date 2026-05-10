@@ -33,6 +33,7 @@
         <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content">
             <Button android:id="@+id/save" android:text="@string/save" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
             <Button android:id="@+id/preview" android:text="@string/preview" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/analyze" android:text="@string/analyze" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"/>
         </LinearLayout>
         <TextView android:text="@string/about" android:layout_marginTop="24dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
     </LinearLayout>

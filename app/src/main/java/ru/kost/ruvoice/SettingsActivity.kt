@@ -4,7 +4,9 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import ru.kost.ruvoice.text.Normalizer
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
@@ -62,6 +64,40 @@ class SettingsActivity : AppCompatActivity() {
             btn.isEnabled = false
             preview(btn as Button, previewText.text.toString().ifBlank { getString(R.string.preview_text) })
         }
+        findViewById<Button>(R.id.analyze).setOnClickListener {
+            save()
+            analyze(previewText.text.toString().ifBlank { getString(R.string.preview_text) })
+        }
+    }
+
+    // Разбор на сегменты и их нормализация читают словари с диска (SileroModels.data,
+    // Normalizer) — считаем в фоновом потоке, диалог показываем на UI-потоке.
+    private fun analyze(text: String) {
+        Thread {
+            val report = try {
+                val d = SileroModels.data(this)
+                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements())
+                buildString {
+                    for (seg in segments) {
+                        var marks = ""
+                        if (seg.speech) marks += " [речь]"
+                        if (seg.paragraph) marks += " [¶]"
+                        appendLine(seg.text + marks)
+                        appendLine("→ " + Normalizer.prepare(seg.text, d.allowed))
+                        if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
+                        appendLine()
+                    }
+                }.trimEnd()
+            } catch (e: Exception) {
+                e.toString()
+            }
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setMessage(report)
+                    .setPositiveButton(R.string.close, null)
+                    .show()
+            }
+        }.start()
     }
 
     // Прослушивание идёт через платформенный TextToSpeech, а не напрямую через SileroModels:
