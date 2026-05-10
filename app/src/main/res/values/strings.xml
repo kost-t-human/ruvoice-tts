@@ -1,6 +1,10 @@
 <resources>
     <string name="app_name">RuVoice TTS</string>
     <string name="voice">Голос</string>
+    <string name="quote_voice">Голос прямой речи</string>
+    <string name="quote_voice_default">как основной</string>
+    <string name="quote_rate">Темп прямой речи (×)</string>
+    <string name="quote_pitch">Питч прямой речи (×)</string>
     <string name="sample_rate">Частота дискретизации</string>
     <string name="pause_sentence">Пауза после предложения, мс</string>
     <string name="pause_paragraph">Пауза после абзаца, мс</string>
@@ -11,7 +15,7 @@
     <string name="save">Сохранить</string>
     <string name="preview">Прослушать</string>
     <string name="preview_hint">Текст для прослушивания</string>
-    <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.</string>
+    <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.\n— Пойдём домой, — сказал он тихо.</string>
     <string name="preview_failed">Движок не ответил (код %1$s)</string>
     <string name="about">Синтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
 </resources>

@@ -23,6 +23,13 @@ class SettingsActivity : AppCompatActivity() {
             adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, voices)
             setSelection(voices.indexOf(prefs.voice).coerceAtLeast(0))
         }
+        val quoteVoices = listOf(getString(R.string.quote_voice_default)) + voices
+        val quoteVoice = findViewById<Spinner>(R.id.quoteVoice).apply {
+            adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, quoteVoices)
+            setSelection((voices.indexOf(prefs.quoteVoice) + 1).coerceAtLeast(0))
+        }
+        val quoteRate = findViewById<EditText>(R.id.quoteRate).apply { setText(prefs.quoteRate.toString()) }
+        val quotePitch = findViewById<EditText>(R.id.quotePitch).apply { setText(prefs.quotePitch.toString()) }
         val sr = findViewById<Spinner>(R.id.sampleRate).apply {
             adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, rates.map { "$it Гц" })
             setSelection(rates.indexOf(prefs.sampleRate).coerceAtLeast(0))
@@ -37,6 +44,9 @@ class SettingsActivity : AppCompatActivity() {
 
         fun save() {
             prefs.voice = voices[voice.selectedItemPosition]
+            prefs.quoteVoice = quoteVoice.selectedItemPosition.let { if (it == 0) "" else voices[it - 1] }
+            prefs.quoteRate = (quoteRate.text.toString().toFloatOrNull() ?: 1f).coerceIn(0.5f, 2f)
+            prefs.quotePitch = (quotePitch.text.toString().toFloatOrNull() ?: 1f).coerceIn(0.5f, 2f)
             prefs.sampleRate = rates[sr.selectedItemPosition]
             prefs.sentencePauseMs = (ps.text.toString().toIntOrNull() ?: 0).coerceAtLeast(0)
             prefs.paragraphPauseMs = (pp.text.toString().toIntOrNull() ?: 300).coerceAtLeast(0)

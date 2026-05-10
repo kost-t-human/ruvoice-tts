@@ -141,6 +141,10 @@ class SileroTtsService : TextToSpeechService() {
             val pitch = (request.pitch / 100f).coerceIn(0.5f, 2f)
             val stress = Stress(d, models, prefs.userDict())
             val replacements = prefs.replacements()
+            // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
+            val quoteSpeakerId = prefs.quoteVoice.takeIf { it in d.speakers }?.let { d.speakers.getValue(it) }
+            val quoteRate = prefs.quoteRate
+            val quotePitch = prefs.quotePitch
             val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements)
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             for (seg in segments) {
@@ -157,7 +161,9 @@ class SileroTtsService : TextToSpeechService() {
                             val accented = stress.apply(prepared)
                             val seq = d.sequence(accented)
                             val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d), seq.size, d)
-                            val synth = models.synthesize(seq, speakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { pitch * seg.pitch }, typeIds)
+                            val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
+                            val curPitch = pitch * seg.pitch * (if (seg.speech) quotePitch else 1f)
+                            val synth = models.synthesize(seq, curSpeakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { curPitch }, typeIds)
                             if (prefs.commaPauseMs > 0) {
                                 // seq = sos + accented + eos, индексы совпадают с durs напрямую.
                                 val commaIds = listOfNotNull(d.symbolToId[','], d.symbolToId[';'], d.symbolToId[':']).toHashSet()
@@ -171,7 +177,8 @@ class SileroTtsService : TextToSpeechService() {
                     }
                     if (audio != null) {
                         Pcm.fadeEdges(audio, sr, 5)
-                        val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, rate)
+                        val segRate = rate * (if (seg.speech) quoteRate else 1f)
+                        val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)
                         if (!write(callback, pcm)) return
                         Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                     }

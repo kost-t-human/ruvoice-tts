@@ -6,6 +6,12 @@
         android:layout_width="match_parent" android:layout_height="wrap_content">
         <TextView android:text="@string/voice" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
         <Spinner android:id="@+id/voice" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/quote_voice" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <Spinner android:id="@+id/quoteVoice" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/quote_rate" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/quoteRate" android:inputType="numberDecimal" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView android:text="@string/quote_pitch" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/quotePitch" android:inputType="numberDecimal" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         <TextView android:text="@string/sample_rate" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
         <Spinner android:id="@+id/sampleRate" android:layout_width="match_parent" android:layout_height="wrap_content"/>
         <TextView android:text="@string/pause_sentence" android:layout_width="wrap_content" android:layout_height="wrap_content"/>

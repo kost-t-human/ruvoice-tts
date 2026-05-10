@@ -12,6 +12,10 @@ class Prefs(private val context: Context) {
     var paragraphPauseMs: Int get() = p.getInt("pause_paragraph", 300); set(v) = p.edit().putInt("pause_paragraph", v).apply()
     var commaPauseMs: Int get() = p.getInt("pause_comma", 100); set(v) = p.edit().putInt("pause_comma", v).apply()
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
+    /** Голос прямой речи; пустая строка — как основной. */
+    var quoteVoice: String get() = p.getString("quote_voice", "")!!; set(v) = p.edit().putString("quote_voice", v).apply()
+    var quoteRate: Float get() = p.getFloat("quote_rate", 1f); set(v) = p.edit().putFloat("quote_rate", v).apply()
+    var quotePitch: Float get() = p.getFloat("quote_pitch", 1f); set(v) = p.edit().putFloat("quote_pitch", v).apply()
 
     val userDictFile: File get() = File(context.filesDir, "user_stress.txt")
     val userReplaceFile: File get() = File(context.filesDir, "user_replace.txt")
