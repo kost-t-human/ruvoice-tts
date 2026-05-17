@@ -109,25 +109,6 @@ object Declension {
         return parts.joinToString(" ")
     }
 
-    // ponytail: остаток 0..999 после тысяч/миллионов/миллиардов — сотня в именительной форме,
-    // склоняются только десятки-единицы (пример из брифа: «1917» в PRE → «...девятьсот семнадцати»,
-    // а не «...девятистах семнадцати»). Для NOM/ACC разницы нет (сотни: ACC = NOM), расхождение
-    // только в GEN/DAT/INS/PRE у чисел вида сотня+хвост, идущих следом за разрядом. Подтверждено
-    // только тестом на 1917 — если встретится другая комбинация с иным поведением, проверить отдельно.
-    private fun remainderBelow1000(n: Int, case: Case, feminine: Boolean): String {
-        val h = n / 100
-        val rest = n % 100
-        if (h == 0 || rest == 0) return below1000(n, case, feminine)
-        val parts = mutableListOf(hundreds[h][Case.NOM.ordinal])
-        if (rest in 1..19) parts += digitForms(rest, case, feminine)
-        else {
-            parts += tens[rest / 10][case.ordinal]
-            val u = rest % 10
-            if (u > 0) parts += digitForms(u, case, feminine)
-        }
-        return parts.joinToString(" ")
-    }
-
     private fun scaleWord(forms: Array<Array<String>>, count: Long, case: Case) = forms[bucket(count)][case.ordinal]
 
     /** Количественное числительное в падеже. feminine — для 1 и 2 (одна/две, одной/двух…). n в 0..999_999_999_999. */
@@ -154,10 +135,7 @@ object Declension {
             parts += below1000(thousands.toInt(), case, true)
             parts += scaleWord(thousandForms, thousands, case)
         }
-        if (rest > 0) {
-            parts += if (parts.isEmpty()) below1000(rest.toInt(), case, feminine)
-            else remainderBelow1000(rest.toInt(), case, feminine)
-        }
+        if (rest > 0) parts += below1000(rest.toInt(), case, feminine)
         return parts.joinToString(" ")
     }
 }

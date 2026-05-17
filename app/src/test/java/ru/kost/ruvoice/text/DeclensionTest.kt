@@ -10,7 +10,7 @@ class DeclensionTest {
         assertEquals("пятисот", c(500, Case.GEN))
         assertEquals("двадцати одной", c(21, Case.DAT, feminine = true))
         assertEquals("двумя", c(2, Case.INS))
-        assertEquals("одной тысяче девятьсот семнадцати", c(1917, Case.PRE))
+        assertEquals("одной тысяче девятистах семнадцати", c(1917, Case.PRE))
         assertEquals("трёх тысяч", c(3000, Case.GEN))
         assertEquals("одному миллиону", c(1_000_000, Case.DAT))
         assertEquals("сорока", c(40, Case.INS))
@@ -163,6 +163,11 @@ class DeclensionTest {
         assertEquals("пять миллиардов", c(5_000_000_000, Case.NOM))
         assertEquals("пяти миллиардов", c(5_000_000_000, Case.GEN))
         assertEquals("пятью миллиардами", c(5_000_000_000, Case.INS))
+    }
+
+    @Test fun remainderDeclinesLikeStandaloneBelow1000() {
+        assertEquals("двумя тысячами пятьюстами", c(2500, Case.INS))
+        assertEquals("одного миллиона двухсот пятидесяти тысяч", c(1_250_000, Case.GEN))
     }
 
     // Declension.cardinal(n, NOM) должен совпадать с Normalizer.cardinal(n) — кроме «тысячи» без «одна».
