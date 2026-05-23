@@ -14,7 +14,24 @@ object Splitter {
     private fun endsWithAbbrev(piece: String) =
         abbrevWordAtEndRe.find(piece)?.groupValues?.get(1)?.lowercase() in abbrevStopWords
 
-    fun paragraphs(text: String): List<String> = text.split(Regex("\\n+")).map { it.trim() }.filter { it.isNotEmpty() }
+    // Де-гифенация переносов (task 18 п.1): строчная буква после переноса — слово разбито
+    // переносом, дефис и \n убираем («со-\nбака» → «собака»). Заглавная — вероятно составное
+    // слово («Санкт-\nПетербург»), убираем только перенос, дефис оставляем.
+    private val hyphenBreakRe = Regex("""([а-яёА-ЯЁ])-\n[ \t]*([а-яёА-ЯЁ])""")
+    private fun dehyphenate(text: String) = hyphenBreakRe.replace(text) { m ->
+        val (before, after) = m.destructured
+        if (after[0] in 'а'..'я' || after[0] == 'ё') before + after else "$before-$after"
+    }
+
+    // Одиночный \n перед строчной буквой (task 18 п.2) — мягкий перенос строки внутри
+    // предложения (частый случай в PDF/книгах), не новый абзац — меняем на пробел.
+    // Два и более \n подряд, а также \n перед заглавной — настоящий абзац, не трогаем.
+    private val softLineBreakRe = Regex("""(?<!\n)\n(?=[ \t]*[а-яё])""")
+
+    fun paragraphs(text: String): List<String> {
+        val s = softLineBreakRe.replace(dehyphenate(text), " ")
+        return s.split(Regex("\\n+")).map { it.trim() }.filter { it.isNotEmpty() }
+    }
 
     fun sentences(text: String, maxLen: Int = 400): List<String> {
         val merged = mutableListOf<String>()

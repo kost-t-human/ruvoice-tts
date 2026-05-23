@@ -9,6 +9,26 @@ class SplitterTest {
         assertEquals(listOf("Первый абзац.", "Второй."), Splitter.paragraphs("Первый абзац.\n\nВторой.\n"))
     }
 
+    @Test fun dehyphenatesLineWrap() {
+        // Task 18 п.1: строчная после переноса — деление слова, дефис и перенос убираем.
+        assertEquals(listOf("собака"), Splitter.paragraphs("со-\nбака"))
+    }
+
+    @Test fun keepsHyphenForCapitalizedCompound() {
+        // Task 18 п.1: заглавная после переноса — составное слово, дефис оставляем.
+        assertEquals(listOf("Санкт-Петербург"), Splitter.paragraphs("Санкт-\nПетербург"))
+    }
+
+    @Test fun singleNewlineBeforeLowercaseIsSpace() {
+        // Task 18 п.2: одиночный перенос строки внутри предложения — не новый абзац.
+        assertEquals(listOf("Он шёл домой.", "Новый абзац."),
+            Splitter.paragraphs("Он шёл\nдомой.\n\nНовый абзац."))
+    }
+
+    @Test fun singleNewlineBeforeUppercaseIsParagraphBreak() {
+        assertEquals(listOf("Он шёл", "Домой"), Splitter.paragraphs("Он шёл\nДомой"))
+    }
+
     @Test fun sentencesByPunctuation() {
         assertEquals(listOf("Он ждал.", "Никто не пришёл!", "Почему?", "Всё…", "Конец"),
             Splitter.sentences("Он ждал. Никто не пришёл! Почему? Всё… Конец"))
