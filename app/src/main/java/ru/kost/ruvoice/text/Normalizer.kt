@@ -76,7 +76,11 @@ object Normalizer {
     /** «2024-м» → «две тысячи двадцать четвёртом»: порядковым делаем только последнее слово. */
     fun ordinal(n: Long, suffix: String): String {
         val e = endings[suffix] ?: return cardinal(n)
-        roundThousandStems[n]?.let { stem -> return stem + (if (stem in stressedEnding) e.second else e.first) }
+        // Круглая тысяча с суффиксом «-е» — это не «двухтысячное» (ед. ч., ср. р.), а десятилетие
+        // «двухтысячные» (мн. ч., task 18 п.8): у круглых тысяч «-е» иного смысла не бывает.
+        roundThousandStems[n]?.let { stem ->
+            return stem + if (suffix == "е") "ые" else if (stem in stressedEnding) e.second else e.first
+        }
         val last = when {
             n % 100 == 0L && n % 1000 != 0L -> (n % 1000).toInt()
             n % 100 in 1..19 -> (n % 100).toInt()
@@ -303,6 +307,12 @@ object Normalizer {
         return s
     }
 
+    // 6b. «г.» перед словом с заглавной буквы (task 18 п.7) — это «город», а не год: годовые
+    // варианты «г.» уже разобраны выше (нужен цифровой год перед точкой), здесь остаётся только
+    // «г. Москва» и подобное.
+    private val cityAbbrevRe = Regex("""(?<![\p{L}\d])г\.(?=\s*[А-ЯЁ])""")
+    private fun cityAbbrev(text: String) = cityAbbrevRe.replace(text, "город")
+
     // 7. Родительный падеж количественного через дефис: «5-ти» → «пяти», «2-ух» → «двух».
     private val genitiveUnits = mapOf(1 to "одного", 2 to "двух", 3 to "трёх", 4 to "четырёх", 5 to "пяти",
         6 to "шести", 7 to "семи", 8 to "восьми", 9 to "девяти", 10 to "десяти", 11 to "одиннадцати",
@@ -361,6 +371,22 @@ object Normalizer {
         }
     }
 
+    // 8b. Градусы (task 18 п.4): число оставляем цифрами для numberRe ниже, сразу дописываем
+    // слово. «°C»/«° C»/«°С» (кириллическая «С» тоже) — Цельсия, «°F» — по Фаренгейту,
+    // одиночный «°» — просто «градус(а/ов)» по plural().
+    private val degreeForms = Triple("градус", "градуса", "градусов")
+    private val degreeRe = Regex("""(-?\d+)\s*°\s*(c|f|с)?(?![\p{L}])""", RegexOption.IGNORE_CASE)
+    private fun degrees(text: String) = degreeRe.replace(text) { m ->
+        val (numStr, unit) = m.destructured
+        val n = numStr.removePrefix("-").toLongOrNull() ?: return@replace m.value
+        val suffix = when {
+            unit.isEmpty() -> ""
+            unit.equals("f", ignoreCase = true) -> " по Фаренгейту"
+            else -> " Цельсия"
+        }
+        "$numStr ${plural(n, degreeForms)}$suffix"
+    }
+
     // 7b. Число с родительным суффиксом (-ти/-х/-ми…) сразу перед единицей измерения: сначала
     // само число, потом plural() единицы — количественная форма, а не форма предлога
     // (review t17 п.4, Normalizer.kt:228-284: «5-ти км» иначе уходит в cardinalGenitiveSuffix
@@ -382,11 +408,51 @@ object Normalizer {
         m.value.split('.').joinToString(" точка ") { cardinal(it.toLong()) }
     }
 
-    // 10. Дроби через слэш: «6/10» → «шесть дробь десять».
+    // 10. Дроби через слэш (task 18 п.5): если знаменатель 2..20 и числитель меньше него —
+    // говорим словами («шесть десятых»): числитель — количественное женского рода, знаменатель —
+    // порядковое женского рода (a==1 — ед. ч. им. п. «одна вторая», a>1 — мн. ч. род. п.
+    // «две третьих»). Иначе — как раньше, «a дробь b» («25/3»).
     private val fractionSlashRe = Regex("""(?<![\d/])(\d+)/(\d+)(?![\d/])""")
     private fun fractionsSlash(text: String) = fractionSlashRe.replace(text) { m ->
         val (a, b) = m.destructured
-        cardinal(a.toLong()) + " дробь " + cardinal(b.toLong())
+        val an = a.toIntOrNull(); val bn = b.toIntOrNull()
+        if (an != null && bn != null && bn in 2..20 && an in 1 until bn) {
+            val denomSuffix = if (an == 1) "я" else "х"
+            cardinal(an.toLong(), feminine = true) + " " + ordinal(bn.toLong(), denomSuffix)
+        } else {
+            cardinal(a.toLong()) + " дробь " + cardinal(b.toLong())
+        }
+    }
+
+    // 10b. Валюты (task 18 п.6): число остаётся цифрами для numberRe ниже, сразу дописываем
+    // слово. «€»/евро не склоняется, доллар/рубль/копейка — по plural(), а не всегда одна форма.
+    private val dollarForms = Triple("доллар", "доллара", "долларов")
+    private val rubleForms = Triple("рубль", "рубля", "рублей")
+    private val kopeckForms = Triple("копейка", "копейки", "копеек")
+    private val moneyNumRe = """\d+(?:[.,]\d+)?"""
+    private val dollarPrefixRe = Regex("""\$($moneyNumRe)""")
+    private val dollarSuffixRe = Regex("""($moneyNumRe)\s?\$""")
+    private val euroPrefixRe = Regex("""€($moneyNumRe)""")
+    private val euroSuffixRe = Regex("""($moneyNumRe)\s?€""")
+    private val rubleSuffixRe = Regex("""($moneyNumRe)\s?(?:₽|руб\.|р\.)""", RegexOption.IGNORE_CASE)
+    private val kopeckSuffixRe = Regex("""($moneyNumRe)\s?коп\.""", RegexOption.IGNORE_CASE)
+
+    private fun currencyWord(numStr: String, forms: Triple<String, String, String>): String {
+        val hasFrac = numStr.contains(',') || numStr.contains('.')
+        if (hasFrac) return forms.second
+        val n = numStr.toLongOrNull() ?: return forms.third
+        return plural(n, forms)
+    }
+
+    private fun currency(text: String): String {
+        var s = text
+        s = dollarPrefixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], dollarForms)}" }
+        s = dollarSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], dollarForms)}" }
+        s = euroPrefixRe.replace(s) { m -> "${m.groupValues[1]} евро" }
+        s = euroSuffixRe.replace(s) { m -> "${m.groupValues[1]} евро" }
+        s = rubleSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], rubleForms)}" }
+        s = kopeckSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], kopeckForms)}" }
+        return s
     }
 
     // 11. Сокращения. Предложные формы («на стр.» → «на странице») — раньше общего списка.
@@ -437,6 +503,9 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])акад\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "академик",
         Regex("""(?<![\p{L}\d])им\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "имени",
         Regex("""(?<![\p{L}\d])ул\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "улица",
+        // Фолбэк для «руб.» без числа сразу перед ним (например, после «тыс.» — «5 тыс. руб.»
+        // число уже стало словами выше в scaleAbbrev). Число рядом с «руб.» ловит currency()
+        // раньше — со склонением по plural() (task 18 п.6), здесь до него не доходит.
         Regex("""(?<![\p{L}\d])руб\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "рублей",
         Regex("""(?<![\p{L}\d])тыс\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "тысяч",
         Regex("""(?<![\p{L}\d])млн\.?(?![\p{L}])""", RegexOption.IGNORE_CASE) to "миллионов",
@@ -451,19 +520,26 @@ object Normalizer {
     }
 
     fun numbers(text: String): String {
-        var s = text
+        // U+2212 (настоящий знак «минус», не дефис) — приводим к «-», чтобы его читал
+        // тот же numberRe, что уже умеет «-5» (task 18 п.4).
+        var s = text.replace('−', '-')
         s = glueThousands(s)
         s = glueThousandsSpace(s)
         s = removeFootnotes(s)
+        // Градусы — до римских цифр: одиночная «C» после «°» иначе читается как римское 100
+        // (eligibleAlone в romanNumerals не заглядывает влево, task 18 п.4).
+        s = degrees(s)
         s = romanNumerals(s)
         s = dates(s)
         s = times(s)
         s = yearsWithG(s)
+        s = cityAbbrev(s)
         s = cardinalGenitiveSuffixUnit(s)
         s = cardinalGenitiveSuffix(s)
         s = units(s)
         s = sectionNumbers(s)
         s = fractionsSlash(s)
+        s = currency(s)
         s = abbreviations(s)
         s = yearRe.replace(s) { m ->
             m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]
