@@ -136,11 +136,6 @@ class RulesTest {
         assertEquals("три целых пять десятых", n("3.5"))
     }
 
-    @Test fun fractionsSlash() {
-        assertEquals("шесть дробь десять", n("6/10"))
-        assertEquals("один дробь два", n("1/2"))
-    }
-
     @Test fun abbreviations() {
         assertEquals("и так далее", n("и т. д."))
         assertEquals("то есть", n("т.е."))
@@ -154,5 +149,64 @@ class RulesTest {
     @Test fun homoglyphs() {
         assertEquals("проблема", Normalizer.latin("прoблема"))
         assertEquals("айфон", Normalizer.latin("iphone"))
+    }
+
+    // Task 18 п.3: пунктуация — до чисел, первым проходом в prepare().
+    @Test fun repeatedExclamationOrQuestionMarks() {
+        assertEquals("что?", p("Что?!"))
+        assertEquals("ура!", p("Ура!!!"))
+    }
+
+    @Test fun ellipsisVariants() {
+        assertEquals("всё…", p("Всё..."))
+        assertEquals("всё…", p("Всё...."))
+        assertEquals("всё…", p("Всё. . ."))
+    }
+
+    @Test fun spacedHyphenBecomesEnDash() {
+        assertEquals("иди – сюда", p("иди - сюда"))
+    }
+
+    @Test fun repeatedDashesCollapse() {
+        assertEquals("иди – сюда", p("иди –– сюда"))
+    }
+
+    @Test fun degrees() {
+        assertEquals("один градус цельсия", p("1 °C"))
+        assertEquals("минус пять градусов цельсия", p("−5 °C"))
+        assertEquals("двадцать два градуса", p("22°"))
+        assertEquals("минус двадцать градусов по фаренгейту", p("−20°F"))
+    }
+
+    @Test fun fractionsAsWords() {
+        assertEquals("одна вторая", n("1/2"))
+        assertEquals("две третьих", n("2/3"))
+        assertEquals("три четвёртых", n("3/4"))
+        assertEquals("шесть десятых", n("6/10"))
+        assertEquals("двадцать пять дробь три", n("25/3"))
+    }
+
+    @Test fun fractionsSlashDoesNotBreakDates() {
+        assertEquals("пятого декабря две тысячи двадцатого года", n("05/12/2020"))
+    }
+
+    @Test fun currency() {
+        assertEquals("пять долларов", n("$5"))
+        assertEquals("двадцать один доллар", n("21 $"))
+        assertEquals("пять рублей тридцать копеек", n("5 руб. 30 коп."))
+        assertEquals("две целых пять десятых евро", n("2,5 €"))
+        assertEquals("один рубль", n("1 руб."))
+    }
+
+    @Test fun cityAbbreviation() {
+        assertEquals("город москва", p("г. Москва"))
+        assertEquals("в тысяча девятьсот девяностом году", n("в 1990 г."))
+        assertEquals("двадцать один грамм", n("21 г"))
+    }
+
+    @Test fun decades() {
+        assertEquals("в девяностых", n("в 90-х"))
+        assertEquals("двухтысячные", n("2000-е"))
+        assertEquals("в тысяча девятьсот девяностых годах", n("в 1990-х годах"))
     }
 }

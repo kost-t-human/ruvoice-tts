@@ -95,6 +95,22 @@ object Normalizer {
         return prefix + stem + ending
     }
 
+    // 0. Пунктуация (task 18 п.3): первый проход в prepare(), до чисел — приводим «шумную»
+    // пунктуацию к одному варианту. Повторные «!»/«?» — к первому знаку, многоточие в любом
+    // виде («...», ". . .») — к «…», дефис/минус в пробелах — к тире, несколько тире подряд —
+    // к одному.
+    private val multiExclQuestRe = Regex("[!?]{2,}")
+    private val ellipsisRe = Regex("""\.(?: ?\.){2,}""")
+    private val spacedDashRe = Regex("""(?<=[ ])[-−](?=[ ])""")
+    private val multiDashRe = Regex("[–—]{2,}")
+    fun punctuation(text: String): String {
+        var s = multiExclQuestRe.replace(text) { it.value.first().toString() }
+        s = ellipsisRe.replace(s, "…")
+        s = spacedDashRe.replace(s, "–")
+        s = multiDashRe.replace(s, "–")
+        return s
+    }
+
     private val numberRe = Regex("""(№|§)?(?<!\d)(-?)(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю)(?![а-яё]))?(%)?""")
 
     // «в 1917 году» → порядковое: год → -й, года → -го, году → -м
@@ -535,5 +551,5 @@ object Normalizer {
     // до romanNumerals(). latin() лоуэркейсит сам, так что дальше по пайплайну (символы/фильтр)
     // всё как раньше (review t17 round2 п.1).
     fun prepare(text: String, allowed: String): String =
-        symbols(latin(numbers(text)), allowed)
+        symbols(latin(numbers(punctuation(text))), allowed)
 }
