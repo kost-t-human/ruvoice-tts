@@ -29,6 +29,25 @@ class SplitterTest {
         assertEquals(listOf("Он шёл", "Домой"), Splitter.paragraphs("Он шёл\nДомой"))
     }
 
+    @Test fun keepsHyphenForParticleAfterBreak() {
+        // review round 1 п.3: «то» после переноса — частица, не окончание слова.
+        assertEquals(listOf("кто-то"), Splitter.paragraphs("кто-\nто"))
+    }
+
+    @Test fun keepsHyphenForShortPrefixBeforeBreak() {
+        // review round 1 п.3: «по» перед переносом — короткая приставка-предлог.
+        assertEquals(listOf("по-русски"), Splitter.paragraphs("по-\nрусски"))
+        assertEquals(listOf("из-за"), Splitter.paragraphs("из-\nза"))
+        assertEquals(listOf("кое-кто"), Splitter.paragraphs("кое-\nкто"))
+        assertEquals(listOf("во-первых"), Splitter.paragraphs("во-\nпервых"))
+    }
+
+    // review round 1 п.1: реальный пайплайн режет на предложения ДО Normalizer.prepare(),
+    // поэтому Splitter.sentences() сам должен чистить пунктуацию через Normalizer.punctuation().
+    @Test fun sentencesCleanUpPunctuationBeforeSplitting() {
+        assertEquals(listOf("Всё…", "Дальше."), Splitter.sentences("Всё. . . Дальше."))
+    }
+
     @Test fun sentencesByPunctuation() {
         assertEquals(listOf("Он ждал.", "Никто не пришёл!", "Почему?", "Всё…", "Конец"),
             Splitter.sentences("Он ждал. Никто не пришёл! Почему? Всё… Конец"))

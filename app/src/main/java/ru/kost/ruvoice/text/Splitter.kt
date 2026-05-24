@@ -17,10 +17,20 @@ object Splitter {
     // Де-гифенация переносов (task 18 п.1): строчная буква после переноса — слово разбито
     // переносом, дефис и \n убираем («со-\nбака» → «собака»). Заглавная — вероятно составное
     // слово («Санкт-\nПетербург»), убираем только перенос, дефис оставляем.
-    private val hyphenBreakRe = Regex("""([а-яёА-ЯЁ])-\n[ \t]*([а-яёА-ЯЁ])""")
+    // Дефис также оставляем (review round 1 п.3), если это на самом деле не разрыв слова
+    // переносом, а обычное дефисное написание, случайно совпавшее со строкой: короткая
+    // приставка/предлог перед дефисом («по-\nрусски», «из-\nза», «кое-\nкто», «во-\nпервых»)
+    // или частица после него («кто-\nто»).
+    private val hyphenKeepPrefixes = setOf("по", "кое", "кой", "из", "во", "в", "за", "на", "под", "над",
+        "от", "до", "обо", "о")
+    private val hyphenKeepParticles = setOf("то", "либо", "нибудь", "таки", "ка", "де")
+    private val hyphenBreakRe = Regex("""([а-яёА-ЯЁ]+)-\n[ \t]*([а-яёА-ЯЁ]+)""")
     private fun dehyphenate(text: String) = hyphenBreakRe.replace(text) { m ->
         val (before, after) = m.destructured
-        if (after[0] in 'а'..'я' || after[0] == 'ё') before + after else "$before-$after"
+        val keepHyphen = after[0].isUpperCase() ||
+            before.lowercase() in hyphenKeepPrefixes ||
+            after.lowercase() in hyphenKeepParticles
+        if (keepHyphen) "$before-$after" else before + after
     }
 
     // Одиночный \n перед строчной буквой (task 18 п.2) — мягкий перенос строки внутри
@@ -34,8 +44,12 @@ object Splitter {
     }
 
     fun sentences(text: String, maxLen: Int = 400): List<String> {
+        // Реальный пайплайн режет на предложения ДО Normalizer.prepare() (review round 1 п.1):
+        // без этого «Всё. . . Дальше.» резалось бы по каждой точке многоточия. punctuation()
+        // идемпотентна, повторный вызов внутри prepare() ничего не портит.
+        val cleaned = Normalizer.punctuation(text)
         val merged = mutableListOf<String>()
-        for (piece in sentenceEnd.split(text.trim())) {
+        for (piece in sentenceEnd.split(cleaned.trim())) {
             if (merged.isNotEmpty() && endsWithAbbrev(merged.last())) merged[merged.size - 1] += " $piece"
             else merged += piece
         }
