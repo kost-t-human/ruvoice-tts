@@ -73,13 +73,17 @@ object Normalizer {
         4000L to "четырёхтысячн", 5000L to "пятитысячн", 6000L to "шеститысячн", 7000L to "семитысячн",
         8000L to "восьмитысячн", 9000L to "девятитысячн")
 
-    /** «2024-м» → «две тысячи двадцать четвёртом»: порядковым делаем только последнее слово. */
-    fun ordinal(n: Long, suffix: String): String {
+    /**
+     * «2024-м» → «две тысячи двадцать четвёртом»: порядковым делаем только последнее слово.
+     * [pluralDecade] — круглая тысяча с суффиксом «-е» неоднозначна: «1000-е место» (обычное
+     * порядковое, ед. ч.) и «в 2000-е» / «2000-е годы» (десятилетие, мн. ч.) пишутся одинаково,
+     * различает их только то, что стоит после числа в тексте (review round 1 п.4) — это решает
+     * вызывающий код по контексту, сюда приходит уже готовым флагом.
+     */
+    fun ordinal(n: Long, suffix: String, pluralDecade: Boolean = false): String {
         val e = endings[suffix] ?: return cardinal(n)
-        // Круглая тысяча с суффиксом «-е» — это не «двухтысячное» (ед. ч., ср. р.), а десятилетие
-        // «двухтысячные» (мн. ч., task 18 п.8): у круглых тысяч «-е» иного смысла не бывает.
         roundThousandStems[n]?.let { stem ->
-            return stem + if (suffix == "е") "ые" else if (stem in stressedEnding) e.second else e.first
+            return stem + if (suffix == "е" && pluralDecade) "ые" else if (stem in stressedEnding) e.second else e.first
         }
         val last = when {
             n % 100 == 0L && n % 1000 != 0L -> (n % 1000).toInt()
@@ -116,6 +120,16 @@ object Normalizer {
     }
 
     private val numberRe = Regex("""(№|§)?(?<!\d)(-?)(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю)(?![а-яё]))?(%)?""")
+
+    // Признак десятилетия для круглой тысячи с «-е» (task 18 review round 1 п.4): годовое слово
+    // сразу после, либо число в конце строки/перед пунктуацией — «2000-е годы», «в 2000-е»;
+    // если дальше идёт обычное слово («1000-е место») — это порядковое, не десятилетие.
+    private val decadeYearWordRe = Regex("""^\s*(?:годы|года|годов|годах|гг\.)(?![а-яёА-ЯЁ])""", RegexOption.IGNORE_CASE)
+    private fun isDecadeTail(tail: String): Boolean {
+        if (decadeYearWordRe.containsMatchIn(tail)) return true
+        val t = tail.trimStart(' ', '\t')
+        return t.isEmpty() || !t[0].isLetter()
+    }
 
     // «в 1917 году» → порядковое: год → -й, года → -го, году → -м
     private val yearRe = Regex("""(?<![\d-])(\d{3,4})(\s+)(год|года|году)(?![а-яё])""", RegexOption.IGNORE_CASE)
@@ -430,7 +444,7 @@ object Normalizer {
     private val rubleForms = Triple("рубль", "рубля", "рублей")
     private val kopeckForms = Triple("копейка", "копейки", "копеек")
     private val moneyNumRe = """\d+(?:[.,]\d+)?"""
-    private val dollarPrefixRe = Regex("""\$($moneyNumRe)""")
+    private val dollarPrefixRe = Regex("""\$\s?($moneyNumRe)""")
     private val dollarSuffixRe = Regex("""($moneyNumRe)\s?\$""")
     private val euroPrefixRe = Regex("""€($moneyNumRe)""")
     private val euroSuffixRe = Regex("""($moneyNumRe)\s?€""")
@@ -524,6 +538,11 @@ object Normalizer {
         // тот же numberRe, что уже умеет «-5» (task 18 п.4).
         var s = text.replace('−', '-')
         s = glueThousands(s)
+        // NBSP и другие юникод-пробелы нужны glueThousands() в исходном виде (иначе разряды не
+        // склеятся) — сразу после нормализуем всё оставшееся в обычный пробел: JVM \s без
+        // UNICODE_CHARACTER_CLASS не матчит NBSP, а regex ниже (degreeRe, cityAbbrevRe и т.д.)
+        // на него полагаются (review round 1 п.2, общий фикс вместо точечного на каждый regex).
+        s = wsClass.replace(s, " ")
         s = glueThousandsSpace(s)
         s = removeFootnotes(s)
         // Градусы — до римских цифр: одиночная «C» после «°» иначе читается как римское 100
@@ -560,7 +579,8 @@ object Normalizer {
                 sb.append(cardinal(n, feminine = true)).append(if (n % 10 == 1L && n % 100 != 11L) " целая " else " целых ")
                 sb.append(cardinal(fracN, feminine = true)).append(' ').append(plural(fracN, denom))
             } else if (suffix.isNotEmpty()) {
-                sb.append(ordinal(n, suffix.lowercase()))
+                val tail = s.substring(m.range.last + 1)
+                sb.append(ordinal(n, suffix.lowercase(), isDecadeTail(tail)))
             } else {
                 sb.append(cardinal(n))
             }

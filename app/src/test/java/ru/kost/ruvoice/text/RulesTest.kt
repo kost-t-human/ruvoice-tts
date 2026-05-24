@@ -178,6 +178,12 @@ class RulesTest {
         assertEquals("минус двадцать градусов по фаренгейту", p("−20°F"))
     }
 
+    @Test fun degreesWithNbsp() {
+        // review round 1 п.2: NBSP (U+00A0) не матчится JVM-ом \s без UNICODE_CHARACTER_CLASS —
+        // «1 °C» раньше уходил как «один °сто» (° не находило C рядом).
+        assertEquals("один градус цельсия", p("1 °C"))
+    }
+
     @Test fun fractionsAsWords() {
         assertEquals("одна вторая", n("1/2"))
         assertEquals("две третьих", n("2/3"))
@@ -198,15 +204,37 @@ class RulesTest {
         assertEquals("один рубль", n("1 руб."))
     }
 
+    @Test fun currencyDollarSignWithSpace() {
+        // review round 1 п.5: пробел после «$» тоже допустим.
+        assertEquals("сто долларов", n("$ 100"))
+    }
+
     @Test fun cityAbbreviation() {
         assertEquals("город москва", p("г. Москва"))
         assertEquals("в тысяча девятьсот девяностом году", n("в 1990 г."))
         assertEquals("двадцать один грамм", n("21 г"))
     }
 
+    @Test fun cityAbbreviationWithNbsp() {
+        // review round 1 п.2: та же причина, что и у градусов — \s не видит NBSP.
+        assertEquals("город москва", p("г. Москва"))
+    }
+
+    @Test fun thousandsSeparatorNbspNotBrokenByGeneralWhitespaceFix() {
+        assertEquals("двенадцать тысяч триста сорок пять", n("12 345"))
+    }
+
     @Test fun decades() {
         assertEquals("в девяностых", n("в 90-х"))
         assertEquals("двухтысячные", n("2000-е"))
         assertEquals("в тысяча девятьсот девяностых годах", n("в 1990-х годах"))
+    }
+
+    @Test fun decadesNeedYearContextForRoundThousand() {
+        // review round 1 п.4: круглая тысяча с «-е» — множественное только с годовым контекстом
+        // (годы/гг./годов/годах/года, конец строки, знак препинания), иначе обычное порядковое.
+        assertEquals("тысячное место", n("1000-е место"))
+        assertEquals("в двухтысячные", n("в 2000-е"))
+        assertEquals("двухтысячные годы", n("2000-е годы"))
     }
 }
