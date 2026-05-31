@@ -53,4 +53,10 @@ class AbbrevTest {
         // приклеенная дефисом к цифре — именно то, что должен отсекать lookaround
         assertEquals("ЕГЭ-2020", Abbrev.apply("ЕГЭ-2020"))
     }
+
+    @Test fun integratedIntoPrepare() {
+        val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
+        assertEquals("агент эф эс б+э и порт ю эс б+и.", Normalizer.prepare("Агент ФСБ и порт USB.", allowed))
+        assertEquals("служил в нато.", Normalizer.prepare("Служил в НАТО.", allowed))
+    }
 }

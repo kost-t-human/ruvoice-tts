@@ -59,7 +59,8 @@ class RulesTest {
         assertEquals("в тысяча девятьсот девяностом году", p("В 1990 Году"))
         assertEquals("иоанна три шестнадцать", p("Иоанна 3:16"))
         assertEquals("в двадцатом веке", p("в XX веке"))
-        assertEquals("микс стилей", p("MIX стилей"))
+        // не римское 1009; капс с единственной гласной I Abbrev читает по буквам (как FBI)
+        assertEquals("эм ай +экс стилей", p("MIX стилей"))
     }
 
     @Test fun dates() {

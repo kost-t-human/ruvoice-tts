@@ -646,6 +646,7 @@ object Normalizer {
     // римские цифры в CAPS-токене («Людовик XIV») теряют признак «весь токен заглавный» ещё
     // до romanNumerals(). latin() лоуэркейсит сам, так что дальше по пайплайну (символы/фильтр)
     // всё как раньше (review t17 round2 п.1).
+    // Abbrev до latin(): latin() лоуэркейсит текст, а аббревиатуры узнаются по КАПСУ.
     fun prepare(text: String, allowed: String): String =
-        symbols(latin(numbers(punctuation(text))), allowed)
+        symbols(latin(Abbrev.apply(numbers(punctuation(text)))), allowed)
 }
