@@ -1,23 +1,55 @@
 <resources>
     <string name="app_name">RuVoice TTS</string>
+
+    <!-- Вкладки -->
+    <string name="tab_voice">Голос</string>
+    <string name="tab_pauses">Паузы</string>
+    <string name="tab_stress">Ударения</string>
+    <string name="tab_replace">Замены</string>
+
+    <!-- Голос -->
     <string name="voice">Голос</string>
+    <string name="sample_rate">Частота дискретизации</string>
+    <string name="sample_rate_item">%1$d Гц</string>
+    <string name="section_quote">Прямая речь</string>
+    <string name="section_quote_hint">Реплики, начинающиеся с тире или кавычки, можно озвучивать другим голосом, темпом и высотой.</string>
     <string name="quote_voice">Голос прямой речи</string>
     <string name="quote_voice_default">как основной</string>
-    <string name="quote_rate">Темп прямой речи (×)</string>
-    <string name="quote_pitch">Питч прямой речи (×)</string>
-    <string name="sample_rate">Частота дискретизации</string>
-    <string name="pause_sentence">Пауза после предложения, мс</string>
-    <string name="pause_paragraph">Пауза после абзаца, мс</string>
-    <string name="pause_comma">Пауза после запятой, мс</string>
-    <string name="idle_minutes">Выгружать модели через, мин</string>
-    <string name="user_dict">Словарь ударений (слово сл+ово, по строке)</string>
-    <string name="user_replace">Замены (ключ = замена; пустая замена — пропустить; в замене можно ставить + для ударения с учётом соседних слов). Ключ с ~ — regex: ~regex = $1. Замена {skip} — то же, что пустая. Маркер {pause:500} в замене — пауза 500 мс.</string>
-    <string name="save">Сохранить</string>
-    <string name="preview">Прослушать</string>
-    <string name="analyze">Разбор</string>
-    <string name="close">Закрыть</string>
+    <string name="quote_rate">Темп</string>
+    <string name="quote_pitch">Высота</string>
+    <string name="factor_suffix">×</string>
+    <string name="factor_range">от 0,5 до 2</string>
+    <string name="section_preview">Проверка</string>
     <string name="preview_hint">Текст для прослушивания</string>
     <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.\n— Пойдём домой, — сказал он тихо.</string>
+    <string name="preview">Прослушать</string>
+    <string name="analyze">Разбор</string>
+    <string name="analyze_title">Разбор текста</string>
     <string name="preview_failed">Движок не ответил (код %1$s)</string>
+
+    <!-- Паузы и работа -->
+    <string name="section_pauses">Паузы</string>
+    <string name="section_pauses_hint">Тишина, которую движок добавляет в звук. Нуль — пауза только та, что даёт сама модель.</string>
+    <string name="pause_sentence">После предложения</string>
+    <string name="pause_paragraph">После абзаца</string>
+    <string name="pause_comma">После запятой</string>
+    <string name="ms_suffix">мс</string>
+    <string name="section_runtime">Память</string>
+    <string name="idle_minutes">Выгружать модели после простоя</string>
+    <string name="idle_minutes_hint">Модели занимают память, пока сервис работает. Через это время без запросов они выгружаются, следующий запрос загрузит их заново.</string>
+    <string name="min_suffix">мин</string>
+
+    <!-- Словари -->
+    <string name="user_dict_hint">По одному слову в строке: слово и его вариант с ударением через пробел, ударение отмечается знаком + перед гласной. Строки с # не читаются.</string>
+    <string name="user_dict_example">творог твор+ог\nзамок з+амок\n# строка с решёткой не читается</string>
+    <string name="user_dict_placeholder">слово сл+ово</string>
+    <string name="user_replace_hint">Строка «ключ = замена». Пустая замена или {skip} пропускают слово. Ключ с ~ в начале — регулярное выражение, в замене работают $1, $2. Маркер {pause:500} добавляет паузу 500 мс. В замене можно ставить + для ударения, в том числе в сочетаниях из нескольких слов.</string>
+    <string name="user_replace_example">т.е. = то есть\nбольшой замок = больш+ой зам+ок\n~(\\d+)\\s*км = $1 километров\n[1] = {skip}\nГлава = {pause:500}Глава</string>
+    <string name="user_replace_placeholder">ключ = замена</string>
+    <string name="example_title">Пример</string>
+
+    <!-- Меню и о программе -->
+    <string name="about_title">О программе</string>
+    <string name="close">Закрыть</string>
     <string name="about">Синтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
 </resources>

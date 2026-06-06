@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Material 3, светлая/тёмная по системе; на Android 12+ поверх накладываются
-         динамические цвета (DynamicColors в SettingsActivity). Системные бары прозрачные,
-         цвет их значков берёт тема Material3 (light/dark), инсеты раздаёт сама Activity. -->
-    <style name="Theme.RuVoice" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-    </style>
+         динамические цвета (DynamicColors в SettingsActivity). Прозрачность системных
+         баров и цвет их значков ставит enableEdgeToEdge() там же. -->
+    <style name="Theme.RuVoice" parent="Theme.Material3.DayNight.NoActionBar" />
 </resources>
