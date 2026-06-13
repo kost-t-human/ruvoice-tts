@@ -46,7 +46,6 @@
     <string name="user_replace_hint">Строка «ключ = замена». Пустая замена или {skip} пропускают слово. Ключ с ~ в начале — регулярное выражение, в замене работают $1, $2. Маркер {pause:500} добавляет паузу 500 мс. В замене можно ставить + для ударения, в том числе в сочетаниях из нескольких слов.</string>
     <string name="user_replace_example">т.е. = то есть\nбольшой замок = больш+ой зам+ок\n~(\\d+)\\s*км = $1 километров\n[1] = {skip}\nГлава = {pause:500}Глава</string>
     <string name="user_replace_placeholder">ключ = замена</string>
-    <string name="example_title">Пример</string>
 
     <!-- Меню и о программе -->
     <string name="about_title">О программе</string>
