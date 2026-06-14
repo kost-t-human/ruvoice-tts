@@ -1,6 +1,7 @@
 package ru.kost.ruvoice.text
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import ru.kost.ruvoice.TestData
 
@@ -78,5 +79,22 @@ class CasesTest {
     @Test fun casesThroughPrepare() {
         assertEquals("около пятисот рублей", p("около 500 рублей"))
         assertEquals("в пяти случаях", p("в 5 случаях"))
+    }
+
+    // Fix round 1: «-ьми» — неправильный творительный («детьми», «людьми»), оканчивается на «и»,
+    // но это не повод склонять числительное «два/двадцать два» в «две/двадцать две».
+    @Test fun nominativeFeminineTwoDoesNotMatchIrregularInstrumentalTail() {
+        assertEquals("с два детьми", n("с 2 детьми"))
+        assertEquals("были заняты два детьми", n("были заняты 2 детьми"))
+        assertEquals("двадцать два людьми", n("22 людьми"))
+    }
+
+    // Fix round 1: «день + месяц» без точек («к 1 сентября») — не дата в формате dd.mm, cases()
+    // не должен путать её с обычным «к 1» и давать дательный «одному»; правильный порядковый
+    // разбор такой даты вне рамок задачи (ponytail-потолок), число остаётся как раньше.
+    @Test fun dayAndMonthWithoutDotsStaysUntouched() {
+        assertEquals("к один сентября", n("к 1 сентября"))
+        assertFalse(n("к 1 сентября").contains("одному"))
+        assertEquals("к один июля", n("к 1 июля"))
     }
 }
