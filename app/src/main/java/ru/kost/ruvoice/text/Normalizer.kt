@@ -533,6 +533,142 @@ object Normalizer {
         return s
     }
 
+    // 12. Падеж числительного (task 19b): предлог-триггер перед числом или окончание соседнего
+    // слова задают падеж — «около 500 рублей» → «около пятисот рублей», «в 5 случаях» →
+    // «в пяти случаях». К этому моменту год, дата, время, «N-ти», дробь и процент уже раскрыты
+    // предыдущими проходами — «хвост» после числа (numTailExclude) отсекает их снова: суффикс
+    // -й/-го/…, дробь/процент через «.,:/», «год/года/году».
+    private val amplifierRe =
+        """(?:примерно|почти|приблизительно|чем|всего|целых|лишь|ещё|уже|только|каких-то|где-то)"""
+    private val numTailExclude =
+        """(?![.,:/\d])(?!-(?:й|го|му|м|х|е|я|ю)(?![а-яё]))(?!\s*(?:год|года|году)(?![а-яё]))(?!%)"""
+
+    // «тем более»/«тем менее» — не триггер (lookbehind на «тем »).
+    private val genTriggerAlt = """(?:(?<!тем )более|(?<!тем )менее|больше|меньше|свыше|около|порядка|до|""" +
+        """из|от|без|у|для|после|кроме|вместо|против|среди|помимо|старше|моложе|выше|ниже|дальше|""" +
+        """дороже|дешевле|ранее|позднее|в\s+возрасте|в\s+количестве|в\s+течение|в\s+размере|в\s+районе|""" +
+        """на\s+протяжении|в\s+пределах|начиная\s+с)"""
+    private val datTriggerAlt = """(?:к|ко|благодаря|вопреки|равно|равен|равна)"""
+    private val insTriggerAlt = """(?:между|над|перед|по\s+сравнению\s+с|в\s+сравнении\s+с)"""
+    private val preTriggerAlt = """(?:о|об|обо|при)"""
+
+    private fun triggerRe(alt: String) = Regex(
+        """(?<![\p{L}])$alt(?![\p{L}])(?:\s+$amplifierRe(?![\p{L}]))*\s+(\d+)$numTailExclude""",
+        RegexOption.IGNORE_CASE
+    )
+    private val genTriggerRe = triggerRe(genTriggerAlt)
+    private val datTriggerRe = triggerRe(datTriggerAlt)
+    private val insTriggerRe = triggerRe(insTriggerAlt)
+    private val preTriggerRe = triggerRe(preTriggerAlt)
+
+    // По окончанию соседнего слова, без триггера из списка выше (п.2). «-ами/-ями» — только
+    // творительный мн. ч., предлог не обязателен («2 миллионами»). «-ом/-ем/-ой/-ей/-ью» —
+    // неоднозначны с родительным мн. ч. («читателей»), поэтому только после «с/со».
+    private val insEndingPluralRe = Regex(
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+(?:ами|ями)(?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+    private val insEndingWithSRe = Regex(
+        """(?<![\p{L}])(?:с|со)(?![\p{L}])\s+(\d+)$numTailExclude\s+\p{L}+(?:ом|ем|ой|ей|ью)(?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+    // ponytail: список окончаний конечный, неправильные формы вроде «детьми» (не «-ью») не
+    // распознаются — число остаётся именительным («с пять детьми»); расширить список при находках.
+    private val preEndingRe = Regex(
+        """(?<![\p{L}])(?:в|во|на|при|о|об)(?![\p{L}])\s+(\d+)$numTailExclude\s+\p{L}+(?:ах|ях)(?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+    // Число на 1 (не 11) + слово на -у/-ю → винительный женского рода («1 книгу» → «одну книгу»).
+    private val accFemEndingRe = Regex(
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+[ую](?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+    // Число на 2 (не 12) + слово на -ы/-и → «две» («2 книги» → «две книги», «2 стола» не трогаем).
+    private val nomFemTwoEndingRe = Regex(
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+[ыи](?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Диапазоны: «между N и M» — оба И.п.; «с N по M» — первое Р.п., второе как есть (кроме
+    // месяца — тогда оба порядковые среднего/мужского рода); «с N до M» — оба Р.п.
+    private val rangeMezhduRe = Regex(
+        """(?<![\p{L}])между(?![\p{L}])\s+(\d+)$numTailExclude\s+и\s+(\d+)$numTailExclude""",
+        RegexOption.IGNORE_CASE
+    )
+    private val rangeSDoRe = Regex(
+        """(?<![\p{L}])с(?![\p{L}])\s+(\d+)$numTailExclude\s+до\s+(\d+)$numTailExclude""",
+        RegexOption.IGNORE_CASE
+    )
+    private val monthGenAlt = monthGenitive.drop(1).joinToString("|")
+    private val rangeSPoMonthRe = Regex(
+        """(?<![\p{L}])с(?![\p{L}])\s+(\d+)$numTailExclude\s+по\s+(\d+)$numTailExclude\s+($monthGenAlt)(?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+    private val rangeSPoRe = Regex(
+        """(?<![\p{L}])с(?![\p{L}])\s+(\d+)$numTailExclude\s+по\s+(\d+)$numTailExclude""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Заменяет цифровую группу(-ы) совпадения на готовое слово, остальной текст (предлог,
+    // усилители, соединительные слова) остаётся как в исходнике — по смещениям групп.
+    private fun MatchResult.withGroupReplaced(vararg replacements: Pair<Int, String>): String {
+        var result = value
+        for ((idx, repl) in replacements.sortedByDescending { groups[it.first]!!.range.first }) {
+            val g = groups[idx]!!
+            val start = g.range.first - range.first
+            val end = g.range.last - range.first + 1
+            result = result.substring(0, start) + repl + result.substring(end)
+        }
+        return result
+    }
+
+    private fun applyCase(text: String, re: Regex, case: Case) = re.replace(text) { m ->
+        val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+        m.withGroupReplaced(1 to Declension.cardinal(n, case))
+    }
+
+    private fun cases(text: String): String {
+        var s = text
+        s = rangeMezhduRe.replace(s) { m ->
+            val n1 = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+            val n2 = m.groupValues[2].toLongOrNull() ?: return@replace m.value
+            m.withGroupReplaced(1 to Declension.cardinal(n1, Case.INS), 2 to Declension.cardinal(n2, Case.INS))
+        }
+        // «с N по M месяц» — порядковые (существующий механизм ordinal()), раньше «с N по M» без месяца.
+        s = rangeSPoMonthRe.replace(s) { m ->
+            val n1 = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+            val n2 = m.groupValues[2].toLongOrNull() ?: return@replace m.value
+            m.withGroupReplaced(1 to ordinal(n1, "го"), 2 to ordinal(n2, "е"))
+        }
+        s = rangeSPoRe.replace(s) { m ->
+            val n1 = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+            m.withGroupReplaced(1 to Declension.cardinal(n1, Case.GEN))
+        }
+        s = rangeSDoRe.replace(s) { m ->
+            val n1 = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+            val n2 = m.groupValues[2].toLongOrNull() ?: return@replace m.value
+            m.withGroupReplaced(1 to Declension.cardinal(n1, Case.GEN), 2 to Declension.cardinal(n2, Case.GEN))
+        }
+        s = applyCase(s, genTriggerRe, Case.GEN)
+        s = applyCase(s, datTriggerRe, Case.DAT)
+        s = applyCase(s, insTriggerRe, Case.INS)
+        s = applyCase(s, preTriggerRe, Case.PRE)
+        s = applyCase(s, insEndingPluralRe, Case.INS)
+        s = applyCase(s, insEndingWithSRe, Case.INS)
+        s = applyCase(s, preEndingRe, Case.PRE)
+        s = accFemEndingRe.replace(s) { m ->
+            val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+            if (n % 10 != 1L || n % 100 == 11L) return@replace m.value
+            m.withGroupReplaced(1 to Declension.cardinal(n, Case.ACC, feminine = true))
+        }
+        s = nomFemTwoEndingRe.replace(s) { m ->
+            val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+            if (n % 10 != 2L || n % 100 == 12L) return@replace m.value
+            m.withGroupReplaced(1 to Declension.cardinal(n, Case.NOM, feminine = true))
+        }
+        return s
+    }
+
     fun numbers(text: String): String {
         // U+2212 (настоящий знак «минус», не дефис) — приводим к «-», чтобы его читал
         // тот же numberRe, что уже умеет «-5» (task 18 п.4).
@@ -560,6 +696,7 @@ object Normalizer {
         s = fractionsSlash(s)
         s = currency(s)
         s = abbreviations(s)
+        s = cases(s)
         s = yearRe.replace(s) { m ->
             m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]
         }
