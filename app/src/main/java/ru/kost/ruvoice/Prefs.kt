@@ -31,4 +31,42 @@ class Prefs(private val context: Context) {
 
     fun replacements(): Replacements =
         Replacements.parse(if (userReplaceFile.exists()) userReplaceFile.readLines() else emptyList())
+
+    /** Собирает JSON-файл экспорта настроек (текущие Prefs + словарь ударений + замены). */
+    fun exportJson(): String {
+        val prefsMap = mapOf(
+            "voice" to voice,
+            "sr" to sampleRate,
+            "pause_sentence" to sentencePauseMs,
+            "pause_paragraph" to paragraphPauseMs,
+            "pause_comma" to commaPauseMs,
+            "idle_min" to idleMinutes,
+            "quote_voice" to quoteVoice,
+            "quote_rate" to quoteRate.toDouble(),
+            "quote_pitch" to quotePitch.toDouble(),
+        )
+        val stress = if (userDictFile.exists()) userDictFile.readText() else ""
+        val replace = if (userReplaceFile.exists()) userReplaceFile.readText() else ""
+        return SettingsJson.build(prefsMap, stress, replace)
+    }
+
+    /**
+     * Разбирает JSON-файл экспорта и применяет его: отсутствующие в файле ключи не трогает,
+     * неизвестные игнорирует, числа приводит к тем же границам, что и UI (см. SettingsPages).
+     */
+    fun importJson(text: String) {
+        val parsed = SettingsJson.parse(text)
+        val prefsMap = parsed.prefs
+        (prefsMap["voice"] as? String)?.let { voice = it }
+        (prefsMap["sr"] as? Number)?.let { sampleRate = it.toInt() }
+        (prefsMap["pause_sentence"] as? Number)?.let { sentencePauseMs = it.toInt().coerceAtLeast(0) }
+        (prefsMap["pause_paragraph"] as? Number)?.let { paragraphPauseMs = it.toInt().coerceAtLeast(0) }
+        (prefsMap["pause_comma"] as? Number)?.let { commaPauseMs = it.toInt().coerceAtLeast(0) }
+        (prefsMap["idle_min"] as? Number)?.let { idleMinutes = it.toInt().coerceAtLeast(1) }
+        (prefsMap["quote_voice"] as? String)?.let { quoteVoice = it }
+        (prefsMap["quote_rate"] as? Number)?.let { quoteRate = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }
+        parsed.stress?.let { userDictFile.writeText(it) }
+        parsed.replace?.let { userReplaceFile.writeText(it) }
+    }
 }
