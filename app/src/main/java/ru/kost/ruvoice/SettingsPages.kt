@@ -27,6 +27,10 @@ abstract class PageFragment(layout: Int) : Fragment(layout) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) = load(view)
     override fun onPause() { view?.let { save(it) }; super.onPause() }
 
+    /** Принудительно сохранить поля в Prefs, не дожидаясь onPause — нужно перед экспортом
+     * настроек, чтобы в файл попали несохранённые правки текущей (видимой) вкладки. */
+    fun saveNow() { view?.let { save(it) } }
+
     protected fun EditText.str() = text.toString()
 }
 

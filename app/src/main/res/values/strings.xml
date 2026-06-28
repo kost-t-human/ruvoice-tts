@@ -47,7 +47,14 @@
     <string name="user_replace_example">т.е. = то есть\nбольшой замок = больш+ой зам+ок\n~(\\d+)\\s*км = $1 километров\n[1] = {skip}\nГлава = {pause:500}Глава</string>
     <string name="user_replace_placeholder">ключ = замена</string>
 
-    <!-- Меню и о программе -->
+    <!-- Меню, экспорт/импорт и о программе -->
+    <string name="export_settings">Экспорт настроек…</string>
+    <string name="import_settings">Импорт настроек…</string>
+    <string name="import_confirm">Заменить текущие настройки, словарь ударений и замены содержимым файла?</string>
+    <string name="import_confirm_yes">Заменить</string>
+    <string name="cancel">Отмена</string>
+    <string name="export_done">Настройки экспортированы</string>
+    <string name="import_done">Настройки импортированы</string>
     <string name="about_title">О программе</string>
     <string name="close">Закрыть</string>
     <string name="about">Синтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
