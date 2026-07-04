@@ -139,7 +139,9 @@ class SileroTtsService : TextToSpeechService() {
             val speakerId = d.speakers.getValue(speaker)
             val rate = (request.speechRate / 100f).coerceIn(0.5f, 3f)
             val pitch = (request.pitch / 100f).coerceIn(0.5f, 2f)
-            val stress = Stress(d, models, prefs.userDict())
+            // настройки слушают слово «как модель», без пользовательского словаря
+            val noDict = request.params?.getString("ruvoice.nodict") == "1"
+            val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict())
             val replacements = prefs.replacements()
             // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
             val quoteSpeakerId = prefs.quoteVoice.takeIf { it in d.speakers }?.let { d.speakers.getValue(it) }
