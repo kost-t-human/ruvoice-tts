@@ -1,18 +1,14 @@
 package ru.kost.ruvoice
 
 import android.os.Bundle
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import ru.kost.ruvoice.text.Normalizer
-import java.util.Locale
 
 /**
  * Страница настроек: в onViewCreated читает Prefs в поля, в onPause пишет поля в Prefs.
@@ -37,7 +33,6 @@ abstract class PageFragment(layout: Int) : Fragment(layout) {
 /** Голос, частота, прямая речь и проверка (прослушать/разбор). */
 class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     private val rates = listOf(48000, 24000)
-    private var tts: TextToSpeech? = null
     // Список голосов берём из модели (SileroModels.data — общий на процесс), а не из
     // вручную вписанного списка, чтобы он не разошёлся с ней.
     private val voices by lazy { SileroModels.data(requireContext()).speakers.keys.sorted() }
@@ -55,8 +50,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
 
         v.findViewById<Button>(R.id.preview).setOnClickListener { btn ->
             save(v)
-            btn.isEnabled = false
-            preview(btn as Button, previewText.str().ifBlank { getString(R.string.preview_text) })
+            (activity as SettingsActivity).preview(btn, previewText.str().ifBlank { getString(R.string.preview_text) })
         }
         v.findViewById<Button>(R.id.analyze).setOnClickListener {
             save(v)
@@ -115,32 +109,6 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             }
         }.start()
     }
-
-    // Прослушивание идёт через платформенный TextToSpeech, а не напрямую через SileroModels:
-    // так проверяется тот же путь, которым звук получит читалка (наш сервис как движок).
-    private fun preview(button: Button, text: String) {
-        val ctx = requireContext().applicationContext
-        tts?.shutdown()
-        tts = TextToSpeech(ctx, { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("ru", "RU")
-                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) { button.post { button.isEnabled = true } }
-                    override fun onError(utteranceId: String?) { button.post { button.isEnabled = true } }
-                })
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "preview")
-            } else button.post {
-                Toast.makeText(ctx, getString(R.string.preview_failed, status.toString()), Toast.LENGTH_LONG).show()
-                button.isEnabled = true
-            }
-        }, ctx.packageName)
-    }
-
-    override fun onDestroy() {
-        tts?.shutdown()
-        super.onDestroy()
-    }
 }
 
 /** Паузы и выгрузка моделей. */
@@ -160,29 +128,4 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
     }
 
     private fun View.int(id: Int, default: Int) = findViewById<EditText>(id).str().toIntOrNull() ?: default
-}
-
-/** Текстовый редактор одного из пользовательских файлов: словарь ударений или замены. */
-class EditorFragment : PageFragment(R.layout.fragment_editor) {
-    private val stress get() = requireArguments().getBoolean(ARG_STRESS)
-    private val file get() = if (stress) prefs.userDictFile else prefs.userReplaceFile
-
-    override fun load(v: View) {
-        v.findViewById<TextView>(R.id.hint).setText(if (stress) R.string.user_dict_hint else R.string.user_replace_hint)
-        v.findViewById<TextView>(R.id.example).setText(if (stress) R.string.user_dict_example else R.string.user_replace_example)
-        v.findViewById<EditText>(R.id.editor).apply {
-            hint = getString(if (stress) R.string.user_dict_placeholder else R.string.user_replace_placeholder)
-            // после поворота текст восстановит сама вьюха; с диска читаем только при первом показе
-            if (text.isEmpty()) setText(if (file.exists()) file.readText() else "")
-        }
-    }
-
-    override fun save(v: View) = file.writeText(v.findViewById<EditText>(R.id.editor).str())
-
-    companion object {
-        private const val ARG_STRESS = "stress"
-        private fun of(stress: Boolean) = EditorFragment().apply { arguments = Bundle().apply { putBoolean(ARG_STRESS, stress) } }
-        fun stress() = of(true)
-        fun replace() = of(false)
-    }
 }

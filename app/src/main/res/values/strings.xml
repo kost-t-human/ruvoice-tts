@@ -39,13 +39,25 @@
     <string name="idle_minutes_hint">Модели занимают память, пока сервис работает. Через это время без запросов они выгружаются, следующий запрос загрузит их заново.</string>
     <string name="min_suffix">мин</string>
 
-    <!-- Словари -->
-    <string name="user_dict_hint">По одному слову в строке: слово и его вариант с ударением через пробел, ударение отмечается знаком + перед гласной. Строки с # не читаются.</string>
-    <string name="user_dict_example">творог твор+ог\nзамок з+амок\n# строка с решёткой не читается</string>
-    <string name="user_dict_placeholder">слово сл+ово</string>
-    <string name="user_replace_hint">Строка «ключ = замена». Пустая замена или {skip} пропускают слово. Ключ с ~ в начале — регулярное выражение, в замене работают $1, $2. Маркер {pause:500} добавляет паузу 500 мс. В замене можно ставить + для ударения, в том числе в сочетаниях из нескольких слов.</string>
-    <string name="user_replace_example">т.е. = то есть\nбольшой замок = больш+ой зам+ок\n~(\\d+)\\s*км = $1 километров\n[1] = {skip}\nГлава = {pause:500}Глава</string>
-    <string name="user_replace_placeholder">ключ = замена</string>
+    <!-- Словарь ударений и замены: списки записей -->
+    <string name="filter_hint">Поиск</string>
+    <string name="add">Добавить</string>
+    <string name="save">Сохранить</string>
+    <string name="deleted">Удалено</string>
+    <string name="undo">Отменить</string>
+    <string name="stress_empty_hint">Слова, в которых движок ставит ударение не туда. Нажмите +, чтобы добавить</string>
+    <string name="stress_word">Слово</string>
+    <string name="listen_as_model">Как читает модель</string>
+    <string name="listen_stressed">С ударением</string>
+    <string name="replace_empty_hint">Слова и фразы, которые нужно заменить перед озвучиванием. Нажмите +, чтобы добавить</string>
+    <string name="replace_key">Что заменить</string>
+    <string name="replace_value">На что</string>
+    <string name="replace_value_helper">Пусто — слово будет пропущено</string>
+    <string name="replace_value_helper_regex">В замене работают $1, $2</string>
+    <string name="replace_regex">Регулярное выражение</string>
+    <string name="replace_skip">→ пропустить</string>
+    <string name="replace_arrow">→ %1$s</string>
+    <string name="regex_tag">regex</string>
 
     <!-- Меню, экспорт/импорт и о программе -->
     <string name="export_settings">Экспорт настроек…</string>

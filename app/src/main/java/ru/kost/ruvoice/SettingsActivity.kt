@@ -2,6 +2,10 @@ package ru.kost.ruvoice
 
 import android.net.Uri
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.view.View
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -16,6 +20,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import java.util.Locale
 
 /**
  * Экран настроек: тулбар с меню (экспорт/импорт настроек, «О программе»), вкладки и
@@ -27,10 +32,11 @@ class SettingsActivity : AppCompatActivity() {
     private val pages = listOf(
         R.string.tab_voice to { VoiceFragment() },
         R.string.tab_pauses to { PausesFragment() },
-        R.string.tab_stress to { EditorFragment.stress() },
-        R.string.tab_replace to { EditorFragment.replace() },
+        R.string.tab_stress to { StressFragment() },
+        R.string.tab_replace to { ReplaceFragment() },
     )
     private val prefs by lazy { Prefs(this) }
+    private var tts: TextToSpeech? = null
 
     private val exportLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -49,7 +55,7 @@ class SettingsActivity : AppCompatActivity() {
 
         // Edge-to-edge: контент отступает от системных баров и от клавиатуры, фон под
         // статус-баром — цвет окна, тулбар Material3 того же цвета, шва не видно.
-        val root = findViewById<android.view.View>(R.id.root)
+        val root = findViewById<View>(R.id.root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
@@ -138,6 +144,35 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showSnackbar(text: String) =
         Snackbar.make(findViewById(R.id.root), text, Snackbar.LENGTH_LONG).show()
+
+    // Прослушивание идёт через платформенный TextToSpeech, а не напрямую через SileroModels:
+    // так проверяется тот же путь, которым звук получит читалка (наш сервис как движок).
+    // Общий помощник для всех вкладок (голос, диалоги ударений и замен) — один TextToSpeech
+    // на Activity вместо отдельного инстанса на фрагмент.
+    fun preview(button: View, text: String, params: Bundle? = null) {
+        val ctx = applicationContext
+        button.isEnabled = false
+        tts?.shutdown()
+        tts = TextToSpeech(ctx, { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale("ru", "RU")
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { button.post { button.isEnabled = true } }
+                    override fun onError(utteranceId: String?) { button.post { button.isEnabled = true } }
+                })
+                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "preview")
+            } else button.post {
+                Toast.makeText(ctx, getString(R.string.preview_failed, status.toString()), Toast.LENGTH_LONG).show()
+                button.isEnabled = true
+            }
+        }, ctx.packageName)
+    }
+
+    override fun onDestroy() {
+        tts?.shutdown()
+        super.onDestroy()
+    }
 
     companion object {
         private const val EXTRA_IMPORT_DONE = "import_done"
