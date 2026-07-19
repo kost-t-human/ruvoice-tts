@@ -148,9 +148,15 @@ class SettingsActivity : AppCompatActivity() {
     // Прослушивание идёт через платформенный TextToSpeech, а не напрямую через SileroModels:
     // так проверяется тот же путь, которым звук получит читалка (наш сервис как движок).
     // Общий помощник для всех вкладок (голос, диалоги ударений и замен) — один TextToSpeech
-    // на Activity вместо отдельного инстанса на фрагмент.
+    // на Activity вместо отдельного инстанса на фрагмент. tts?.shutdown() внутри preview()
+    // обрывает предыдущий запрос без onDone/onError, поэтому его кнопку разблокируем сами —
+    // иначе на экранах с несколькими ▶ вторая кнопка навсегда «съедала» разблокировку первой.
+    private var busyButton: View? = null
+
     fun preview(button: View, text: String, params: Bundle? = null) {
         val ctx = applicationContext
+        busyButton?.isEnabled = true
+        busyButton = button
         button.isEnabled = false
         tts?.shutdown()
         tts = TextToSpeech(ctx, { status ->
@@ -158,18 +164,25 @@ class SettingsActivity : AppCompatActivity() {
                 tts?.language = Locale("ru", "RU")
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) { button.post { button.isEnabled = true } }
-                    override fun onError(utteranceId: String?) { button.post { button.isEnabled = true } }
+                    override fun onDone(utteranceId: String?) { button.post { release(button) } }
+                    override fun onError(utteranceId: String?) { button.post { release(button) } }
                 })
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "preview")
             } else button.post {
                 Toast.makeText(ctx, getString(R.string.preview_failed, status.toString()), Toast.LENGTH_LONG).show()
-                button.isEnabled = true
+                release(button)
             }
         }, ctx.packageName)
     }
 
+    /** Разблокирует button, только если она всё ещё «занятая» — поздний callback от уже
+     * остановленного (shutdown в preview()) движка не должен трогать кнопку следующего запроса. */
+    private fun release(button: View) {
+        if (busyButton === button) { button.isEnabled = true; busyButton = null }
+    }
+
     override fun onDestroy() {
+        busyButton?.isEnabled = true
         tts?.shutdown()
         super.onDestroy()
     }
