@@ -188,6 +188,8 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val EXTRA_IMPORT_DONE = "import_done"
+        // internal: PageFragment.onPause читает его, чтобы не затирать только что
+        // импортированные файлы устаревшими полями старых фрагментов при recreate().
+        internal const val EXTRA_IMPORT_DONE = "import_done"
     }
 }

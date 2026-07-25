@@ -37,8 +37,6 @@ class DictLinesTest {
 
     @Test fun accentDisplayInsertsCombiningAcute() {
         assertEquals("творо́г", DictLines.accentDisplay("твор+ог"))
-        assertEquals("творо́г", DictLines.accentDisplay("твор+ог"))
-        assertEquals("творо́г", DictLines.accentDisplay("твор+ог"))
     }
 
     @Test fun accentDisplayPlusAtStart() {
@@ -47,6 +45,12 @@ class DictLinesTest {
 
     @Test fun accentDisplayNoPlusReturnsAsIs() {
         assertEquals("творог", DictLines.accentDisplay("творог"))
+    }
+
+    @Test fun accentDisplayStripsFurtherPluses() {
+        // такого в норме быть не должно (одно ударение на слово), но лишние «+» не должны
+        // всплывать в отображаемом тексте как есть
+        assertEquals("тво́рог", DictLines.accentDisplay("тв+ор+ог"))
     }
 
     @Test fun parseReplaceLiteral() {

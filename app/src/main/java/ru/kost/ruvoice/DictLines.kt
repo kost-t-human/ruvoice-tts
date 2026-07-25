@@ -28,11 +28,12 @@ object DictLines {
     fun vowelPositions(word: String): List<Int> = word.indices.filter { word[it].lowercaseChar() in VOWELS }
 
     /** «твор+ог» → «творо́г»: «+» убирается, следующая за ним гласная получает
-     * комбинируемое ударение U+0301. Без «+» слово возвращается как есть. */
+     * комбинируемое ударение U+0301. Без «+» слово возвращается как есть. Лишние «+» после
+     * первого (не должны появляться в норме) молча вырезаются, а не превращаются в текст. */
     fun accentDisplay(variant: String): String {
         val i = variant.indexOf('+')
         if (i < 0 || i + 1 >= variant.length) return variant.replace("+", "")
-        return variant.substring(0, i) + variant[i + 1] + '́' + variant.substring(i + 2)
+        return variant.substring(0, i) + variant[i + 1] + '́' + variant.substring(i + 2).replace("+", "")
     }
 
     /** «[~]ключ = замена» → (ключ без «~», замена, regex?); пустые, #-строки и строки без «=» — null. */

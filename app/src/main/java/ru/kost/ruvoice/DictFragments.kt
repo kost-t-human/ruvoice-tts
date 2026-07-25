@@ -1,6 +1,7 @@
 package ru.kost.ruvoice
 
 import android.os.Bundle
+import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -21,6 +22,8 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.io.File
+import java.text.Collator
+import java.util.Locale
 
 /**
  * Общая часть вкладок «Ударения» и «Замены»: файл хранится как список сырых строк (lines) —
@@ -68,14 +71,19 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         refresh()
     }
 
-    override fun save(v: View) = file.writeText(lines.joinToString("\n"))
+    override fun save(v: View) = persist()
+
+    /** Пишет lines в файл напрямую, без View — вызывается и из onPause/save (где view есть),
+     * и из действий над списком (свайп, Undo, диалог), где к моменту записи view уже могло
+     * не быть (например, Undo в Snackbar сработал после ухода со страницы). */
+    protected fun persist() = file.writeText(lines.joinToString("\n"))
 
     /** Пересчитать видимый список после изменения lines или фильтра. */
     protected fun refresh() {
         val all = lines.indices.filter { isEntry(it) }
         val query = filterField.text?.toString()?.trim().orEmpty()
         val filtered = if (query.isEmpty()) all else all.filter { matches(it, query) }
-        shown = if (sorted) filtered.sortedBy { sortKey(it) } else filtered
+        shown = if (sorted) filtered.sortedWith(compareBy(RU_COLLATOR) { sortKey(it) }) else filtered
         // ponytail: порог 8 — просто «когда список уже неудобно листать»; сделать настраиваемым,
         // если попросят показывать фильтр всегда.
         filterLayout.visibility = if (all.size >= 8) View.VISIBLE else View.GONE
@@ -92,14 +100,19 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                 if (pos !in shown.indices) { refresh(); return }
                 val lineIndex = shown[pos]
                 val removed = lines.removeAt(lineIndex)
-                refresh(); saveNow()
+                refresh(); persist()
                 Snackbar.make(recycler, R.string.deleted, Snackbar.LENGTH_LONG)
                     .setAction(R.string.undo) {
                         lines.add(lineIndex.coerceAtMost(lines.size), removed)
-                        refresh(); saveNow()
+                        refresh(); persist()
                     }.show()
             }
         }).attachToRecyclerView(recycler)
+    }
+
+    companion object {
+        // ё стоит в Unicode после я — обычное String.compareTo() увело бы её в конец списка
+        private val RU_COLLATOR: Collator = Collator.getInstance(Locale("ru"))
     }
 }
 
@@ -146,6 +159,10 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
         val ctx = requireContext()
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_stress, null)
         val wordField = view.findViewById<TextInputEditText>(R.id.word)
+        // пробелы ломают индексацию гласных/чипов (rebuildChips строит их по live-тексту, а
+        // formatStress получил бы уже обрезанный trim()-ом текст с другими индексами) — проще
+        // не пускать их в поле вообще, слову с ударением фразы всё равно не место
+        wordField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> s.filter { !it.isWhitespace() } })
         val chips = view.findViewById<ChipGroup>(R.id.chips)
         var pendingSelect: Int? = null
         var posButton: Button? = null
@@ -197,18 +214,20 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
             wordField.setText(w)
         }
 
+        // «Как читает модель» слушает слово без пользовательского словаря (иначе при
+        // редактировании уже существующего слова «до» не услышать — оно им же и переопределено).
+        // «С ударением» — то же самое явное ударение, что уйдёт в файл: тоже без словаря,
+        // иначе Stress.userDictPass молча заменит его на старый вариант из файла.
+        val nodict = Bundle().apply { putString("ruvoice.nodict", "1") }
         view.findViewById<Button>(R.id.listenModel).setOnClickListener { btn ->
             val word = wordField.text.toString()
-            if (word.isNotBlank()) {
-                val params = Bundle().apply { putString("ruvoice.nodict", "1") }
-                (activity as SettingsActivity).preview(btn, word, params)
-            }
+            if (word.isNotBlank()) (activity as SettingsActivity).preview(btn, word, nodict)
         }
         view.findViewById<Button>(R.id.listenStressed).setOnClickListener { btn ->
             val word = wordField.text.toString()
             val pos = selectedPos()
             if (word.isNotBlank() && pos != null) {
-                (activity as SettingsActivity).preview(btn, word.substring(0, pos) + "+" + word.substring(pos))
+                (activity as SettingsActivity).preview(btn, word.substring(0, pos) + "+" + word.substring(pos), nodict)
             }
         }
 
@@ -219,13 +238,18 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
                 val pos = selectedPos()
                 if (word.isNotBlank() && pos != null) {
                     val line = DictLines.formatStress(word, pos)
-                    val dupIndex = if (editIndex == null) findLineIndexForWord(word) else null
+                    // ищем дубликат всегда, не только при добавлении: переименование слова в
+                    // диалоге редактирования могло совпасть с уже существующей записью
+                    val dupIndex = findLineIndexForWord(word)
                     when {
-                        editIndex != null -> lines[editIndex] = line
+                        editIndex != null -> {
+                            lines[editIndex] = line
+                            if (dupIndex != null && dupIndex != editIndex) lines.removeAt(dupIndex)
+                        }
                         dupIndex != null -> lines[dupIndex] = line
                         else -> lines.add(line)
                     }
-                    refresh(); saveNow()
+                    refresh(); persist()
                 }
             }
             .setNegativeButton(R.string.cancel, null)
@@ -287,6 +311,8 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         val ctx = requireContext()
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_replace, null)
         val keyField = view.findViewById<TextInputEditText>(R.id.key)
+        // «=» — разделитель «ключ = замена» в файле, ключ с ним внутри сломал бы формат строки
+        keyField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> s.filter { it != '=' } })
         val valueLayout = view.findViewById<TextInputLayout>(R.id.valueLayout)
         val valueField = view.findViewById<TextInputEditText>(R.id.value)
         val regexSwitch = view.findViewById<MaterialSwitch>(R.id.regex)
@@ -312,7 +338,8 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         }
 
         view.findViewById<Button>(R.id.listen).setOnClickListener { btn ->
-            (activity as SettingsActivity).preview(btn, valueField.text.toString())
+            val text = valueField.text.toString()
+            if (text.isNotBlank()) (activity as SettingsActivity).preview(btn, text)
         }
 
         val dialog = MaterialAlertDialogBuilder(ctx)
@@ -322,7 +349,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
                 if (key.isNotBlank()) {
                     val line = DictLines.formatReplace(key, valueField.text.toString().trim(), regexSwitch.isChecked)
                     if (editIndex != null) lines[editIndex] = line else lines.add(line)
-                    refresh(); saveNow()
+                    refresh(); persist()
                 }
             }
             .setNegativeButton(R.string.cancel, null)

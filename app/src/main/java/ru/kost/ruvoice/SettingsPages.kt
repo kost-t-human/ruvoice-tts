@@ -21,7 +21,12 @@ abstract class PageFragment(layout: Int) : Fragment(layout) {
     protected abstract fun save(v: View)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) = load(view)
-    override fun onPause() { view?.let { save(it) }; super.onPause() }
+    override fun onPause() {
+        // recreate() после импорта (Task 25) сначала распускает старые фрагменты — им нельзя
+        // затирать только что импортированный файл своими устаревшими полями.
+        if (activity?.intent?.getBooleanExtra(SettingsActivity.EXTRA_IMPORT_DONE, false) != true) view?.let { save(it) }
+        super.onPause()
+    }
 
     /** Принудительно сохранить поля в Prefs, не дожидаясь onPause — нужно перед экспортом
      * настроек, чтобы в файл попали несохранённые правки текущей (видимой) вкладки. */
