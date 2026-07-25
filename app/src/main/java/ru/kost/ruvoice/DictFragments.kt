@@ -162,7 +162,8 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
         // пробелы ломают индексацию гласных/чипов (rebuildChips строит их по live-тексту, а
         // formatStress получил бы уже обрезанный trim()-ом текст с другими индексами) — проще
         // не пускать их в поле вообще, слову с ударением фразы всё равно не место
-        wordField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> s.filter { !it.isWhitespace() } })
+        // null = «не менять»: иначе теряется composing-спан IME и буквы дублируются при наборе
+        wordField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> if (s.any { it.isWhitespace() }) s.filter { !it.isWhitespace() } else null })
         val chips = view.findViewById<ChipGroup>(R.id.chips)
         var pendingSelect: Int? = null
         var posButton: Button? = null
@@ -312,7 +313,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_replace, null)
         val keyField = view.findViewById<TextInputEditText>(R.id.key)
         // «=» — разделитель «ключ = замена» в файле, ключ с ним внутри сломал бы формат строки
-        keyField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> s.filter { it != '=' } })
+        keyField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> if (s.contains('=')) s.filter { it != '=' } else null })
         val valueLayout = view.findViewById<TextInputLayout>(R.id.valueLayout)
         val valueField = view.findViewById<TextInputEditText>(R.id.value)
         val regexSwitch = view.findViewById<MaterialSwitch>(R.id.regex)
