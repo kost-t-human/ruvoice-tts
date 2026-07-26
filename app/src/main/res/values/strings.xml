@@ -45,6 +45,7 @@
     <string name="save">Сохранить</string>
     <string name="deleted">Удалено</string>
     <string name="undo">Отменить</string>
+    <string name="delete">Удалить</string>
     <string name="stress_empty_hint">Слова, в которых движок ставит ударение не туда. Нажмите +, чтобы добавить</string>
     <string name="stress_word">Слово</string>
     <string name="listen_as_model">Как читает модель</string>

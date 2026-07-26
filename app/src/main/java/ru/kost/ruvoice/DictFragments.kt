@@ -3,6 +3,7 @@ package ru.kost.ruvoice
 import android.os.Bundle
 import android.text.InputFilter
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -92,20 +93,34 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         recycler.adapter?.notifyDataSetChanged()
     }
 
+    /** Удаляет строку файла и даёт «Отменить» в снекбаре. */
+    protected fun deleteLine(lineIndex: Int) {
+        val removed = lines.removeAt(lineIndex)
+        refresh(); persist()
+        // якорь на FAB: иначе снекбар ложится под «+», и тап по «Отменить» открывает диалог
+        Snackbar.make(recycler, R.string.deleted, Snackbar.LENGTH_LONG)
+            .setAnchorView(requireView().findViewById<View>(R.id.add))
+            .setAction(R.string.undo) {
+                lines.add(lineIndex.coerceAtMost(lines.size), removed)
+                refresh(); persist()
+            }.show()
+    }
+
     private fun attachSwipeToDelete() {
+        // Список живёт внутри ViewPager2: горизонтальный жест иначе то удаляет, то листает
+        // вкладки. Над списком касание целиком наше; вкладки переключаются по тапу.
+        recycler.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                if (e.actionMasked == MotionEvent.ACTION_DOWN) rv.parent.requestDisallowInterceptTouchEvent(true)
+                return false
+            }
+        })
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
                 val pos = vh.bindingAdapterPosition
                 if (pos !in shown.indices) { refresh(); return }
-                val lineIndex = shown[pos]
-                val removed = lines.removeAt(lineIndex)
-                refresh(); persist()
-                Snackbar.make(recycler, R.string.deleted, Snackbar.LENGTH_LONG)
-                    .setAction(R.string.undo) {
-                        lines.add(lineIndex.coerceAtMost(lines.size), removed)
-                        refresh(); persist()
-                    }.show()
+                deleteLine(shown[pos])
             }
         }).attachToRecyclerView(recycler)
     }
@@ -254,6 +269,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
                 }
             }
             .setNegativeButton(R.string.cancel, null)
+            .apply { if (editIndex != null) setNeutralButton(R.string.delete) { _, _ -> deleteLine(editIndex) } }
             .create()
         dialog.setOnShowListener {
             posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
@@ -354,6 +370,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
                 }
             }
             .setNegativeButton(R.string.cancel, null)
+            .apply { if (editIndex != null) setNeutralButton(R.string.delete) { _, _ -> deleteLine(editIndex) } }
             .create()
         dialog.setOnShowListener {
             posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
