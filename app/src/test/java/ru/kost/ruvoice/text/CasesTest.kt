@@ -50,6 +50,14 @@ class CasesTest {
         assertEquals("с пятого по десятое мая", n("с 5 по 10 мая"))
     }
 
+    @Test fun hyphenRangeDoesNotBecomeMinus() {
+        // финальный fix-раунд п.1: дефис в диапазоне «N-M» — не минус, только когда перед ним
+        // нет буквы/цифры («минус» остаётся у «-5», см. RulesTest.degrees).
+        assertEquals("около десяти-пятнадцать минут", n("около 10-15 минут"))
+        assertEquals("более двух-три раз", n("более 2-3 раз"))
+        assertEquals("Ту-сто пятьдесят четыре", n("Ту-154"))
+    }
+
     @Test fun temBoleeIsNotTrigger() {
         assertEquals("тем более пять человек", n("тем более 5 человек"))
     }
