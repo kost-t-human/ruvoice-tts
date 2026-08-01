@@ -51,6 +51,23 @@ class RulesTest {
         assertEquals("людовик xiv", n("людовик xiv"))
     }
 
+    @Test fun romanNumeralsCyrillicLookalikes() {
+        // финальный fix-раунд п.2: кириллические х/с/м/і визуально совпадают с латинскими римскими
+        // буквами («ХХ» иначе доходит до Abbrev как обычный кириллический токен — «ха х+а»).
+        assertEquals("в двадцатом веке", n("в ХХ веке"))
+        assertEquals("двадцать первого века", n("ХХI века"))
+        assertEquals("Людовик четырнадцать", n("Людовик ХIV"))
+    }
+
+    @Test fun shortLatinTokensWithoutTriggerStayUntouched() {
+        // финальный fix-раунд п.6: одно- и двухбуквенные латинские токены без триггера — не
+        // римские числа («I love you», «XL», «CD», «C++»); «Пётр I» без триггера — потолок.
+        assertEquals("I love you", n("I love you"))
+        assertEquals("Размер XL", n("Размер XL"))
+        assertEquals("Диск CD", n("Диск CD"))
+        assertEquals("Язык C++", n("Язык C++"))
+    }
+
     @Test fun caseInsensitiveThroughPrepare() {
         // review t17 round2 п.1 (Normalizer.kt: prepare()): регистр больше не теряется до
         // numbers() — предлоги/сокращения/триггеры матчатся независимо от регистра исходника,

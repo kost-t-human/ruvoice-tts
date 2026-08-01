@@ -187,12 +187,17 @@ object Normalizer {
     // п.2, Normalizer.kt:114-141). IGNORE_CASE — регистр слов-триггеров и самого токена теперь
     // доступен: prepare() больше не лоуэркейсит текст до numbers() (review t17 round2 п.1).
     private val romanStrictRe = Regex("""^m{0,4}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$""")
+    // Кириллические х/с/м/і визуально совпадают с латинскими римскими буквами (review final-fix
+    // п.2) — «ХХ» иначе доходит до Abbrev как обычный кириллический токен («ха х+а»). Токен может
+    // быть смешанным («ХIV» — кириллическая Х + латинские IV), поэтому в класс входят обе группы.
     private val romanRe = Regex(
-        """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxvi]+)(?![\p{L}\d])""" +
+        """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxviхсмі]+)(?![\p{L}\d])""" +
             """(?:\s+(век|века|веке|веков|столетие|столетия|столетии)(?![а-яё]))?""",
         RegexOption.IGNORE_CASE
     )
     private val romanValues = mapOf('i' to 1, 'v' to 5, 'x' to 10, 'l' to 50, 'c' to 100, 'd' to 500, 'm' to 1000)
+    private val romanCyrMap = mapOf('х' to 'x', 'с' to 'c', 'м' to 'm', 'і' to 'i')
+    private fun latinizeRoman(s: String) = s.map { romanCyrMap[it] ?: it }.joinToString("")
     private val romanAfterSuffix = mapOf("век" to "й", "века" to "го", "веке" to "м", "веков" to "х",
         "столетие" to "е", "столетия" to "го", "столетии" to "м")
     private val romanBeforeSuffix = mapOf("глава" to "я", "часть" to "я", "книга" to "я",
@@ -211,14 +216,18 @@ object Normalizer {
     private fun romanNumerals(text: String) = romanRe.replace(text) { m ->
         val (before, token, after) = m.destructured
         val lower = token.lowercase()
-        if (!romanStrictRe.matches(lower)) return@replace m.value
+        val normalized = latinizeRoman(lower)
+        if (!romanStrictRe.matches(normalized)) return@replace m.value
         // Без триггера считаем числом только заглавный токен без «m» (review t17 round2 п.1,
         // тест «MIX стилей» → «микс стилей»): бытовые слова с «m» в начале («mix», «mid») тоже
         // валидны по строгой грамматике (M+IX=1009), а реальные capslock-числа без триггера на
-        // тысячи почти не бывают — годы такого вида читает отдельное правило дат/годов.
-        val eligibleAlone = token.all { it.isUpperCase() } && 'm' !in lower
+        // тысячи почти не бывают — годы такого вида читает отдельное правило дат/годов. Токен
+        // короче 3 букв без триггера тоже не считаем числом (review final-fix п.6): «I love you»,
+        // «XL», «CD», «C++» — бытовые одно-двухбуквенные сокращения, не римские цифры; «Пётр I»
+        // без триггера так и остаётся нераспознанным — принятый потолок.
+        val eligibleAlone = token.length >= 3 && token.all { it.isUpperCase() } && 'm' !in normalized
         if (before.isEmpty() && after.isEmpty() && !eligibleAlone) return@replace m.value
-        val value = romanToInt(lower)
+        val value = romanToInt(normalized)
         val suffix = if (after.isNotEmpty()) romanAfterSuffix[after.lowercase()] else romanBeforeSuffix[before.lowercase()]
         val sb = StringBuilder()
         if (before.isNotEmpty()) sb.append(before).append(' ')
