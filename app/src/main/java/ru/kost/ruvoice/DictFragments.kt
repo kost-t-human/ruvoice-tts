@@ -98,7 +98,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         val removed = lines.removeAt(lineIndex)
         refresh(); persist()
         // якорь на FAB: иначе снекбар ложится под «+», и тап по «Отменить» открывает диалог
-        Snackbar.make(recycler, R.string.deleted, Snackbar.LENGTH_LONG)
+        Snackbar.make(recycler, R.string.deleted, 6000) // LENGTH_LONG (2,75 с) не хватает, чтобы дотянуться до «Отменить»
             .setAnchorView(requireView().findViewById<View>(R.id.add))
             .setAction(R.string.undo) {
                 lines.add(lineIndex.coerceAtMost(lines.size), removed)
