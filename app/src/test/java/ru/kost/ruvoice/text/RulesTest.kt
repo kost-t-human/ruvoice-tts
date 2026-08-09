@@ -164,6 +164,19 @@ class RulesTest {
         assertEquals("двадцать одна тысяча", n("21 тыс."))
     }
 
+    @Test fun cardinalGenitiveSuffixBareH() {
+        // финальный fix-раунд п.7: «2-х»/«3-х»/«4-х» — тот же родительный падеж, что «2-ух»/«3-ёх».
+        assertEquals("у двух друзей", n("у 2-х друзей"))
+        assertEquals("у трёх друзей", n("у 3-х друзей"))
+        assertEquals("у четырёх друзей", n("у 4-х друзей"))
+    }
+
+    @Test fun cardinalGenitiveSuffixBareHDoesNotTouchTeensOrDecades() {
+        assertEquals("двенадцатых", n("12-х"))
+        assertEquals("в девяностых", n("в 90-х"))
+        assertEquals("двухтысячные", n("2000-е"))
+    }
+
     @Test fun homoglyphs() {
         assertEquals("проблема", Normalizer.latin("прoблема"))
         assertEquals("айфон", Normalizer.latin("iphone"))

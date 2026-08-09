@@ -365,6 +365,15 @@ object Normalizer {
         genitiveCardinal(n)
     }
 
+    // 7b. Голый суффикс «-х» у 2/3/4 (review final-fix п.7): «2-х», «3-х», «4-х» — тот же
+    // родительный, что и «-ти/-ух/-ёх» выше, просто другая буква сокращения. Только один разряд
+    // (?<!\d перед числом) — «12-х», «90-х», «2000-х» это десятилетия/окончание, не трогаем
+    // (numberRe ниже сам читает «-х» как порядковый суффикс для них).
+    private val cardinalGenSuffixBareHRe = Regex("""(?<!\d)([234])-х(?![\p{L}\d])""", RegexOption.IGNORE_CASE)
+    private fun cardinalGenitiveSuffixBareH(text: String) = cardinalGenSuffixBareHRe.replace(text) { m ->
+        genitiveUnits.getValue(m.groupValues[1].toInt())
+    }
+
     // 8. Единицы измерения: число оставляем цифрами для numberRe (кроме мин/сек — там род
     // важен для согласования, поэтому число сразу произносим словом в женском роде).
     private class UnitForms(val forms: Triple<String, String, String>, val suffix: String = "", val feminine: Boolean = false)
@@ -722,6 +731,7 @@ object Normalizer {
         s = cityAbbrev(s)
         s = cardinalGenitiveSuffixUnit(s)
         s = cardinalGenitiveSuffix(s)
+        s = cardinalGenitiveSuffixBareH(s)
         s = units(s)
         s = sectionNumbers(s)
         s = fractionsSlash(s)
