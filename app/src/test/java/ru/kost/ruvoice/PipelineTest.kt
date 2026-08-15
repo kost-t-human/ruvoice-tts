@@ -52,6 +52,20 @@ class PipelineTest {
         assertEquals(listOf(Segment("Раз."), Segment("Два.", breakMs = 500), Segment("Три.")), s)
     }
 
+    @Test fun pauseMarkerAtEndOfSegmentDoesNotDuplicateText() {
+        // финальный fix-раунд п.4: пустой кусок после {pause:N} в конце сегмента раньше добавлял
+        // весь исходный сегмент (с текстом и неразобранным маркером) ещё раз.
+        val s = Pipeline.plan("<speak>Привет.{pause:300}<break time=\"200ms\"/>Пока.</speak>", d, 0, 0)
+        assertEquals(1, s.count { it.text == "Привет." })
+    }
+
+    @Test fun pauseMarkerAtParagraphEndKeepsParagraphPause() {
+        // финальный fix-раунд п.11: {pause:N} на конце абзаца — маркер про паузу предложения
+        // (ruling), но пауза абзаца и флаг paragraph должны сохраниться, а не потеряться.
+        val s = Pipeline.plan("Раз.{pause:300}\n\nДва.", d, sentencePauseMs = 100, paragraphPauseMs = 500)
+        assertEquals(listOf(Segment("Раз.", breakMs = 800, paragraph = true), Segment("Два.", breakMs = 100)), s)
+    }
+
     @Test fun directSpeechDashAndQuoteDetected() {
         // Splitter режет по «!» и на «— сказал он.» — тоже реплика по критерию (тот же тире-старт),
         // авторская часть отдельным флагом не выделяется (см. ponytail-комментарий в Pipeline).

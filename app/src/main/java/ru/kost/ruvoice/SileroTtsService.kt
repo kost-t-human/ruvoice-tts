@@ -43,8 +43,15 @@ object Pipeline {
                 val sents = Splitter.sentences(piece)
                 for ((i, s) in sents.withIndex()) {
                     val lastInPiece = i == sents.size - 1
-                    val last = lastInPiece && lastPiece
-                    val breakMs = if (lastInPiece && !lastPiece) pauses[pi]
+                    // {pause:N} на конце абзаца — маркер про паузу предложения (ruling, task 26/п.11
+                    // финального фикса), но если следом только пустой хвост (маркер и правда в конце
+                    // текста абзаца, не разрывает его на два), пауза абзаца и флаг paragraph должны
+                    // сохраниться, а не потеряться вместе с обычной веткой ниже.
+                    val markerEndsParagraph =
+                        lastInPiece && !lastPiece && pi + 1 == pieces.size - 1 && pieces[pi + 1].isBlank()
+                    val last = (lastInPiece && lastPiece) || markerEndsParagraph
+                    val breakMs = if (lastInPiece && !lastPiece)
+                        pauses[pi] + (if (markerEndsParagraph && seg.paragraph) paragraphPauseMs else 0)
                         else sentencePauseMs + (if (last) seg.breakMs else 0) + (if (last && seg.paragraph) paragraphPauseMs else 0)
                     out += Segment(s, seg.rate, seg.pitch, breakMs = breakMs, paragraph = last && seg.paragraph, speech = isSpeech(s))
                 }
@@ -55,7 +62,7 @@ object Pipeline {
                         val n = pauses[pi]
                         if (out.isNotEmpty()) out[out.size - 1] = out.last().copy(breakMs = out.last().breakMs + n)
                         else out += Segment("", seg.rate, seg.pitch, breakMs = n)
-                    } else if (seg.breakMs > 0) out += seg
+                    } else if (seg.breakMs > 0) out += seg.copy(text = "")
                 }
             }
         }
