@@ -242,13 +242,17 @@ object Normalizer {
     private val monthGenitive = arrayOf("", "января", "февраля", "марта", "апреля", "мая", "июня", "июля",
         "августа", "сентября", "октября", "ноября", "декабря")
     private val dateWithYearRe = Regex("""(?<!\d)(\d{1,2})[./](\d{1,2})[./](\d{4})(?!\d)""")
-    private val dateNoYearRe = Regex("""(?<!\d)(\d{1,2})\.(\d{1,2})(?![\d.])""")
+    // Лукбехайнд захватывает и точку (review final-fix п.3): «2.10.3» — составной номер раздела
+    // (sectionRe ниже), а не «10.3» день.месяц внутри него — без этого фикса regex стартовал бы
+    // прямо с «10», не видя, что перед ним уже идёт «2.».
+    private val dateNoYearRe = Regex("""(?<![\d.])(\d{1,2})\.(\d{1,2})(?![\d.])""")
 
     private fun dates(text: String): String {
         val withYear = dateWithYearRe.replace(text) { m ->
             val (d, mo, y) = m.destructured
             val day = d.toInt(); val month = mo.toInt()
             if (day !in 1..31 || month !in 1..12) return@replace m.value
+            if (dateTailUnitRe.containsMatchIn(text.substring(m.range.last + 1))) return@replace m.value
             "$day-го ${monthGenitive[month]} $y-го года"
         }
         return dateNoYearRe.replace(withYear) { m ->
@@ -256,6 +260,10 @@ object Normalizer {
             if (d.length < 2 && mo.length < 2) return@replace m.value
             val day = d.toInt(); val month = mo.toInt()
             if (day !in 1..31 || month !in 1..12) return@replace m.value
+            // «N.N» перед единицей измерения — дробь («12.5 км/ч»), не дата без года (review
+            // final-fix п.8): unitAltPattern определён ниже по файлу, но здесь это функция, не
+            // property-инициализатор — к моменту вызова объект полностью сконструирован.
+            if (dateTailUnitRe.containsMatchIn(withYear.substring(m.range.last + 1))) return@replace m.value
             "$day-го ${monthGenitive[month]}"
         }
     }
@@ -393,8 +401,18 @@ object Normalizer {
         "м" to UnitForms(Triple("метр", "метра", "метров")),
     )
     private val unitAltPattern = unitTable.keys.joinToString("|") { Regex.escape(it) }
-    // ponytail: «г.»/«кг.» в конце предложения не читаются словом — редкий случай, не покрыт тестами.
-    private val unitRe = Regex("""(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/.])""", RegexOption.IGNORE_CASE)
+    // Единица сразу после «N.N» (review final-fix п.8) — используется в dates() выше, чтобы не
+    // принять такую пару за дату без года: «12.5 км/ч» — дробь, читает fractionsSlash()/numberRe.
+    private val dateTailUnitRe = Regex("""^\s*(?:$unitAltPattern)(?![\p{L}\d/.])""", RegexOption.IGNORE_CASE)
+    // Точка после единицы (review final-fix п.5): перед строчной буквой — часть сокращения («ч.
+    // дня»), съедаем; перед заглавной/в конце предложения — точка предложения, оставляем, иначе
+    // «см.» без раскрытой единицы попадало в abbrevSimple («смотри»), а Splitter не резал по ней.
+    // (?-i: ) вокруг [а-яё] — сам unitRe регистронезависим (IGNORE_CASE), а здесь важен именно
+    // регистр следующей буквы (строчная/заглавная), иначе IGNORE_CASE сворачивает его до нуля.
+    private val unitRe = Regex(
+        """(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё])))?""",
+        RegexOption.IGNORE_CASE
+    )
 
     private fun units(text: String) = unitRe.replace(text) { m ->
         val (numStr, unitKey) = m.destructured
@@ -443,7 +461,9 @@ object Normalizer {
 
     // 9. Составные номера разделов «1.2.3» — читаются по частям через «точка».
     // Ровно два числа через точку («1.2») остаются датой/дробью — их не трогаем.
-    private val sectionRe = Regex("""(?<![\d.])(\d+)(\.\d+){2,}(?![\d.])""")
+    // Хвост допускает одиночную точку без цифры за ней (review final-fix п.3): «пункт 2.10.3.» в
+    // конце предложения — номер целиком, а не отказ от матча из-за точки-конца-предложения.
+    private val sectionRe = Regex("""(?<![\d.])(\d+)(\.\d+){2,}(?!\.?\d)""")
     private fun sectionNumbers(text: String) = sectionRe.replace(text) { m ->
         m.value.split('.').joinToString(" точка ") { cardinal(it.toLong()) }
     }
