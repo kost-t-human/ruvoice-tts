@@ -528,7 +528,9 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])т\.\s*к\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так как",
         Regex("""(?<![\p{L}\d])т\.\s*н\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так называемый",
         Regex("""(?<![\p{L}\d])пп\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "подпункт",
-        Regex("""(?<![\p{L}\d])п\.(?=\s*\d)""", RegexOption.IGNORE_CASE) to "пункт",
+        // Пробел — часть замены (review final-fix п.12): «п.5» без пробела иначе даёт «пункт5»,
+        // сам regex съедает исходный пробел, если он был, чтобы не задвоить его.
+        Regex("""(?<![\p{L}\d])п\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "пункт ",
         Regex("""(?<![\p{L}\d])стр\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "страница",
         Regex("""(?<![\p{L}\d])рис\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "рисунок",
         Regex("""(?<![\p{L}\d])табл\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "таблица",

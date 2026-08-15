@@ -164,6 +164,12 @@ class RulesTest {
         assertEquals("двадцать одна тысяча", n("21 тыс."))
     }
 
+    @Test fun sectionAbbreviationWithoutSpace() {
+        // финальный fix-раунд п.12: «п.5» без пробела не должен склеиваться в «пункт5».
+        assertEquals("пункт пять", n("п.5"))
+        assertEquals("пункт пять", n("п. 5"))
+    }
+
     @Test fun cardinalGenitiveSuffixBareH() {
         // финальный fix-раунд п.7: «2-х»/«3-х»/«4-х» — тот же родительный падеж, что «2-ух»/«3-ёх».
         assertEquals("у двух друзей", n("у 2-х друзей"))
