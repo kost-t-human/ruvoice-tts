@@ -19,6 +19,12 @@ class SplitterTest {
         assertEquals(listOf("Санкт-Петербург"), Splitter.paragraphs("Санкт-\nПетербург"))
     }
 
+    @Test fun crlfLineEndingsAreNormalizedForDehyphenation() {
+        // финальный fix-раунд п.9: hyphenBreakRe ждёт «-\n» вплотную, «-\r\n» без нормализации
+        // не матчится — дефис после переноса строки не убирается.
+        assertEquals(listOf("собака"), Splitter.paragraphs("со-\r\nбака"))
+    }
+
     @Test fun singleNewlineBeforeLowercaseIsSpace() {
         // Task 18 п.2: одиночный перенос строки внутри предложения — не новый абзац.
         assertEquals(listOf("Он шёл домой.", "Новый абзац."),

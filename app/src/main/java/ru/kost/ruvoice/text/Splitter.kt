@@ -39,7 +39,10 @@ object Splitter {
     private val softLineBreakRe = Regex("""(?<!\n)\n(?=[ \t]*[а-яё])""")
 
     fun paragraphs(text: String): List<String> {
-        val s = softLineBreakRe.replace(dehyphenate(text), " ")
+        // CRLF → LF первым делом (review final-fix п.9): иначе hyphenBreakRe требует «-\n» вплотную
+        // и не видит перенос через «-\r\n» — дефис после разрыва строки не убирается.
+        val normalized = text.replace("\r\n", "\n")
+        val s = softLineBreakRe.replace(dehyphenate(normalized), " ")
         return s.split(Regex("\\n+")).map { it.trim() }.filter { it.isNotEmpty() }
     }
 
