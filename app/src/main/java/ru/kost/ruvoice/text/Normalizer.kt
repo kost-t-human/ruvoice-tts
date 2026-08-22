@@ -218,6 +218,9 @@ object Normalizer {
         val lower = token.lowercase()
         val normalized = latinizeRoman(lower)
         if (!romanStrictRe.matches(normalized)) return@replace m.value
+        // Кириллический токен — римское число только капсом: иначе предлог «с» после «глава/книга»
+        // становится «сотая» (scoped re-review final-fix п.1).
+        if (normalized != lower && !token.all { it.isUpperCase() }) return@replace m.value
         // Без триггера считаем числом только заглавный токен без «m» (review t17 round2 п.1,
         // тест «MIX стилей» → «микс стилей»): бытовые слова с «m» в начале («mix», «mid») тоже
         // валидны по строгой грамматике (M+IX=1009), а реальные capslock-числа без триггера на
@@ -225,7 +228,9 @@ object Normalizer {
         // короче 3 букв без триггера тоже не считаем числом (review final-fix п.6): «I love you»,
         // «XL», «CD», «C++» — бытовые одно-двухбуквенные сокращения, не римские цифры; «Пётр I»
         // без триггера так и остаётся нераспознанным — принятый потолок.
-        val eligibleAlone = token.length >= 3 && token.all { it.isUpperCase() } && 'm' !in normalized
+        // Двухбуквенные из одних I/V/X («II», «XX») — всё же числа: «Николай II» иначе уходит в Abbrev
+        // как «ай +ай» (scoped re-review final-fix п.2).
+        val eligibleAlone = (token.length >= 3 || (token.length == 2 && token.all { it in "IVX" })) && token.all { it.isUpperCase() } && 'm' !in normalized
         if (before.isEmpty() && after.isEmpty() && !eligibleAlone) return@replace m.value
         val value = romanToInt(normalized)
         val suffix = if (after.isNotEmpty()) romanAfterSuffix[after.lowercase()] else romanBeforeSuffix[before.lowercase()]
@@ -755,10 +760,11 @@ object Normalizer {
         s = cardinalGenitiveSuffix(s)
         s = cardinalGenitiveSuffixBareH(s)
         s = units(s)
-        s = sectionNumbers(s)
         s = fractionsSlash(s)
         s = currency(s)
         s = abbreviations(s)
+        // после abbreviations: «п. 2.10.3» должно сначала стать «пункт», а уже потом раскрыть номер
+        s = sectionNumbers(s)
         s = cases(s)
         s = yearRe.replace(s) { m ->
             m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]

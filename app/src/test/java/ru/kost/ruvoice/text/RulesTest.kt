@@ -64,6 +64,9 @@ class RulesTest {
         // римские числа («I love you», «XL», «CD», «C++»); «Пётр I» без триггера — потолок.
         assertEquals("I love you", n("I love you"))
         assertEquals("Размер XL", n("Размер XL"))
+        assertEquals("Николай два", n("Николай II"))
+        assertEquals("Книга с картинками", n("Книга с картинками"))
+        assertEquals("с века на век", n("с века на век"))
         assertEquals("Диск CD", n("Диск CD"))
         assertEquals("Язык C++", n("Язык C++"))
     }
