@@ -58,7 +58,9 @@ class Prefs(private val context: Context) {
         val parsed = SettingsJson.parse(text)
         val prefsMap = parsed.prefs
         (prefsMap["voice"] as? String)?.let { voice = it }
-        (prefsMap["sr"] as? Number)?.let { sampleRate = it.toInt() }
+        // Только 24000/48000 — реальные частоты модели (review final-fix п.10), другое значение
+        // из повреждённого/чужого файла не трогает текущую настройку.
+        (prefsMap["sr"] as? Number)?.let { it.toInt() }?.takeIf { it == 24000 || it == 48000 }?.let { sampleRate = it }
         (prefsMap["pause_sentence"] as? Number)?.let { sentencePauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["pause_paragraph"] as? Number)?.let { paragraphPauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["pause_comma"] as? Number)?.let { commaPauseMs = it.toInt().coerceAtLeast(0) }
