@@ -12,6 +12,9 @@ class Prefs(private val context: Context) {
     var paragraphPauseMs: Int get() = p.getInt("pause_paragraph", 300); set(v) = p.edit().putInt("pause_paragraph", v).apply()
     var commaPauseMs: Int get() = p.getInt("pause_comma", 100); set(v) = p.edit().putInt("pause_comma", v).apply()
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
+    /** Множители темпа/высоты поверх того, что просит читалка; 1 — без изменений. */
+    var rate: Float get() = p.getFloat("rate", 1f); set(v) = p.edit().putFloat("rate", v).apply()
+    var pitch: Float get() = p.getFloat("pitch", 1f); set(v) = p.edit().putFloat("pitch", v).apply()
     /** Голос прямой речи; пустая строка — как основной. */
     var quoteVoice: String get() = p.getString("quote_voice", "")!!; set(v) = p.edit().putString("quote_voice", v).apply()
     var quoteRate: Float get() = p.getFloat("quote_rate", 1f); set(v) = p.edit().putFloat("quote_rate", v).apply()
@@ -41,6 +44,8 @@ class Prefs(private val context: Context) {
             "pause_paragraph" to paragraphPauseMs,
             "pause_comma" to commaPauseMs,
             "idle_min" to idleMinutes,
+            "rate" to rate.toDouble(),
+            "pitch" to pitch.toDouble(),
             "quote_voice" to quoteVoice,
             "quote_rate" to quoteRate.toDouble(),
             "quote_pitch" to quotePitch.toDouble(),
@@ -65,6 +70,8 @@ class Prefs(private val context: Context) {
         (prefsMap["pause_paragraph"] as? Number)?.let { paragraphPauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["pause_comma"] as? Number)?.let { commaPauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["idle_min"] as? Number)?.let { idleMinutes = it.toInt().coerceAtLeast(1) }
+        (prefsMap["rate"] as? Number)?.let { rate = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["pitch"] as? Number)?.let { pitch = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_voice"] as? String)?.let { quoteVoice = it }
         (prefsMap["quote_rate"] as? Number)?.let { quoteRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }

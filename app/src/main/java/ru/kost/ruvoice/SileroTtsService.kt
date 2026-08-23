@@ -144,8 +144,8 @@ class SileroTtsService : TextToSpeechService() {
                 ?: "xenia".takeIf { it in d.speakers }
                 ?: d.speakers.keys.first()
             val speakerId = d.speakers.getValue(speaker)
-            val rate = (request.speechRate / 100f).coerceIn(0.5f, 3f)
-            val pitch = (request.pitch / 100f).coerceIn(0.5f, 2f)
+            val rate = (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
+            val pitch = (request.pitch / 100f * prefs.pitch).coerceIn(0.5f, 2f)
             // настройки слушают слово «как модель», без пользовательского словаря
             val noDict = request.params?.getString("ruvoice.nodict") == "1"
             val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict())
