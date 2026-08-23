@@ -42,6 +42,65 @@
 
         <TextView
             style="@style/Section"
+            android:text="@string/section_rate_pitch" />
+        <TextView
+            style="@style/SectionHint"
+            android:text="@string/section_rate_pitch_hint" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/quote_rate" />
+            <TextView
+                android:id="@+id/rateValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="×1.00" />
+        </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/rate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.5"
+            android:valueTo="2.0"
+            android:stepSize="0.05"
+            app:labelBehavior="floating" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/quote_pitch" />
+            <TextView
+                android:id="@+id/pitchValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="×1.00" />
+        </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/pitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.5"
+            android:valueTo="2.0"
+            android:stepSize="0.05"
+            app:labelBehavior="floating" />
+
+        <TextView
+            style="@style/Section"
             android:text="@string/section_quote" />
         <TextView
             style="@style/SectionHint"
@@ -65,37 +124,53 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp">
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:hint="@string/quote_rate"
-                app:suffixText="@string/factor_suffix"
-                app:helperText="@string/factor_range">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/quoteRate"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="numberDecimal" />
-            </com.google.android.material.textfield.TextInputLayout>
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:text="@string/quote_rate" />
+            <TextView
+                android:id="@+id/quoteRateValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:hint="@string/quote_pitch"
-                app:suffixText="@string/factor_suffix"
-                app:helperText="@string/factor_range">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/quotePitch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="numberDecimal" />
-            </com.google.android.material.textfield.TextInputLayout>
+                android:text="×1.00" />
         </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/quoteRate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.5"
+            android:valueTo="2.0"
+            android:stepSize="0.05"
+            app:labelBehavior="floating" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/quote_pitch" />
+            <TextView
+                android:id="@+id/quotePitchValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="×1.00" />
+        </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/quotePitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.5"
+            android:valueTo="2.0"
+            android:stepSize="0.05"
+            app:labelBehavior="floating" />
 
         <TextView
             style="@style/Section"

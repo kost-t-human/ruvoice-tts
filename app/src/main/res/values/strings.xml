@@ -11,14 +11,14 @@
     <string name="voice">Голос</string>
     <string name="sample_rate">Частота дискретизации</string>
     <string name="sample_rate_item">%1$d Гц</string>
+    <string name="section_rate_pitch">Темп и высота</string>
+    <string name="section_rate_pitch_hint">Умножаются на темп и высоту, которые просит читалка. 1 — без изменений.</string>
     <string name="section_quote">Прямая речь</string>
     <string name="section_quote_hint">Реплики, начинающиеся с тире или кавычки, можно озвучивать другим голосом, темпом и высотой.</string>
     <string name="quote_voice">Голос прямой речи</string>
     <string name="quote_voice_default">как основной</string>
     <string name="quote_rate">Темп</string>
     <string name="quote_pitch">Высота</string>
-    <string name="factor_suffix">×</string>
-    <string name="factor_range">от 0,5 до 2</string>
     <string name="section_preview">Проверка</string>
     <string name="preview_hint">Текст для прослушивания</string>
     <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.\n— Пойдём домой, — сказал он тихо.</string>

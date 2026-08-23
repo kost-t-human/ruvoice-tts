@@ -7,6 +7,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import ru.kost.ruvoice.text.Normalizer
 
@@ -48,8 +49,10 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.dropdown(R.id.voice, voices, prefs.voice.takeIf { it in voices } ?: voices.first())
         v.dropdown(R.id.sampleRate, rateItems, rateItems[rates.indexOf(prefs.sampleRate).coerceAtLeast(0)])
         v.dropdown(R.id.quoteVoice, quoteVoices, prefs.quoteVoice.takeIf { it in voices } ?: quoteVoices.first())
-        v.findViewById<EditText>(R.id.quoteRate).setText(prefs.quoteRate.toString())
-        v.findViewById<EditText>(R.id.quotePitch).setText(prefs.quotePitch.toString())
+        v.slider(R.id.rate, R.id.rateValue, prefs.rate)
+        v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
+        v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
+        v.slider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch)
         val previewText = v.findViewById<EditText>(R.id.previewText)
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
 
@@ -67,11 +70,12 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.findViewById<TextView>(R.id.voice).str().let { if (it in voices) prefs.voice = it }
         v.findViewById<TextView>(R.id.quoteVoice).str().let { prefs.quoteVoice = if (it in voices) it else "" }
         rateItems.indexOf(v.findViewById<TextView>(R.id.sampleRate).str()).let { if (it >= 0) prefs.sampleRate = rates[it] }
-        prefs.quoteRate = v.findViewById<EditText>(R.id.quoteRate).factor()
-        prefs.quotePitch = v.findViewById<EditText>(R.id.quotePitch).factor()
+        prefs.rate = v.findViewById<Slider>(R.id.rate).value
+        prefs.pitch = v.findViewById<Slider>(R.id.pitch).value
+        prefs.quoteRate = v.findViewById<Slider>(R.id.quoteRate).value
+        prefs.quotePitch = v.findViewById<Slider>(R.id.quotePitch).value
     }
 
-    private fun EditText.factor() = (str().replace(',', '.').toFloatOrNull() ?: 1f).coerceIn(0.5f, 2f)
     private fun TextView.str() = text.toString()
 
     private fun View.dropdown(id: Int, items: List<String>, value: String) =
@@ -79,6 +83,18 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             setSimpleItems(items.toTypedArray())
             setText(value, false)
         }
+
+    /** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок с тем же форматом при перетаскивании. */
+    private fun View.slider(sliderId: Int, valueId: Int, value: Float) {
+        val valueView = findViewById<TextView>(valueId)
+        fun format(v: Float) = "×%.2f".format(v)
+        valueView.text = format(value)
+        findViewById<Slider>(sliderId).apply {
+            setLabelFormatter(::format)
+            this.value = value
+            addOnChangeListener { _, v, _ -> valueView.text = format(v) }
+        }
+    }
 
     // Разбор на сегменты и их нормализация читают словари с диска (SileroModels.data,
     // Normalizer) — считаем в фоновом потоке, диалог показываем на UI-потоке.
