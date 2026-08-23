@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -63,9 +64,8 @@ class SettingsActivity : AppCompatActivity() {
             insets
         }
 
-        // После recreate() (перезагрузка страниц после импорта) окно и его вьюхи создаются
-        // заново, поэтому Snackbar «Настройки импортированы» показываем здесь, а не в месте
-        // вызова recreate() — само окно там уже уничтожается.
+        // После импорта окно создаётся заново (finish + startActivity), поэтому Snackbar
+        // «Настройки импортированы» показываем здесь, а не в месте вызова.
         if (intent.getBooleanExtra(EXTRA_IMPORT_DONE, false)) {
             intent.removeExtra(EXTRA_IMPORT_DONE)
             root.post { showSnackbar(getString(R.string.import_done)) }
@@ -132,8 +132,13 @@ class SettingsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.import_confirm_yes) { _, _ ->
                 try {
                     prefs.importJson(text)
+                    // Не recreate(): он восстанавливает состояние вьюх поверх load(), и старые
+                    // значения полей потом уезжают в Prefs при onPause (проверено на устройстве).
+                    // Флаг на текущем intent — чтобы старые фрагменты не сохранялись при finish().
                     intent.putExtra(EXTRA_IMPORT_DONE, true)
-                    recreate()
+                    finish()
+                    startActivity(Intent(this, SettingsActivity::class.java).putExtra(EXTRA_IMPORT_DONE, true))
+                    overridePendingTransition(0, 0)
                 } catch (e: Exception) {
                     showSnackbar(e.message ?: e.toString())
                 }
