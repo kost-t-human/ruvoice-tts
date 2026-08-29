@@ -5,6 +5,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import java.util.Locale
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
@@ -85,9 +86,12 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         }
 
     /** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок с тем же форматом при перетаскивании. */
-    private fun View.slider(sliderId: Int, valueId: Int, value: Float) {
+    private fun View.slider(sliderId: Int, valueId: Int, raw: Float) {
         val valueView = findViewById<TextView>(valueId)
-        fun format(v: Float) = "×%.2f".format(v)
+        fun format(v: Float) = "×%.2f".format(Locale.ROOT, v)
+        // Slider падает при layout, если значение не на сетке шага 0.05 (импорт «0.73»,
+        // старые quote_rate из текстового поля) — округляем к шагу.
+        val value = (Math.round((raw - 0.5f) / 0.05f) * 0.05f + 0.5f).coerceIn(0.5f, 2f)
         valueView.text = format(value)
         findViewById<Slider>(sliderId).apply {
             setLabelFormatter(::format)
