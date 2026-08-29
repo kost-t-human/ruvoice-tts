@@ -71,6 +71,7 @@
             android:valueFrom="0.5"
             android:valueTo="2.0"
             android:stepSize="0.05"
+            app:tickVisible="false"
             app:labelBehavior="floating" />
 
         <LinearLayout
@@ -97,6 +98,7 @@
             android:valueFrom="0.5"
             android:valueTo="2.0"
             android:stepSize="0.05"
+            app:tickVisible="false"
             app:labelBehavior="floating" />
 
         <TextView
@@ -144,6 +146,7 @@
             android:valueFrom="0.5"
             android:valueTo="2.0"
             android:stepSize="0.05"
+            app:tickVisible="false"
             app:labelBehavior="floating" />
 
         <LinearLayout
@@ -170,6 +173,7 @@
             android:valueFrom="0.5"
             android:valueTo="2.0"
             android:stepSize="0.05"
+            app:tickVisible="false"
             app:labelBehavior="floating" />
 
         <TextView
