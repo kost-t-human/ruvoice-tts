@@ -1,9 +1,7 @@
 package ru.kost.ruvoice
 
-import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
@@ -60,8 +58,6 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
         v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
         v.slider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch)
-        v.sysSlider(R.id.sysRate, R.id.sysRateValue, "tts_default_rate", 0.25f, 3f)
-        v.sysSlider(R.id.sysPitch, R.id.sysPitchValue, "tts_default_pitch", 0.5f, 2f)
         v.findViewById<Button>(R.id.sysTtsSettings).setOnClickListener { openSysTtsSettings() }
         val previewText = v.findViewById<EditText>(R.id.previewText)
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
@@ -111,38 +107,15 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         }
     }
 
-    /**
-     * Системные темп/высота (Settings.Secure tts_default_rate/pitch, 100 = ×1) — те, что
-     * читалка присылает движку. Не наши: в Prefs, save() и экспорт не попадают, пишутся
-     * прямо в Settings по концу жеста (одна запись на жест, не на каждый пиксель). Запись
-     * требует WRITE_SECURE_SETTINGS, выдаваемого только через adb, — без него возвращаем
-     * слайдер к прочитанному значению и объясняем, как выдать.
-     * ponytail: пишем только по касанию; сдвиг клавиатурой/TalkBack не сохраняется —
-     * при жалобе добавить запись из addOnChangeListener(fromUser) с задержкой.
-     */
-    private fun View.sysSlider(sliderId: Int, valueId: Int, key: String, from: Float, to: Float) {
+    // Системные темп/высота (Settings.Secure, 100 = ×1) — только показать: запись требует
+    // WRITE_SECURE_SETTINGS, которое обычному приложению не выдают. Обновляем при возврате
+    // с системного экрана (onResume).
+    override fun onResume() {
+        super.onResume()
         val cr = requireContext().contentResolver
-        fun read() = Settings.Secure.getInt(cr, key, 100) / 100f
-        slider(sliderId, valueId, read(), from, to).addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
-            override fun onStartTrackingTouch(slider: Slider) {}
-            override fun onStopTrackingTouch(slider: Slider) {
-                val ok = try {
-                    requireContext().checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED &&
-                        Settings.Secure.putInt(cr, key, Math.round(slider.value * 100))
-                } catch (e: SecurityException) {
-                    false
-                }
-                if (ok) return
-                slider.value = snap(read(), from, to)
-                MaterialAlertDialogBuilder(requireContext())
-                    .setMessage(R.string.sys_no_permission)
-                    .setNegativeButton(R.string.sys_settings) { _, _ -> openSysTtsSettings() }
-                    .setPositiveButton(R.string.close, null)
-                    .show()
-                    // команду adb удобно скопировать прямо из окна
-                    .findViewById<TextView>(android.R.id.message)?.setTextIsSelectable(true)
-            }
-        })
+        fun read(key: String) = "%.2f".format(Locale.ROOT, Settings.Secure.getInt(cr, key, 100) / 100f)
+        view?.findViewById<TextView>(R.id.sysValues)?.text =
+            getString(R.string.sys_values, read("tts_default_rate"), read("tts_default_pitch"))
     }
 
     private fun openSysTtsSettings() {

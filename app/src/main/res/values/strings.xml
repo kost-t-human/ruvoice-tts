@@ -14,12 +14,9 @@
     <string name="section_rate_pitch">Темп и высота</string>
     <string name="section_rate_pitch_hint">Умножаются на темп и высоту, которые просит читалка. 1 — без изменений.</string>
     <string name="section_system">Системные темп и высота</string>
-    <string name="section_system_hint">Общие настройки Android — те же, что на системном экране синтеза речи. Действуют для всех приложений.</string>
-    <string name="sys_rate">Темп</string>
-    <string name="sys_pitch">Высота</string>
+    <string name="section_system_hint">Скорость и высота речи из настроек Android. Действуют для всех приложений; менять их — на системном экране синтеза речи.</string>
+    <string name="sys_values">Сейчас: темп ×%1$s, высота ×%2$s</string>
     <string name="sys_tts_settings">Системные настройки синтеза речи</string>
-    <string name="sys_settings">Системные настройки</string>
-    <string name="sys_no_permission">Нет разрешения. Выполните на компьютере:\nadb shell pm grant ru.kost.ruvoice android.permission.WRITE_SECURE_SETTINGS</string>
     <string name="sys_settings_missing">Экран настроек синтеза речи не найден</string>
     <string name="section_quote">Прямая речь</string>
     <string name="section_quote_hint">Реплики, начинающиеся с тире или кавычки, можно озвучивать другим голосом, темпом и высотой.</string>
