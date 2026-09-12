@@ -14,7 +14,7 @@
     <string name="section_rate_pitch">Темп и высота</string>
     <string name="section_rate_pitch_hint">Умножаются на темп и высоту, которые просит читалка. 1 — без изменений.</string>
     <string name="section_system">Системные темп и высота</string>
-    <string name="section_system_hint">Это настройки Android, которые читалка присылает движку. Приложение меняет их, только если ему выдано разрешение через adb.</string>
+    <string name="section_system_hint">Общие настройки Android — те же, что на системном экране синтеза речи. Действуют для всех приложений.</string>
     <string name="sys_rate">Темп</string>
     <string name="sys_pitch">Высота</string>
     <string name="sys_tts_settings">Системные настройки синтеза речи</string>
