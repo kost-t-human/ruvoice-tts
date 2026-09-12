@@ -282,6 +282,18 @@ object Normalizer {
             """(?:\s+(утра|дня|вечера|ночи))?""",
         RegexOption.IGNORE_CASE
     )
+    // Падеж по предлогу (task 28 п.1): «с/до/около/после» — родительный, «к» — дательный,
+    // «в/на» — винительный = именительный. Формы (ед., 2-4, 5+) на падеж: [час, минута, секунда],
+    // в косвенных падежах 2-4 и 5+ совпадают — plural() даёт ед. при n%10==1 && n%100!=11.
+    private val timePrepCase = mapOf("с" to Case.GEN, "до" to Case.GEN, "около" to Case.GEN, "после" to Case.GEN, "к" to Case.DAT)
+    private val timeNouns = mapOf(
+        Case.NOM to listOf(Triple("час", "часа", "часов"), Triple("минута", "минуты", "минут"), Triple("секунда", "секунды", "секунд")),
+        Case.GEN to listOf(Triple("часа", "часов", "часов"), Triple("минуты", "минут", "минут"), Triple("секунды", "секунд", "секунд")),
+        Case.DAT to listOf(Triple("часу", "часам", "часам"), Triple("минуте", "минутам", "минутам"), Triple("секунде", "секундам", "секундам")),
+    )
+    private fun timeUnit(n: Int, case: Case, idx: Int) =
+        Declension.cardinal(n.toLong(), case, feminine = idx > 0) + " " + plural(n.toLong(), timeNouns.getValue(case)[idx])
+
     private fun times(text: String) = timeRe.replace(text) { m ->
         val (prep, h, mi, sec, after) = m.destructured
         val hour = h.toInt(); val minute = mi.toInt()
@@ -289,18 +301,13 @@ object Normalizer {
         val second = sec.toIntOrNull()
         if (sec.isNotEmpty() && (second == null || second !in 0..59)) return@replace m.value
         val hasTrigger = prep.isNotEmpty() || after.isNotEmpty() || sec.isNotEmpty()
+        val case = timePrepCase[prep.lowercase()] ?: Case.NOM
         val sb = StringBuilder()
         if (prep.isNotEmpty()) sb.append(prep).append(' ')
         if (hasTrigger) {
-            sb.append(cardinal(hour.toLong())).append(' ').append(plural(hour.toLong(), Triple("час", "часа", "часов")))
-            if (minute > 0) {
-                sb.append(' ').append(cardinal(minute.toLong(), feminine = true)).append(' ')
-                    .append(plural(minute.toLong(), Triple("минута", "минуты", "минут")))
-            }
-            if (second != null && second > 0) {
-                sb.append(' ').append(cardinal(second.toLong(), feminine = true)).append(' ')
-                    .append(plural(second.toLong(), Triple("секунда", "секунды", "секунд")))
-            }
+            sb.append(timeUnit(hour, case, 0))
+            if (minute > 0) sb.append(' ').append(timeUnit(minute, case, 1))
+            if (second != null && second > 0) sb.append(' ').append(timeUnit(second, case, 2))
         } else {
             sb.append(h).append(' ').append(mi)
         }
