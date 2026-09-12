@@ -347,8 +347,9 @@ object Normalizer {
     private val yearGPrepOtherRe =
         Regex("""(с начала|с конца|с|до|после|от|около)\s+(\d{3,4})\s*г\.""", RegexOption.IGNORE_CASE)
     // «г.» без предлога — год только при четырёх цифрах (task 28 п.4): «500 г. муки» — граммы,
-    // доходит до units(); трёхзначный год бывает только с предлогом («в 988 г.», yearGPrepVRe).
-    private val yearGBareRe = Regex("""(?<![а-яё\d])(\d{4})\s*г\.""", RegexOption.IGNORE_CASE)
+    // доходит до units(); трёхзначный год — с предлогом («в 988 г.», yearGPrepVRe) или перед «до н. э.».
+    private val yearGBareRe =
+        Regex("""(?<![а-яё\d])(\d{4}|\d{3}(?=\s*г\.\s*до\s+н\.\s*э\.))\s*г\.""", RegexOption.IGNORE_CASE)
 
     private fun yearsWithG(text: String): String {
         var s = text
