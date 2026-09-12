@@ -66,7 +66,9 @@ object Normalizer {
     private val endings = mapOf(
         "й" to Triple("ый", "ой", "ий"), "го" to Triple("ого", "ого", "ьего"), "му" to Triple("ому", "ому", "ьему"),
         "м" to Triple("ом", "ом", "ьем"), "х" to Triple("ых", "ых", "ьих"), "е" to Triple("ое", "ое", "ье"),
-        "я" to Triple("ая", "ая", "ья"), "ю" to Triple("ую", "ую", "ью"))
+        "я" to Triple("ая", "ая", "ья"), "ю" to Triple("ую", "ую", "ью"),
+        // им. п. мн. ч. (task 28 п.6): «XX вв.» → «20-ые века» → «двадцатые»; «-е» даёт «двадцатое».
+        "ые" to Triple("ые", "ые", "ьи"))
     // Круглые тысячи целиком — своя основа порядкового, а не «две тысячи» + окончание у нуля
     // (review t17 п.5, Normalizer.kt:80): «2000-й» → «двухтысячный», не просто cardinal-фолбэк.
     private val roundThousandStems = mapOf(1000L to "тысячн", 2000L to "двухтысячн", 3000L to "трёхтысячн",
@@ -124,7 +126,7 @@ object Normalizer {
     // читаются как «минус» — дефис между двумя числами остаётся дефисом, каждое число читается
     // само по себе (numTailExclude в cases() этот же дефис не блокирует нарочно, см. ниже).
     private val numberRe =
-        Regex("""(№|§)?(?<!\d)((?<![\p{L}\d])-)?(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю)(?![а-яё]))?(%)?""")
+        Regex("""(№|§)?(?<!\d)((?<![\p{L}\d])-)?(\d+)(?:[.,](\d+))?(?:-(й|го|му|м|х|е|я|ю|ые)(?![а-яё]))?(%)?""")
 
     // Признак десятилетия для круглой тысячи с «-е» (task 18 review round 1 п.4): годовое слово
     // сразу после, либо число в конце строки/перед пунктуацией — «2000-е годы», «в 2000-е»;
@@ -192,14 +194,16 @@ object Normalizer {
     // быть смешанным («ХIV» — кириллическая Х + латинские IV), поэтому в класс входят обе группы.
     private val romanRe = Regex(
         """(?:(?<![\p{L}])(глава|часть|том|книга|раздел|акт)\s+)?(?<![\p{L}\d])([mdclxviхсмі]+)(?![\p{L}\d])""" +
-            """(?:\s+(век|века|веке|веков|столетие|столетия|столетии)(?![а-яё]))?""",
+            """(?:\s+(век|века|веке|веков|столетие|столетия|столетии|вв\.|в\.)(?![а-яё]))?""",
         RegexOption.IGNORE_CASE
     )
     private val romanValues = mapOf('i' to 1, 'v' to 5, 'x' to 10, 'l' to 50, 'c' to 100, 'd' to 500, 'm' to 1000)
     private val romanCyrMap = mapOf('х' to 'x', 'с' to 'c', 'м' to 'm', 'і' to 'i')
     private fun latinizeRoman(s: String) = s.map { romanCyrMap[it] ?: it }.joinToString("")
     private val romanAfterSuffix = mapOf("век" to "й", "века" to "го", "веке" to "м", "веков" to "х",
-        "столетие" to "е", "столетия" to "го", "столетии" to "м")
+        "столетие" to "е", "столетия" to "го", "столетии" to "м", "в." to "й", "вв." to "ые")
+    // «в.»/«вв.» после римского (task 28 п.6) — в выводе полное слово.
+    private val romanAfterWord = mapOf("в." to "век", "вв." to "века")
     private val romanBeforeSuffix = mapOf("глава" to "я", "часть" to "я", "книга" to "я",
         "том" to "й", "раздел" to "й", "акт" to "й")
 
@@ -237,7 +241,7 @@ object Normalizer {
         val sb = StringBuilder()
         if (before.isNotEmpty()) sb.append(before).append(' ')
         if (suffix != null) sb.append(value).append('-').append(suffix) else sb.append(value)
-        if (after.isNotEmpty()) sb.append(' ').append(after)
+        if (after.isNotEmpty()) sb.append(' ').append(romanAfterWord[after.lowercase()] ?: after)
         sb.toString()
     }
 
@@ -412,8 +416,18 @@ object Normalizer {
 
     // 8. Единицы измерения: число оставляем цифрами для numberRe (кроме мин/сек — там род
     // важен для согласования, поэтому число сразу произносим словом в женском роде).
-    private class UnitForms(val forms: Triple<String, String, String>, val suffix: String = "", val feminine: Boolean = false)
+    // prefix (task 28 п.6): «квадратный/кубический» перед существительным, формы (1, 2-4/дробь, 5+).
+    private class UnitForms(val forms: Triple<String, String, String>, val suffix: String = "", val feminine: Boolean = false,
+                            val prefix: Triple<String, String, String>? = null)
+    private val squarePrefix = Triple("квадратный", "квадратных", "квадратных")
+    private val cubicPrefix = Triple("кубический", "кубических", "кубических")
+    // «м²» и т.п. — раньше «м»/«км»/«см» в альтернации, иначе матчится голая единица, а «²» остаётся.
     private val unitTable = linkedMapOf(
+        "км²" to UnitForms(Triple("километр", "километра", "километров"), prefix = squarePrefix),
+        "см²" to UnitForms(Triple("сантиметр", "сантиметра", "сантиметров"), prefix = squarePrefix),
+        "см³" to UnitForms(Triple("сантиметр", "сантиметра", "сантиметров"), prefix = cubicPrefix),
+        "м²" to UnitForms(Triple("метр", "метра", "метров"), prefix = squarePrefix),
+        "м³" to UnitForms(Triple("метр", "метра", "метров"), prefix = cubicPrefix),
         "км/ч" to UnitForms(Triple("километр", "километра", "километров"), suffix = " в час"),
         "м/с" to UnitForms(Triple("метр", "метра", "метров"), suffix = " в секунду"),
         "кг" to UnitForms(Triple("килограмм", "килограмма", "килограммов")),
@@ -427,6 +441,9 @@ object Normalizer {
         "л" to UnitForms(Triple("литр", "литра", "литров")),
         "г" to UnitForms(Triple("грамм", "грамма", "граммов")),
         "м" to UnitForms(Triple("метр", "метра", "метров")),
+        "шт" to UnitForms(Triple("штука", "штуки", "штук"), feminine = true),
+        "чел" to UnitForms(Triple("человек", "человека", "человек")),
+        "экз" to UnitForms(Triple("экземпляр", "экземпляра", "экземпляров")),
     )
     private val unitAltPattern = unitTable.keys.joinToString("|") { Regex.escape(it) }
     // Единица сразу после «N.N» (review final-fix п.8) — используется в dates() выше, чтобы не
@@ -473,16 +490,19 @@ object Normalizer {
         val head = if (trigger.isEmpty()) "" else "$trigger "
         if (trigger.isNotEmpty() && !hasFrac) {
             val n = numStr.toLongOrNull() ?: return@replace m.value
-            val form = if (n % 10 == 1L && n % 100 != 11L) u.forms.second else u.forms.third
-            head + Declension.cardinal(n, Case.GEN, u.feminine) + " " + form + u.suffix
+            val one = n % 10 == 1L && n % 100 != 11L
+            // Р.п. ед. приставки — «квадратного»/«кубического», через замену окончания «ый/ий».
+            val pre = u.prefix?.let { (if (one) it.first.dropLast(2) + "ого" else it.third) + " " } ?: ""
+            head + Declension.cardinal(n, Case.GEN, u.feminine) + " " + pre + (if (one) u.forms.second else u.forms.third) + u.suffix
         } else if (u.feminine && !hasFrac) {
             val n = numStr.toLongOrNull() ?: return@replace m.value
             cardinal(n, feminine = true) + " " + plural(n, u.forms) + u.suffix
         } else {
             val intPart = numStr.substringBefore(',').substringBefore('.')
             val n = intPart.toLongOrNull() ?: return@replace m.value
+            val pre = u.prefix?.let { (if (hasFrac) it.second else plural(n, it)) + " " } ?: ""
             val form = if (hasFrac) u.forms.second else plural(n, u.forms)
-            head + numStr + " " + form + u.suffix
+            head + numStr + " " + pre + form + u.suffix
         }
     }
 
@@ -548,7 +568,7 @@ object Normalizer {
     private val kopeckForms = Triple("копейка", "копейки", "копеек")
     private val moneyNumRe = """\d+(?:[.,]\d+)?"""
     private val dollarPrefixRe = Regex("""\$\s?($moneyNumRe)""")
-    private val dollarSuffixRe = Regex("""($moneyNumRe)\s?\$""")
+    private val dollarSuffixRe = Regex("""($moneyNumRe)\s?(?:\$|долл\.)""", RegexOption.IGNORE_CASE)
     private val euroPrefixRe = Regex("""€($moneyNumRe)""")
     private val euroSuffixRe = Regex("""($moneyNumRe)\s?€""")
     private val rubleSuffixRe = Regex("""($moneyNumRe)\s?(?:₽|руб\.|р\.)""", RegexOption.IGNORE_CASE)
@@ -622,6 +642,19 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])акад\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "академик",
         Regex("""(?<![\p{L}\d])им\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "имени",
         Regex("""(?<![\p{L}\d])ул\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "улица",
+        // task 28 п.6
+        Regex("""(?<![\p{L}\d])г-н(?![\p{L}])""", RegexOption.IGNORE_CASE) to "господин",
+        Regex("""(?<![\p{L}\d])г-жа(?![\p{L}])""", RegexOption.IGNORE_CASE) to "госпожа",
+        Regex("""(?<![\p{L}\d])н\.\s*э\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "нашей эры",
+        Regex("""(?<![\p{L}\d])т\.\s*о\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "таким образом",
+        Regex("""(?<![\p{L}\d])кол-во(?![\p{L}])""", RegexOption.IGNORE_CASE) to "количество",
+        Regex("""(?<![\p{L}\d])ж/д(?![\p{L}])""", RegexOption.IGNORE_CASE) to "железнодорожный",
+        Regex("""(?<![\p{L}\d])б/у(?![\p{L}])""", RegexOption.IGNORE_CASE) to "бывший в употреблении",
+        // «ок.»/«кв.» только перед числом, пробел — часть замены (как у «п.» выше)
+        Regex("""(?<![\p{L}\d])ок\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "около ",
+        Regex("""(?<![\p{L}\d])кв\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "квартира ",
+        Regex("""(?<![\p{L}\d])тел\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "телефон",
+        Regex("""(?<![\p{L}\d])макс\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "максимум",
         // Фолбэк для «руб.» без числа сразу перед ним (например, после «тыс.» — «5 тыс. руб.»
         // число уже стало словами выше в scaleAbbrev). Число рядом с «руб.» ловит currency()
         // раньше — со склонением по plural() (task 18 п.6), здесь до него не доходит.
@@ -651,7 +684,7 @@ object Normalizer {
     // Общий «хвост»-фильтр без месяца — отдельно нужен там, где месяц как раз обязателен
     // (второе число в «с N по M месяц», см. rangeSPoMonthRe ниже).
     private val numTailExcludeCore =
-        """(?![.,:/\d])(?!-(?:й|го|му|м|х|е|я|ю)(?![а-яё]))(?!%)"""
+        """(?![.,:/\d])(?!-(?:й|го|му|м|х|е|я|ю|ые)(?![а-яё]))(?!%)"""
     private val numTailExclude = numTailExcludeCore +
         """(?!\s*(?:год|года|году)(?![а-яё]))(?!\s*(?:$monthGenAlt)(?![а-яё]))"""
 
@@ -896,7 +929,9 @@ object Normalizer {
     private val wsClass = Regex("[\\s\\p{Zs}\\u0085\\u2028\\u2029\\u001C-\\u001F]")
 
     fun symbols(text: String, allowed: String): String {
-        val normalized = text.replace('—', '–').replace('‑', '-').replace(wsClass, " ")
+        // «±»/«≈»/«&» — словами (task 28 п.6), иначе фильтр allowed их молча выкинет.
+        val normalized = text.replace('—', '–').replace('‑', '-').replace("±", " плюс-минус ").replace("≈", " примерно ")
+            .replace("&", " и ").replace(wsClass, " ")
         val sb = StringBuilder(normalized.length)
         for (c in normalized) if (c in allowed) sb.append(c)
         return sb.toString().replace(Regex("\\s+"), " ").trim()
