@@ -227,7 +227,7 @@ object Normalizer {
         // тысячи почти не бывают — годы такого вида читает отдельное правило дат/годов. Токен
         // короче 3 букв без триггера тоже не считаем числом (review final-fix п.6): «I love you»,
         // «XL», «CD», «C++» — бытовые одно-двухбуквенные сокращения, не римские цифры; «Пётр I»
-        // без триггера так и остаётся нераспознанным — принятый потолок.
+        // ловит romanAfterName() выше (task 28 п.2).
         // Двухбуквенные из одних I/V/X («II», «XX») — всё же числа: «Николай II» иначе уходит в Abbrev
         // как «ай +ай» (scoped re-review final-fix п.2).
         val eligibleAlone = (token.length >= 3 || (token.length == 2 && token.all { it in "IVX" })) && token.all { it.isUpperCase() } && 'm' !in normalized
@@ -239,6 +239,23 @@ object Normalizer {
         if (suffix != null) sb.append(value).append('-').append(suffix) else sb.append(value)
         if (after.isNotEmpty()) sb.append(' ').append(after)
         sb.toString()
+    }
+
+    // 3b. Римское число после имени с заглавной (task 28 п.2): «Пётр I», «Екатерина II» →
+    // порядковое через суффикс «-й»/«-я» (род по «а/я» на конце имени), numberRe раскроет.
+    // Проход ДО romanNumerals(), иначе тот уже прочитает «XIV»/«II» количественным (eligibleAlone);
+    // слова-триггеры («Глава I», «Россия XX века») отдаём старому пути, без IGNORE_CASE.
+    // Только [IVX] — «Размер XL», «Диск CD» остаются бытовыми сокращениями, короли за XX не бывают.
+    private val romanAfterNameRe = Regex("""(?<![\p{L}])([А-ЯЁ][а-яё]+)\s+([IVX]+)(?![\p{L}\d])""")
+    private val romanAfterWordRe = Regex("""^\s+(\p{L}+)""")
+    private fun romanAfterName(text: String) = romanAfterNameRe.replace(text) { m ->
+        val (name, token) = m.destructured
+        val lower = token.lowercase()
+        if (!romanStrictRe.matches(lower) || name.lowercase() in romanBeforeSuffix) return@replace m.value
+        val next = romanAfterWordRe.find(text.substring(m.range.last + 1))?.groupValues?.get(1)?.lowercase()
+        if (next in romanAfterSuffix) return@replace m.value
+        val suffix = if (name.last() in "ая") "я" else "й"
+        "$name ${romanToInt(lower)}-$suffix"
     }
 
     // 4. Даты «дд.мм.гггг» и «дд.мм»: день и год — порядковый суффикс для numberRe,
@@ -758,6 +775,7 @@ object Normalizer {
         // Градусы — до римских цифр: одиночная «C» после «°» иначе читается как римское 100
         // (eligibleAlone в romanNumerals не заглядывает влево, task 18 п.4).
         s = degrees(s)
+        s = romanAfterName(s)
         s = romanNumerals(s)
         s = dates(s)
         s = times(s)

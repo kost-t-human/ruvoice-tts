@@ -42,7 +42,21 @@ class RulesTest {
         // review t17 п.2 (Normalizer.kt:114-141): без триггера и без CAPS строчное «mix»/«civ» —
         // обычное слово, а не число; заглавный токен в исходнике («XIV») — число и без триггера.
         assertEquals("это был mix двух стилей", n("это был mix двух стилей"))
-        assertEquals("Людовик четырнадцать", n("Людовик XIV"))
+        assertEquals("Людовик четырнадцатый", n("Людовик XIV"))
+    }
+
+    @Test fun romanNumeralAfterCapitalizedNameIsOrdinal() {
+        // task 28 п.2: «Имя I/II/XIV» — порядковое, род по окончанию имени; триггеры
+        // (глава/часть/том, век) — старым путём; короткие латинские токены без имени — не число.
+        assertEquals("Пётр первый", n("Пётр I"))
+        assertEquals("Николай второй", n("Николай II"))
+        assertEquals("Екатерина вторая", n("Екатерина II"))
+        assertEquals("Людовик четырнадцатый", n("Людовик XIV"))
+        assertEquals("Иоанн Павел второй", n("Иоанн Павел II"))
+        assertEquals("Глава первая", n("Глава I"))
+        assertEquals("часть вторая", n("часть II"))
+        assertEquals("Россия двадцатого века", n("Россия XX века"))
+        assertEquals("Windows XP", n("Windows XP"))
     }
 
     @Test fun romanNumeralsLowercaseWithoutTriggerIsAnAcceptedLimitation() {
@@ -61,10 +75,10 @@ class RulesTest {
 
     @Test fun shortLatinTokensWithoutTriggerStayUntouched() {
         // финальный fix-раунд п.6: одно- и двухбуквенные латинские токены без триггера — не
-        // римские числа («I love you», «XL», «CD», «C++»); «Пётр I» без триггера — потолок.
+        // римские числа («I love you», «XL», «CD», «C++»); «Имя II» — порядковое (task 28 п.2).
         assertEquals("I love you", n("I love you"))
         assertEquals("Размер XL", n("Размер XL"))
-        assertEquals("Николай два", n("Николай II"))
+        assertEquals("Николай второй", n("Николай II"))
         assertEquals("Книга с картинками", n("Книга с картинками"))
         assertEquals("с века на век", n("с века на век"))
         assertEquals("Диск CD", n("Диск CD"))
@@ -75,7 +89,7 @@ class RulesTest {
         // review t17 round2 п.1 (Normalizer.kt: prepare()): регистр больше не теряется до
         // numbers() — предлоги/сокращения/триггеры матчатся независимо от регистра исходника,
         // а «MIX» без «m»-исключения из romanNumerals остаётся обычным словом, не числом 1009.
-        assertEquals("людовик четырнадцать правил", p("Людовик XIV правил"))
+        assertEquals("людовик четырнадцатый правил", p("Людовик XIV правил"))
         assertEquals("в тысяча девятьсот девяностом году", p("В 1990 Году"))
         assertEquals("иоанна три шестнадцать", p("Иоанна 3:16"))
         assertEquals("в двадцатом веке", p("в XX веке"))
