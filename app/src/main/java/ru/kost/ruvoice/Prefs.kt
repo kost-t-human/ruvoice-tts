@@ -23,6 +23,12 @@ class Prefs(private val context: Context) {
     val userDictFile: File get() = File(context.filesDir, "user_stress.txt")
     val userReplaceFile: File get() = File(context.filesDir, "user_replace.txt")
 
+    init {
+        // Предустановки замен — только пока файла нет (первый запуск): дальше это обычный
+        // пользовательский список, удалённое не возвращаем.
+        if (!userReplaceFile.exists()) userReplaceFile.writeText(DEFAULT_REPLACE)
+    }
+
     /** Строки «слово сл+ово»; пустые и с # пропускаются. */
     fun userDict(): Map<String, String> {
         if (!userDictFile.exists()) return emptyMap()
@@ -77,5 +83,10 @@ class Prefs(private val context: Context) {
         (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }
         parsed.stress?.let { userDictFile.writeText(it) }
         parsed.replace?.let { userReplaceFile.writeText(it) }
+    }
+
+    companion object {
+        /** Примеры для вкладки «Замены»: ударение во фразе перебивает и словарь, и BERT. */
+        const val DEFAULT_REPLACE = "старый замок = старый з+амок\n"
     }
 }
