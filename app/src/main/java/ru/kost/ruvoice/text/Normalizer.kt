@@ -443,6 +443,25 @@ object Normalizer {
         RegexOption.IGNORE_CASE
     )
 
+    // 7c. Ложки «ч. л.»/«ст. л.» (task 28 п.3) — до units(), иначе «2 ч.» уходит в часы, и до
+    // fractionsSlash(): дробь (запятая/точка/слэш) остаётся цифрами для них, ложка — в род. ед.
+    // Точка после «л» съедается, кроме как перед заглавной (точка предложения, как в unitRe).
+    private val spoonForms = mapOf(
+        "ч" to Triple("чайная ложка", "чайные ложки", "чайных ложек"),
+        "ст" to Triple("столовая ложка", "столовые ложки", "столовых ложек"),
+    )
+    private val spoonGen = mapOf("ч" to "чайной ложки", "ст" to "столовой ложки")
+    private val spoonRe = Regex(
+        """((?:\d+/)?\d+(?:[.,]\d+)?)\s*(ч|ст)\.?\s*л(?![\p{L}\d])(?:\.(?!\s*(?-i:[А-ЯЁ])))?""",
+        RegexOption.IGNORE_CASE
+    )
+    private fun spoons(text: String) = spoonRe.replace(text) { m ->
+        val (numStr, kind) = m.destructured
+        val n = numStr.toLongOrNull()
+        if (n == null) numStr + " " + spoonGen.getValue(kind.lowercase())
+        else cardinal(n, feminine = true) + " " + plural(n, spoonForms.getValue(kind.lowercase()))
+    }
+
     private fun units(text: String) = unitRe.replace(text) { m ->
         val (numStr, unitKey) = m.destructured
         val u = unitTable.getValue(unitKey.lowercase())
@@ -784,6 +803,7 @@ object Normalizer {
         s = cardinalGenitiveSuffixUnit(s)
         s = cardinalGenitiveSuffix(s)
         s = cardinalGenitiveSuffixBareH(s)
+        s = spoons(s)
         s = units(s)
         s = fractionsSlash(s)
         s = currency(s)
