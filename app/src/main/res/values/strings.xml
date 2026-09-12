@@ -21,7 +21,7 @@
     <string name="quote_pitch">Высота</string>
     <string name="section_preview">Проверка</string>
     <string name="preview_hint">Текст для прослушивания</string>
-    <string name="preview_text">Съешь ещё этих мягких французских булок, да выпей чаю.\n— Пойдём домой, — сказал он тихо.</string>
+    <string name="preview_text">Поезд отходил в 21:30, и до вокзала оставалось около 3 км.\n— Успеем, — сказала она тихо. — Замок на воротах ещё не заперли.</string>
     <string name="preview">Прослушать</string>
     <string name="analyze">Разбор</string>
     <string name="analyze_title">Разбор текста</string>
