@@ -250,14 +250,16 @@ object Normalizer {
     // Проход ДО romanNumerals(), иначе тот уже прочитает «XIV»/«II» количественным (eligibleAlone);
     // слова-триггеры («Глава I», «Россия XX века») отдаём старому пути, без IGNORE_CASE.
     // Только [IVX] — «Размер XL», «Диск CD» остаются бытовыми сокращениями, короли за XX не бывают.
-    private val romanAfterNameRe = Regex("""(?<![\p{L}])([А-ЯЁ][а-яё]+)\s+([IVX]+)(?![\p{L}\d])""")
-    private val romanAfterWordRe = Regex("""^\s+(\p{L}+)""")
+    // Латинское слово следом («Название I Am Legend») — это английская фраза, не номер.
+    private val romanAfterNameRe = Regex("""(?<![\p{L}])([А-ЯЁ][а-яё]+)\s+([IVX]+)(?![\p{L}\d])(?!\s+[A-Za-z])""")
+    private val romanAfterWordRe = Regex("""^\s+(\p{L}+\.?)""")
     private fun romanAfterName(text: String) = romanAfterNameRe.replace(text) { m ->
         val (name, token) = m.destructured
         val lower = token.lowercase()
         if (!romanStrictRe.matches(lower) || name.lowercase() in romanBeforeSuffix) return@replace m.value
+        // Следом «века»/«в.»/«вв.» («Европа XIX в.») — отдать romanNumerals(), там это век.
         val next = romanAfterWordRe.find(text.substring(m.range.last + 1))?.groupValues?.get(1)?.lowercase()
-        if (next in romanAfterSuffix) return@replace m.value
+        if (next != null && (next in romanAfterSuffix || next.trimEnd('.') in romanAfterSuffix)) return@replace m.value
         val suffix = if (name.last() in "ая") "я" else "й"
         "$name ${romanToInt(lower)}-$suffix"
     }

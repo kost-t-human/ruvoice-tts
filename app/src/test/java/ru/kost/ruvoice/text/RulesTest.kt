@@ -56,6 +56,8 @@ class RulesTest {
         assertEquals("Глава первая", n("Глава I"))
         assertEquals("часть вторая", n("часть II"))
         assertEquals("Россия двадцатого века", n("Россия XX века"))
+        assertEquals("Европа девятнадцатый век", n("Европа XIX в."))
+        assertEquals("Название I Am Legend", n("Название I Am Legend"))
         assertEquals("Windows XP", n("Windows XP"))
     }
 
