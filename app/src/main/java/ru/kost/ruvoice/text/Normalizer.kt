@@ -437,8 +437,13 @@ object Normalizer {
     // «см.» без раскрытой единицы попадало в abbrevSimple («смотри»), а Splitter не резал по ней.
     // (?-i: ) вокруг [а-яё] — сам unitRe регистронезависим (IGNORE_CASE), а здесь важен именно
     // регистр следующей буквы (строчная/заглавная), иначе IGNORE_CASE сворачивает его до нуля.
+    // Родительный триггер перед числом (task 28 п.5): и число, и единица — в Р.п. («около трёх
+    // километров»), иначе cases() склонит только число. «с» не в списке — бывает творительным.
+    // ponytail: только родительный; «к 5 км»/«между 2 и 5 км» остаются количественными.
+    private val unitGenTriggerAlt =
+        """(?:около|более|менее|больше|меньше|свыше|до|от|из|после|порядка|не\s+более|не\s+менее)"""
     private val unitRe = Regex(
-        """(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё])))?""",
+        """(?:(?<![\p{L}])($unitGenTriggerAlt)\s+)?(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё])))?""",
         RegexOption.IGNORE_CASE
     )
 
@@ -462,17 +467,22 @@ object Normalizer {
     }
 
     private fun units(text: String) = unitRe.replace(text) { m ->
-        val (numStr, unitKey) = m.destructured
+        val (trigger, numStr, unitKey) = m.destructured
         val u = unitTable.getValue(unitKey.lowercase())
         val hasFrac = numStr.contains(',') || numStr.contains('.')
-        if (u.feminine && !hasFrac) {
+        val head = if (trigger.isEmpty()) "" else "$trigger "
+        if (trigger.isNotEmpty() && !hasFrac) {
+            val n = numStr.toLongOrNull() ?: return@replace m.value
+            val form = if (n % 10 == 1L && n % 100 != 11L) u.forms.second else u.forms.third
+            head + Declension.cardinal(n, Case.GEN, u.feminine) + " " + form + u.suffix
+        } else if (u.feminine && !hasFrac) {
             val n = numStr.toLongOrNull() ?: return@replace m.value
             cardinal(n, feminine = true) + " " + plural(n, u.forms) + u.suffix
         } else {
             val intPart = numStr.substringBefore(',').substringBefore('.')
             val n = intPart.toLongOrNull() ?: return@replace m.value
             val form = if (hasFrac) u.forms.second else plural(n, u.forms)
-            numStr + " " + form + u.suffix
+            head + numStr + " " + form + u.suffix
         }
     }
 

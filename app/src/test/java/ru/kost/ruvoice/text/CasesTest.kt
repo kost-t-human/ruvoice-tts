@@ -76,6 +76,17 @@ class CasesTest {
         assertEquals("в пять километров", n("в 5 км"))
     }
 
+    @Test fun unitAfterGenitiveTrigger() {
+        // task 28 п.5: родительный триггер перед числом с единицей — и число, и единица в Р.п.
+        assertEquals("около трёх километров", n("около 3 км"))
+        assertEquals("до двух километров", n("до 2 км"))
+        assertEquals("более пяти килограммов", n("более 5 кг"))
+        assertEquals("от одного километра", n("от 1 км"))
+        assertEquals("около трёх минут", n("около 3 мин"))
+        assertEquals("около двадцати одной минуты", n("около 21 мин"))
+        assertEquals("около пятисот рублей", n("около 500 рублей"))
+    }
+
     @Test fun yearWithGenitiveTriggerStaysOrdinal() {
         assertEquals("до тысяча девятьсот семнадцатого года", n("до 1917 года"))
     }
