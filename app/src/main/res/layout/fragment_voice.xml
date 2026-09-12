@@ -103,6 +103,75 @@
 
         <TextView
             style="@style/Section"
+            android:text="@string/section_system" />
+        <TextView
+            style="@style/SectionHint"
+            android:text="@string/section_system_hint" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/sys_rate" />
+            <TextView
+                android:id="@+id/sysRateValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="×1.00" />
+        </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sysRate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.25"
+            android:valueTo="3.0"
+            android:stepSize="0.05"
+            app:tickVisible="false"
+            app:labelBehavior="floating" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/sys_pitch" />
+            <TextView
+                android:id="@+id/sysPitchValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="×1.00" />
+        </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sysPitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.5"
+            android:valueTo="2.0"
+            android:stepSize="0.05"
+            app:tickVisible="false"
+            app:labelBehavior="floating" />
+
+        <Button
+            android:id="@+id/sysTtsSettings"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:text="@string/sys_tts_settings" />
+
+        <TextView
+            style="@style/Section"
             android:text="@string/section_quote" />
         <TextView
             style="@style/SectionHint"

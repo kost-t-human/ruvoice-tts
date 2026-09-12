@@ -1,6 +1,11 @@
 package ru.kost.ruvoice
 
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -9,6 +14,7 @@ import java.util.Locale
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import ru.kost.ruvoice.text.Normalizer
 
@@ -54,6 +60,9 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
         v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
         v.slider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch)
+        v.sysSlider(R.id.sysRate, R.id.sysRateValue, "tts_default_rate", 0.25f, 3f)
+        v.sysSlider(R.id.sysPitch, R.id.sysPitchValue, "tts_default_pitch", 0.5f, 2f)
+        v.findViewById<Button>(R.id.sysTtsSettings).setOnClickListener { openSysTtsSettings() }
         val previewText = v.findViewById<EditText>(R.id.previewText)
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
 
@@ -85,18 +94,62 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             setText(value, false)
         }
 
+    // Slider падает при layout, если значение не на сетке шага 0.05 (импорт «0.73»,
+    // старые quote_rate из текстового поля) — округляем к шагу и зажимаем в диапазон.
+    private fun snap(raw: Float, from: Float, to: Float) = (Math.round((raw - from) / 0.05f) * 0.05f + from).coerceIn(from, to)
+
     /** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок с тем же форматом при перетаскивании. */
-    private fun View.slider(sliderId: Int, valueId: Int, raw: Float) {
+    private fun View.slider(sliderId: Int, valueId: Int, raw: Float, from: Float = 0.5f, to: Float = 2f): Slider {
         val valueView = findViewById<TextView>(valueId)
         fun format(v: Float) = "×%.2f".format(Locale.ROOT, v)
-        // Slider падает при layout, если значение не на сетке шага 0.05 (импорт «0.73»,
-        // старые quote_rate из текстового поля) — округляем к шагу.
-        val value = (Math.round((raw - 0.5f) / 0.05f) * 0.05f + 0.5f).coerceIn(0.5f, 2f)
+        val value = snap(raw, from, to)
         valueView.text = format(value)
-        findViewById<Slider>(sliderId).apply {
+        return findViewById<Slider>(sliderId).apply {
             setLabelFormatter(::format)
             this.value = value
             addOnChangeListener { _, v, _ -> valueView.text = format(v) }
+        }
+    }
+
+    /**
+     * Системные темп/высота (Settings.Secure tts_default_rate/pitch, 100 = ×1) — те, что
+     * читалка присылает движку. Не наши: в Prefs, save() и экспорт не попадают, пишутся
+     * прямо в Settings по концу жеста (одна запись на жест, не на каждый пиксель). Запись
+     * требует WRITE_SECURE_SETTINGS, выдаваемого только через adb, — без него возвращаем
+     * слайдер к прочитанному значению и объясняем, как выдать.
+     * ponytail: пишем только по касанию; сдвиг клавиатурой/TalkBack не сохраняется —
+     * при жалобе добавить запись из addOnChangeListener(fromUser) с задержкой.
+     */
+    private fun View.sysSlider(sliderId: Int, valueId: Int, key: String, from: Float, to: Float) {
+        val cr = requireContext().contentResolver
+        fun read() = Settings.Secure.getInt(cr, key, 100) / 100f
+        slider(sliderId, valueId, read(), from, to).addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+            override fun onStartTrackingTouch(slider: Slider) {}
+            override fun onStopTrackingTouch(slider: Slider) {
+                val ok = try {
+                    requireContext().checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED &&
+                        Settings.Secure.putInt(cr, key, Math.round(slider.value * 100))
+                } catch (e: SecurityException) {
+                    false
+                }
+                if (ok) return
+                slider.value = snap(read(), from, to)
+                MaterialAlertDialogBuilder(requireContext())
+                    .setMessage(R.string.sys_no_permission)
+                    .setNegativeButton(R.string.sys_settings) { _, _ -> openSysTtsSettings() }
+                    .setPositiveButton(R.string.close, null)
+                    .show()
+                    // команду adb удобно скопировать прямо из окна
+                    .findViewById<TextView>(android.R.id.message)?.setTextIsSelectable(true)
+            }
+        })
+    }
+
+    private fun openSysTtsSettings() {
+        try {
+            startActivity(Intent("com.android.settings.TTS_SETTINGS"))
+        } catch (e: ActivityNotFoundException) {
+            Snackbar.make(requireView(), R.string.sys_settings_missing, Snackbar.LENGTH_LONG).show()
         }
     }
 
