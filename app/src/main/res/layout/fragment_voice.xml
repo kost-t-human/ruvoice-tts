@@ -129,6 +129,20 @@
             style="@style/SectionHint"
             android:text="@string/section_quote_hint" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/quoteOn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:saveEnabled="false"
+            android:text="@string/quote_on" />
+
+        <LinearLayout
+            android:id="@+id/quoteGroup"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="match_parent"
@@ -196,6 +210,7 @@
             android:stepSize="0.05"
             app:tickVisible="false"
             app:labelBehavior="floating" />
+        </LinearLayout>
 
         <TextView
             style="@style/Section"

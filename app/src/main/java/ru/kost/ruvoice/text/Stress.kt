@@ -7,7 +7,8 @@ interface StressModels {
     fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray): FloatArray
 }
 
-class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap()) {
+class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
+             private val rules: Rules = Rules()) {
     private val vowels = "аоуыэиеяёю"
     private val tok = BertTokenizer(d)
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
@@ -17,7 +18,12 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val nonCyr = Regex("[^А-Яа-яёЁ]")
     private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
 
-    fun apply(sentence: String): String = userDictPass(accentorPass(homographPass(sentence)))
+    fun apply(sentence: String): String {
+        var s = sentence
+        if (rules.on("homo")) s = homographPass(s)
+        if (rules.on("accentor")) s = accentorPass(s)
+        return userDictPass(s)
+    }
 
     // ---- homosolver ----
     private fun homographPass(sentence: String): String {

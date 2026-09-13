@@ -78,7 +78,7 @@ class SplitterTest {
 
     @Test fun longSentenceSplitsAtComma() {
         val long = (1..30).joinToString(", ") { "слово$it" } + "."
-        val parts = Splitter.sentences(long, maxLen = 80)
+        val parts = Splitter.sentences(long, Rules(maxLen = 80))
         assert(parts.all { it.length <= 80 }) { parts }
         assertEquals(long.replace(",", ""), parts.joinToString(" ").replace(",", "").replace("  ", " "))
     }

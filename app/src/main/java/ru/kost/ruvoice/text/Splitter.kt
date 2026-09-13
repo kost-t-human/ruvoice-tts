@@ -38,19 +38,21 @@ object Splitter {
     // Два и более \n подряд, а также \n перед заглавной — настоящий абзац, не трогаем.
     private val softLineBreakRe = Regex("""(?<!\n)\n(?=[ \t]*[а-яё])""")
 
-    fun paragraphs(text: String): List<String> {
+    fun paragraphs(text: String, rules: Rules = Rules()): List<String> {
         // CRLF → LF первым делом (review final-fix п.9): иначе hyphenBreakRe требует «-\n» вплотную
         // и не видит перенос через «-\r\n» — дефис после разрыва строки не убирается.
-        val normalized = text.replace("\r\n", "\n")
-        val s = softLineBreakRe.replace(dehyphenate(normalized), " ")
+        var s = text.replace("\r\n", "\n")
+        if (rules.on("dehyphen")) s = dehyphenate(s)
+        if (rules.on("soft_break")) s = softLineBreakRe.replace(s, " ")
         return s.split(Regex("\\n+")).map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    fun sentences(text: String, maxLen: Int = 400): List<String> {
+    fun sentences(text: String, rules: Rules = Rules()): List<String> {
         // Реальный пайплайн режет на предложения ДО Normalizer.prepare() (review round 1 п.1):
         // без этого «Всё. . . Дальше.» резалось бы по каждой точке многоточия. punctuation()
         // идемпотентна, повторный вызов внутри prepare() ничего не портит.
-        val cleaned = Normalizer.punctuation(text)
+        val cleaned = Normalizer.punctuation(text, rules)
+        val maxLen = rules.maxLen
         val merged = mutableListOf<String>()
         for (piece in sentenceEnd.split(cleaned.trim())) {
             if (merged.isNotEmpty() && endsWithAbbrev(merged.last())) merged[merged.size - 1] += " $piece"

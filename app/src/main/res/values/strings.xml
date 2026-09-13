@@ -6,6 +6,7 @@
     <string name="tab_pauses">Паузы</string>
     <string name="tab_stress">Ударения</string>
     <string name="tab_replace">Замены</string>
+    <string name="tab_rules">Правила</string>
 
     <!-- Голос -->
     <string name="voice">Голос</string>
@@ -20,6 +21,7 @@
     <string name="sys_settings_missing">Экран настроек синтеза речи не найден</string>
     <string name="section_quote">Прямая речь</string>
     <string name="section_quote_hint">Реплики, начинающиеся с тире или кавычки, можно озвучивать другим голосом, темпом и высотой.</string>
+    <string name="quote_on">Распознавать прямую речь</string>
     <string name="quote_voice">Голос прямой речи</string>
     <string name="quote_voice_default">как основной</string>
     <string name="quote_rate">Темп</string>
@@ -75,5 +77,78 @@
     <string name="import_done">Настройки импортированы</string>
     <string name="about_title">О программе</string>
     <string name="close">Закрыть</string>
-    <string name="about">Синтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
+    <string name="about">RuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
+
+    <!-- Правила: rule_<ключ Rules.KEYS> и rule_<ключ>_hint, секции rules_section_<имя> -->
+    <string name="rules_hint">Что движок делает с текстом перед озвучиванием. Выключенное правило оставляет текст как есть. Эффект видно в «Разборе» на вкладке «Голос».</string>
+    <string name="rules_section_numbers">Числа</string>
+    <string name="rules_section_abbrev">Сокращения и латиница</string>
+    <string name="rules_section_split">Разбиение текста</string>
+    <string name="rules_section_stress">Ударения и интонация</string>
+    <string name="rules_section_audio">Звук</string>
+    <string name="rules_section_chunk">Длина куска</string>
+    <string name="max_len">Максимальная длина куска</string>
+    <string name="max_len_hint">Предложение длиннее этого режется по запятой или пробелу и синтезируется по частям. От 100 до 900.</string>
+    <string name="chars_suffix">симв.</string>
+
+    <string name="rule_numbers">Числа словами</string>
+    <string name="rule_numbers_hint">21 → «двадцать один», 3,5 → «три целых пять десятых», 10 % → «десять процентов», № и §. Базовое правило: без него цифры пропадают из речи, а остальные правила чисел теряют смысл.</string>
+    <string name="rule_cases">Падеж числительного</string>
+    <string name="rule_cases_hint">По предлогу или соседнему слову: «около 500 рублей» → «пятисот», «2 книги» → «две», «с 5 друзьями» → «пятью».</string>
+    <string name="rule_roman">Римские цифры</string>
+    <string name="rule_roman_hint">С подсказкой рядом или целиком заглавные: «XX век» → «двадцатый», «глава IV», «том II».</string>
+    <string name="rule_roman_name">Римское число после имени</string>
+    <string name="rule_roman_name_hint">«Николай II» → «Николай второй», «Екатерина II» → «вторая».</string>
+    <string name="rule_dates">Даты цифрами</string>
+    <string name="rule_dates_hint">«05.12.2020» → «пятого декабря две тысячи двадцатого года», «12.05» → «двенадцатое мая».</string>
+    <string name="rule_day_month">День и месяц</string>
+    <string name="rule_day_month_hint">«20 июня» → «двадцатого июня», «к 1 сентября» → «к первому сентября».</string>
+    <string name="rule_years">Годы</string>
+    <string name="rule_years_hint">«в 1917 году» → «в тысяча девятьсот семнадцатом», «1941–1945 гг.», «в 90-х», «490 г. до н. э.».</string>
+    <string name="rule_times">Время</string>
+    <string name="rule_times_hint">«в 21:30» → «в двадцать один час тридцать минут». Только с предлогом или словом «утра/вечера» рядом, «Иоанна 3:16» не трогается.</string>
+    <string name="rule_units">Единицы измерения</string>
+    <string name="rule_units_hint">км, кг, м², мин, ч, л и т. д.: «около 3 км» → «около трёх километров», «с 2 до 5 км».</string>
+    <string name="rule_degrees">Градусы</string>
+    <string name="rule_degrees_hint">«−5 °C» → «минус пять градусов цельсия», «°F» → «по фаренгейту».</string>
+    <string name="rule_currency">Валюты</string>
+    <string name="rule_currency_hint">«5 руб. 30 коп.» → «пять рублей тридцать копеек», $, €, ₽.</string>
+    <string name="rule_fractions">Дроби через слэш</string>
+    <string name="rule_fractions_hint">«3/4» → «три четвёртых», «1/2» → «одна вторая»; «25/3» → «двадцать пять дробь три».</string>
+    <string name="rule_spoons">Ложки</string>
+    <string name="rule_spoons_hint">«2 ч. л.» → «две чайные ложки», «1 ст. л.» → «одна столовая ложка».</string>
+    <string name="rule_gen_suffix">Суффиксы «5-ти», «2-х»</string>
+    <string name="rule_gen_suffix_hint">«5-ти» → «пяти», «2-ух» → «двух», «3-х» → «трёх».</string>
+    <string name="rule_sections">Номера разделов</string>
+    <string name="rule_sections_hint">«2.10.3» → «два точка десять точка три». Два числа через точку («1.2») остаются дробью или датой.</string>
+    <string name="rule_thousands">Разряды тысяч</string>
+    <string name="rule_thousands_hint">«12 345 678» и «1 200 000» читаются одним числом, а не тремя. Выключено: каждая группа цифр отдельно.</string>
+    <string name="rule_footnotes">Сноски</string>
+    <string name="rule_footnotes_hint">«[1]», «[12]» в тексте вырезаются. Выключено: читаются как числа.</string>
+    <string name="rule_abbrev">Сокращения</string>
+    <string name="rule_abbrev_hint">«стр.» → «страница», «см. рис.» → «смотри рисунок», «5 тыс. руб.», «г. Москва» → «город», «т. е.», «и т. д.».</string>
+    <string name="rule_spell_cyr">Аббревиатуры кириллицей</string>
+    <string name="rule_spell_cyr_hint">По буквам: «ФСБ» → «эф эс бэ», «МГУ» → «эм гэ у». Выключено: как модель прочитает сама.</string>
+    <string name="rule_spell_lat">Аббревиатуры латиницей</string>
+    <string name="rule_spell_lat_hint">По буквам: «USB» → «ю эс би», «FBI» → «эф би ай».</string>
+    <string name="rule_latin">Латинские слова</string>
+    <string name="rule_latin_hint">Транслитерация: «iphone» → «айфон», «sherlock» → «шерлок». Выключено: латинские буквы выпадают из речи.</string>
+    <string name="rule_homoglyphs">Латинская буква в русском слове</string>
+    <string name="rule_homoglyphs_hint">«прoблема» с латинской «o» (опечатка раскладки) читается как обычное русское слово.</string>
+    <string name="rule_dehyphen">Переносы слов</string>
+    <string name="rule_dehyphen_hint">«со-» в конце строки и «бака» в начале следующей склеиваются в «собака». «Санкт-Петербург» и «по-русски» не трогаются.</string>
+    <string name="rule_soft_break">Мягкий перенос строки</string>
+    <string name="rule_soft_break_hint">Одиночный перевод строки перед строчной буквой (как в PDF) считается пробелом, а не новым абзацем. Выключено: каждая строка отдельный абзац.</string>
+    <string name="rule_punct">Чистка пунктуации</string>
+    <string name="rule_punct_hint">«!!!» → «!», «. . .» → «…», дефис в пробелах → тире. Выключено: «Всё. . . Дальше» режется на предложения по каждой точке.</string>
+    <string name="rule_ssml">Разбор SSML</string>
+    <string name="rule_ssml_hint">Теги &lt;speak&gt;, &lt;break&gt;, &lt;prosody&gt;, если читалка их присылает. Выключено: текст с тегами читается как есть.</string>
+    <string name="rule_homo">Омографы по контексту</string>
+    <string name="rule_homo_hint">Нейросеть выбирает ударение по смыслу: «старый з+амок», «дверной зам+ок». Выключено: как обычное слово.</string>
+    <string name="rule_accentor">Ударения нейросетью</string>
+    <string name="rule_accentor_hint">Ударение во всех словах ставит модель. Выключено: только словарь исключений и ваш словарь, остальные слова модель голоса читает по своему разумению, обычно хуже.</string>
+    <string name="rule_intonation">Интонация по типу предложения</string>
+    <string name="rule_intonation_hint">Вопрос («Ты идёшь?», «Чай или кофе?») и восклицание читаются с соответствующей интонацией. Выключено: всё как повествование.</string>
+    <string name="rule_pause_semicolon">Пауза после «;» и «:»</string>
+    <string name="rule_pause_semicolon_hint">Пауза «после запятой» с вкладки «Паузы» ставится и после точки с запятой и двоеточия.</string>
 </resources>

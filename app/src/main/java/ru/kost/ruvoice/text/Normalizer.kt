@@ -113,7 +113,8 @@ object Normalizer {
     private val ellipsisRe = Regex("""\.(?: ?\.){2,}""")
     private val spacedDashRe = Regex("""(?<=[ ])[-−](?=[ ])""")
     private val multiDashRe = Regex("[–—]{2,}")
-    fun punctuation(text: String): String {
+    fun punctuation(text: String, rules: Rules = Rules()): String {
+        if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { it.value.first().toString() }
         s = ellipsisRe.replace(s, "…")
         s = spacedDashRe.replace(s, "–")
@@ -155,10 +156,9 @@ object Normalizer {
     }
 
     // 1b. Обычный пробел (в отличие от NBSP/узкого/тонкого) склеивает разряды тысяч не всегда —
-    // только когда группа круглая («000») или сразу следует ещё одна группа из трёх цифр
-    // («1 200 000»), иначе это, вероятнее всего, два разных числа подряд (review t17 п.2).
-    // ponytail: эвристика по локальному контексту, не полный грамматический разбор — «1 200 рублей»
-    // (одна некруглая группа без продолжения) так и читается как «один двести», не «тысяча двести».
+    // только когда группа круглая («000»), сразу следует ещё одна группа из трёх цифр
+    // («1 200 000») или за группой идут деньги/единица измерения («1 200 рублей», «2 500 км»),
+    // иначе это, вероятнее всего, два разных числа подряд («глава 1 200 читателей», review t17 п.2).
     private val thousandsSpaceRe = Regex("""(\d) (\d{3})(?!\d)""")
     private val moreGroupAheadRe = Regex("""^ \d{3}(?!\d)""")
     private fun glueThousandsSpace(text: String): String {
@@ -168,7 +168,7 @@ object Normalizer {
             val r = thousandsSpaceRe.replace(s) { m ->
                 val group = m.groupValues[2]
                 val tail = s.substring(m.range.last + 1)
-                if (group == "000" || moreGroupAheadRe.containsMatchIn(tail)) {
+                if (group == "000" || moreGroupAheadRe.containsMatchIn(tail) || moneyOrUnitAheadRe.containsMatchIn(tail)) {
                     changed = true
                     m.groupValues[1] + group
                 } else m.value
@@ -482,20 +482,70 @@ object Normalizer {
     // Единица сразу после «N.N» (review final-fix п.8) — используется в dates() выше, чтобы не
     // принять такую пару за дату без года: «12.5 км/ч» — дробь, читает fractionsSlash()/numberRe.
     private val dateTailUnitRe = Regex("""^\s*(?:$unitAltPattern)(?![\p{L}\d/.])""", RegexOption.IGNORE_CASE)
+    // Деньги/единица сразу после группы цифр — для glueThousandsSpace() выше (функция, к вызову
+    // объект уже сконструирован, порядок инициализации не мешает).
+    private val moneyOrUnitAheadRe = Regex(
+        """^ ?(?:[₽$€]|руб\.?|рубл\p{L}*|коп\.?|долл\p{L}*|евро|тыс\.?|млн|млрд|$unitAltPattern)(?![\p{L}\d])""",
+        RegexOption.IGNORE_CASE
+    )
     // Точка после единицы (review final-fix п.5): перед строчной буквой — часть сокращения («ч.
     // дня»), съедаем; перед заглавной/в конце предложения — точка предложения, оставляем, иначе
     // «см.» без раскрытой единицы попадало в abbrevSimple («смотри»), а Splitter не резал по ней.
     // (?-i: ) вокруг [а-яё] — сам unitRe регистронезависим (IGNORE_CASE), а здесь важен именно
     // регистр следующей буквы (строчная/заглавная), иначе IGNORE_CASE сворачивает его до нуля.
-    // Родительный триггер перед числом (task 28 п.5): и число, и единица — в Р.п. («около трёх
-    // километров»), иначе cases() склонит только число. «с» не в списке — бывает творительным.
-    // ponytail: только родительный; «к 5 км»/«между 2 и 5 км» остаются количественными.
-    private val unitGenTriggerAlt =
-        """(?:около|более|менее|больше|меньше|свыше|до|от|из|после|порядка|не\s+более|не\s+менее)"""
+    // Предлог-триггер перед числом (task 28 п.5): и число, и единица — в его падеже («около трёх
+    // километров», «к пяти километрам»), иначе cases() склонит только число. «с» не в списке —
+    // бывает и родительным, и творительным; «в/на» — винительный = именительный, тоже не нужны.
+    private val unitTriggerCase = listOf("около", "более", "менее", "больше", "меньше", "свыше", "до", "от", "из",
+        "после", "порядка", "не более", "не менее").associateWith { Case.GEN } +
+        mapOf("к" to Case.DAT, "ко" to Case.DAT, "при" to Case.PRE, "о" to Case.PRE, "об" to Case.PRE)
+    private val unitTriggerAlt = unitTriggerCase.keys.joinToString("|") { it.replace(" ", "\\s+") }
     private val unitRe = Regex(
-        """(?:(?<![\p{L}])($unitGenTriggerAlt)\s+)?(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё])))?""",
+        """(?:(?<![\p{L}])($unitTriggerAlt)\s+)?(\d+(?:[.,]\d+)?)\s*($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё])))?""",
         RegexOption.IGNORE_CASE
     )
+    // Диапазон с единицей: «между 2 и 5 км» — оба числа и единица в творительном, «с/от 2 до 5 км»
+    // — в родительном. До units(): иначе тот прочитает «5 км»/«до 5 км» сам, а cases() потом
+    // не увидит второго числа и первое оставит именительным («с два до пяти километров»).
+    private val unitRangeRe = Regex(
+        """(?<![\p{L}])(между|с|от)\s+(\d+)\s+(и|до)\s+(\d+)\s*($unitAltPattern)(?![\p{L}\d/])""", RegexOption.IGNORE_CASE
+    )
+    private fun unitRange(text: String) = unitRangeRe.replace(text) { m ->
+        val (prep, a, mid, b, unitKey) = m.destructured
+        val case = when (prep.lowercase() to mid.lowercase()) { "между" to "и" -> Case.INS; "с" to "до", "от" to "до" -> Case.GEN; else -> return@replace m.value }
+        val u = unitTable.getValue(unitKey.lowercase())
+        val n1 = a.toLongOrNull() ?: return@replace m.value
+        val n2 = b.toLongOrNull() ?: return@replace m.value
+        "$prep ${Declension.cardinal(n1, case, u.feminine)} $mid ${Declension.cardinal(n2, case, u.feminine)} ${unitWord(u, n2, case)}"
+    }
+
+    // Единица в падеже. И.п. и Р.п. — из forms; Д./Т./П. — по основе: у мужских она равна И.п.
+    // ед. («километр»), у женских — без «-а» («минут»); окончания [м. ед., м. мн., ж. ед., ж. мн.].
+    // «человек» во мн. ч. косвенных — супплетивная основа «люд-», единственная неправильная в таблице.
+    private val obliqueEndings = mapOf(
+        Case.DAT to listOf("у", "ам", "е", "ам"), Case.INS to listOf("ом", "ами", "ой", "ами"), Case.PRE to listOf("е", "ах", "е", "ах"))
+    private val adjObliqueEndings = mapOf(Case.DAT to ("ому" to "ым"), Case.INS to ("ым" to "ыми"), Case.PRE to ("ом" to "ых"))
+    private val irregularPlural = mapOf("человек" to mapOf(Case.DAT to "людям", Case.INS to "людьми", Case.PRE to "людях"))
+    private fun unitWord(u: UnitForms, n: Long, case: Case): String {
+        val one = n % 10 == 1L && n % 100 != 11L
+        val noun = when (case) {
+            Case.NOM, Case.ACC -> plural(n, u.forms)
+            Case.GEN -> if (one) u.forms.second else u.forms.third
+            else -> irregularPlural[u.forms.first]?.takeIf { !one }?.getValue(case) ?: run {
+                val stem = if (u.feminine) u.forms.first.dropLast(1) else u.forms.first
+                stem + obliqueEndings.getValue(case)[(if (one) 0 else 1) + (if (u.feminine) 2 else 0)]
+            }
+        }
+        val pre = u.prefix?.let { p ->
+            when (case) {
+                Case.NOM, Case.ACC -> plural(n, p)
+                Case.GEN -> if (one) p.first.dropLast(2) + "ого" else p.third
+                // «кубическ» + «ым» → «кубическим»: после «к» пишется «и».
+                else -> adjObliqueEndings.getValue(case).let { (sg, pl) -> (p.first.dropLast(2) + if (one) sg else pl).replace("кы", "ки") }
+            } + " "
+        }.orEmpty()
+        return pre + noun + u.suffix
+    }
 
     // 7c. Ложки «ч. л.»/«ст. л.» (task 28 п.3) — до units(), иначе «2 ч.» уходит в часы, и до
     // fractionsSlash(): дробь (запятая/точка/слэш) остаётся цифрами для них, ложка — в род. ед.
@@ -523,10 +573,8 @@ object Normalizer {
         val head = if (trigger.isEmpty()) "" else "$trigger "
         if (trigger.isNotEmpty() && !hasFrac) {
             val n = numStr.toLongOrNull() ?: return@replace m.value
-            val one = n % 10 == 1L && n % 100 != 11L
-            // Р.п. ед. приставки — «квадратного»/«кубического», через замену окончания «ый/ий».
-            val pre = u.prefix?.let { (if (one) it.first.dropLast(2) + "ого" else it.third) + " " } ?: ""
-            head + Declension.cardinal(n, Case.GEN, u.feminine) + " " + pre + (if (one) u.forms.second else u.forms.third) + u.suffix
+            val case = unitTriggerCase.getValue(trigger.lowercase().replace(Regex("\\s+"), " "))
+            head + Declension.cardinal(n, case, u.feminine) + " " + unitWord(u, n, case)
         } else if (u.feminine && !hasFrac) {
             val n = numStr.toLongOrNull() ?: return@replace m.value
             cardinal(n, feminine = true) + " " + plural(n, u.forms) + u.suffix
@@ -555,18 +603,21 @@ object Normalizer {
         "$numStr ${plural(n, degreeForms)}$suffix"
     }
 
-    // 7b. Число с родительным суффиксом (-ти/-х/-ми…) сразу перед единицей измерения: сначала
-    // само число, потом plural() единицы — количественная форма, а не форма предлога
+    // 7b. Число с суффиксом косвенного падежа (-ти/-х/-ми…) сразу перед единицей измерения
     // (review t17 п.4, Normalizer.kt:228-284: «5-ти км» иначе уходит в cardinalGenitiveSuffix
-    // раньше unit-регэкспа, и единица остаётся нераскрытой).
-    // ponytail: единица в количественной форме («пяти километров»), а не в падеже предлога
-    // («пяти километрах») — для полного склонения единиц нужны падежи, здесь не покрыто.
-    private val cardinalGenSuffixUnitRe =
-        Regex("""(\d+)-(ти|и|ух|ех|ёх|х|ми)\s*($unitAltPattern)(?![\p{L}\d/.])""", RegexOption.IGNORE_CASE)
+    // раньше unit-регэкспа, и единица остаётся нераскрытой). Суффикс сам по себе падежа не
+    // задаёт («пяти» — Р./Д./П.), его берём по предлогу: «в/на/при/о» — предложный («в пяти
+    // километрах»), «к» — дательный, без предлога — родительный («пяти километров»).
+    private val cardinalGenSuffixUnitRe = Regex(
+        """(?:(?<![\p{L}])(в|во|на|при|о|об|к|ко)\s+)?(\d+)-(ти|и|ух|ех|ёх|х|ми)\s*($unitAltPattern)(?![\p{L}\d/.])""",
+        RegexOption.IGNORE_CASE
+    )
     private fun cardinalGenitiveSuffixUnit(text: String) = cardinalGenSuffixUnitRe.replace(text) { m ->
-        val n = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-        val u = unitTable.getValue(m.groupValues[3].lowercase())
-        genitiveCardinal(n) + " " + plural(n.toLong(), u.forms) + u.suffix
+        val (prep, numStr, _, unitKey) = m.destructured
+        val n = numStr.toLongOrNull() ?: return@replace m.value
+        val u = unitTable.getValue(unitKey.lowercase())
+        val case = when (prep.lowercase()) { "" -> Case.GEN; "к", "ко" -> Case.DAT; else -> Case.PRE }
+        (if (prep.isEmpty()) "" else "$prep ") + Declension.cardinal(n, case, u.feminine) + " " + unitWord(u, n, case)
     }
 
     // 9. Составные номера разделов «1.2.3» — читаются по частям через «точка».
@@ -709,8 +760,8 @@ object Normalizer {
     // «в пяти случаях». К этому моменту год, дата, время, «N-ти», дробь и процент уже раскрыты
     // предыдущими проходами — «хвост» после числа (numTailExclude) отсекает их снова: суффикс
     // -й/-го/…, дробь/процент через «.,:/», «год/года/году», а также «день + месяц» без точек
-    // («к 1 сентября») — дата без разделителя сюда не долетает, ordinal для нее не строим
-    // (ponytail: вне рамок задачи, число просто остаётся как было — «к один сентября»).
+    // («к 1 сентября») — дата без разделителя сюда не долетает, порядковое ей строит dayMonth()
+    // после cases() по предлогу («к первому сентября»).
     private val amplifierRe =
         """(?:примерно|почти|приблизительно|чем|всего|целых|лишь|ещё|уже|только|каких-то|где-то)"""
     // Общий «хвост»-фильтр без месяца — отдельно нужен там, где месяц как раз обязателен
@@ -738,22 +789,18 @@ object Normalizer {
     private val insTriggerRe = triggerRe(insTriggerAlt)
     private val preTriggerRe = triggerRe(preTriggerAlt)
 
-    // По окончанию соседнего слова, без триггера из списка выше (п.2). «-ами/-ями» — только
-    // творительный мн. ч., предлог не обязателен («2 миллионами»). «-ом/-ем/-ой/-ей/-ью» —
-    // неоднозначны с родительным мн. ч. («читателей»), поэтому только после «с/со».
+    // По окончанию соседнего слова, без триггера из списка выше (п.2). «-ами/-ями» и неправильное
+    // «-ьми» («детьми», «людьми», «лошадьми») — только творительный мн. ч., предлог не обязателен
+    // («2 миллионами»). «-ом/-ем/-ой/-ей/-ью» — неоднозначны с родительным мн. ч. («читателей»),
+    // поэтому только после «с/со».
     private val insEndingPluralRe = Regex(
-        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+(?:ами|ями)(?![а-яё])""",
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+(?:ами|ями|ьми)(?![а-яё])""",
         RegexOption.IGNORE_CASE
     )
     private val insEndingWithSRe = Regex(
         """(?<![\p{L}])(?:с|со)(?![\p{L}])\s+(\d+)$numTailExclude\s+\p{L}+(?:ом|ем|ой|ей|ью)(?![а-яё])""",
         RegexOption.IGNORE_CASE
     )
-    // ponytail: список окончаний конечный, неправильные формы вроде «детьми» (не «-ью») не
-    // распознаются — число остаётся именительным («с пять детьми»); то же для правила «две»
-    // ниже — хвост «-ьми» из него явно исключён, так что «2 детьми»/«22 людьми» тоже остаются
-    // именительными («два детьми», «двадцать два людьми»), а не ошибочно «две»/«двадцать две».
-    // Расширить список окончаний при находках новых неправильных форм.
     private val preEndingRe = Regex(
         """(?<![\p{L}])(?:в|во|на|при|о|об)(?![\p{L}])\s+(\d+)$numTailExclude\s+\p{L}+(?:ах|ях)(?![а-яё])""",
         RegexOption.IGNORE_CASE
@@ -764,11 +811,9 @@ object Normalizer {
         RegexOption.IGNORE_CASE
     )
     // Число на 2 (не 12) + слово на -ы/-и → «две» («2 книги» → «две книги», «2 стола» не трогаем).
-    // Хвост «-ьми» отдельно исключён (?<!ьми) — «детьми»/«людьми» оканчиваются на «и», но это
-    // неправильный творительный, а не «книги»/«столы»; число остаётся как было (см. ponytail
-    // выше у insEndingWithSRe/preEndingRe).
+    // «-ьми» («детьми») сюда не долетает: insEndingPluralRe выше уже склонил число в творительный.
     private val nomFemTwoEndingRe = Regex(
-        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+[ыи](?<!ьми)(?![а-яё])""",
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+[ыи](?![а-яё])""",
         RegexOption.IGNORE_CASE
     )
 
@@ -853,42 +898,46 @@ object Normalizer {
         return s
     }
 
-    fun numbers(text: String): String {
+    fun numbers(text: String, rules: Rules = Rules()): String {
+        // Каждый проход — под своим ключом Rules (вкладка «Правила»); выключенный просто пропускаем.
+        fun step(key: String, f: (String) -> String): (String) -> String = if (rules.on(key)) f else { t -> t }
         // U+2212 (настоящий знак «минус», не дефис) — приводим к «-», чтобы его читал
         // тот же numberRe, что уже умеет «-5» (task 18 п.4).
         var s = text.replace('−', '-')
-        s = glueThousands(s)
+        s = step("thousands", ::glueThousands)(s)
         // NBSP и другие юникод-пробелы нужны glueThousands() в исходном виде (иначе разряды не
         // склеятся) — сразу после нормализуем всё оставшееся в обычный пробел: JVM \s без
         // UNICODE_CHARACTER_CLASS не матчит NBSP, а regex ниже (degreeRe, cityAbbrevRe и т.д.)
         // на него полагаются (review round 1 п.2, общий фикс вместо точечного на каждый regex).
         s = wsClass.replace(s, " ")
-        s = glueThousandsSpace(s)
-        s = removeFootnotes(s)
+        s = step("thousands", ::glueThousandsSpace)(s)
+        s = step("footnotes", ::removeFootnotes)(s)
         // Градусы — до римских цифр: одиночная «C» после «°» иначе читается как римское 100
         // (eligibleAlone в romanNumerals не заглядывает влево, task 18 п.4).
-        s = degrees(s)
-        s = romanAfterName(s)
-        s = romanNumerals(s)
-        s = dates(s)
-        s = times(s)
-        s = yearsWithG(s)
-        s = cityAbbrev(s)
-        s = cardinalGenitiveSuffixUnit(s)
-        s = cardinalGenitiveSuffix(s)
-        s = cardinalGenitiveSuffixBareH(s)
-        s = spoons(s)
-        s = units(s)
-        s = fractionsSlash(s)
-        s = currency(s)
-        s = abbreviations(s)
+        s = step("degrees", ::degrees)(s)
+        s = step("roman_name", ::romanAfterName)(s)
+        s = step("roman", ::romanNumerals)(s)
+        s = step("dates", ::dates)(s)
+        s = step("times", ::times)(s)
+        s = step("years", ::yearsWithG)(s)
+        s = step("abbrev", ::cityAbbrev)(s)
+        s = step("units", ::cardinalGenitiveSuffixUnit)(s)
+        s = step("gen_suffix", ::cardinalGenitiveSuffix)(s)
+        s = step("gen_suffix", ::cardinalGenitiveSuffixBareH)(s)
+        s = step("spoons", ::spoons)(s)
+        s = step("units", ::unitRange)(s)
+        s = step("units", ::units)(s)
+        s = step("fractions", ::fractionsSlash)(s)
+        s = step("currency", ::currency)(s)
+        s = step("abbrev", ::abbreviations)(s)
         // после abbreviations: «п. 2.10.3» должно сначала стать «пункт», а уже потом раскрыть номер
-        s = sectionNumbers(s)
-        s = cases(s)
-        s = dayMonth(s)
-        s = yearRe.replace(s) { m ->
+        s = step("sections", ::sectionNumbers)(s)
+        s = step("cases", ::cases)(s)
+        s = step("day_month", ::dayMonth)(s)
+        if (rules.on("years")) s = yearRe.replace(s) { m ->
             m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]
         }
+        if (!rules.on("numbers")) return s
         return numberRe.replace(s) { m ->
             val (mark, minus, intPart, frac, suffix, percent) = m.destructured
             val sb = StringBuilder()
@@ -915,20 +964,41 @@ object Normalizer {
         }
     }
 
+    // Длинные сочетания раньше коротких: «igh» до «gh», «tion» до «ti».
     private val digraphs = listOf(
-        "sch" to "ш", "tch" to "ч", "sh" to "ш", "ch" to "ч", "th" to "з", "ph" to "ф", "wh" to "в", "qu" to "кв",
-        "ck" to "к", "oo" to "у", "ee" to "и", "ea" to "и", "ou" to "ау", "ay" to "эй", "ey" to "эй", "ai" to "эй",
-        "oa" to "оу", "ie" to "и", "kn" to "н", "wr" to "р", "gh" to "", "ng" to "нг", "ew" to "ью",
+        "tion" to "шн", "sion" to "жн", "sch" to "ш", "tch" to "ч", "igh" to "ай",
+        "sh" to "ш", "ch" to "ч", "th" to "з", "ph" to "ф", "wh" to "в", "qu" to "кв",
+        "ck" to "к", "oo" to "у", "ee" to "и", "ea" to "и", "ou" to "ау", "ow" to "оу", "ay" to "эй", "ey" to "эй", "ai" to "эй",
+        "oa" to "оу", "oy" to "ой", "oi" to "ой", "aw" to "о", "au" to "о", "ie" to "и", "kn" to "н", "wr" to "р",
+        "gh" to "", "ng" to "нг", "ew" to "ью",
     )
     private val singles = mapOf('a' to "а", 'b' to "б", 'c' to "к", 'd' to "д", 'e' to "е", 'f' to "ф", 'g' to "г",
         'h' to "х", 'i' to "и", 'j' to "дж", 'k' to "к", 'l' to "л", 'm' to "м", 'n' to "н", 'o' to "о", 'p' to "п",
         'q' to "к", 'r' to "р", 's' to "с", 't' to "т", 'u' to "а", 'v' to "в", 'w' to "в", 'x' to "кс", 'y' to "й",
         'z' to "з")
-    // ponytail: транслитерация по таблице, не G2P; «iphone» → «айфон» через частные правила ниже
-    private val wordFixes = mapOf("iphone" to "айфон", "google" to "гугл", "the" to "зэ", "new" to "нью",
-        "york" to "йорк", "queen" to "квин", "photo" to "фото", "charlie" to "чарли", "sherlock" to "шерлок",
-        "windows" to "виндовс", "john" to "джон")
+    // Транслитерация по таблице, не G2P: слова, которые по правилам читаются не так, как принято, —
+    // здесь целиком. Пополнять по жалобам, это дешевле любого правила про английские гласные.
+    private val wordFixes = mapOf("iphone" to "айфон", "ipad" to "айпад", "ios" to "айос", "macbook" to "макбук",
+        "google" to "гугл", "the" to "зэ", "new" to "нью", "york" to "йорк", "queen" to "квин", "photo" to "фото",
+        "charlie" to "чарли", "sherlock" to "шерлок", "windows" to "виндовс", "john" to "джон",
+        "apple" to "эпл", "microsoft" to "майкрософт", "facebook" to "фейсбук", "youtube" to "ютуб",
+        "telegram" to "телеграм", "whatsapp" to "вотсап", "android" to "андроид", "samsung" to "самсунг",
+        "twitter" to "твиттер", "instagram" to "инстаграм", "tiktok" to "тикток", "netflix" to "нетфликс",
+        "amazon" to "амазон", "tesla" to "тесла", "linux" to "линукс", "python" to "пайтон", "java" to "джава",
+        "computer" to "компьютер", "internet" to "интернет", "online" to "онлайн", "offline" to "офлайн",
+        "email" to "имейл", "mail" to "мейл", "ok" to "окей", "okay" to "окей", "hello" to "хеллоу", "hi" to "хай",
+        "love" to "лав", "one" to "уан", "two" to "ту", "time" to "тайм", "life" to "лайф", "game" to "гейм",
+        "wifi" to "вайфай", "bluetooth" to "блютус", "chrome" to "хром", "github" to "гитхаб", "steam" to "стим",
+        "xbox" to "иксбокс", "playstation" to "плейстейшн", "nike" to "найк", "adidas" to "адидас", "sony" to "сони",
+        "intel" to "интел", "nvidia" to "энвидиа", "audi" to "ауди", "toyota" to "тойота", "coca" to "кока",
+        "cola" to "кола", "pepsi" to "пепси", "store" to "стор", "play" to "плей", "cloud" to "клауд",
+        "drive" to "драйв", "office" to "офис", "word" to "ворд", "excel" to "эксель", "zoom" to "зум",
+        "skype" to "скайп", "viber" to "вайбер", "discord" to "дискорд", "reddit" to "реддит",
+        "wikipedia" to "википедия", "yandex" to "яндекс", "sber" to "сбер", "ozon" to "озон",
+        "wildberries" to "вайлдберриз", "aliexpress" to "алиэкспресс", "get" to "гет", "give" to "гив",
+        "girl" to "гёрл", "begin" to "бегин", "like" to "лайк", "live" to "лайв", "home" to "хоум", "page" to "пейдж")
     private val latinWordRe = Regex("[a-z]+")
+    private val softVowels = setOf('e', 'i', 'y')
 
     // 12. Омоглифы: латинская буква внутри преимущественно кириллического слова — опечатка
     // раскладки («прoблема» с латинской «o»), а не английское слово — возвращаем в кириллицу.
@@ -941,15 +1011,27 @@ object Normalizer {
         if (cyr > 0 && lat > 0 && cyr > lat) w.map { homoglyphMap[it] ?: it }.joinToString("") else w
     }
 
-    fun latin(text: String): String = latinWordRe.replace(fixHomoglyphs(text.lowercase())) { m ->
+    // Регистр приводим к нижнему всегда: алфавит модели строчный, symbols() иначе выкинет заглавные.
+    fun latin(text: String, rules: Rules = Rules()): String {
+        val lower = text.lowercase()
+        val fixed = if (rules.on("homoglyphs")) fixHomoglyphs(lower) else lower
+        return if (rules.on("latin")) translit(fixed) else fixed
+    }
+
+    private fun translit(text: String): String = latinWordRe.replace(text) { m ->
         wordFixes[m.value] ?: run {
             val w = m.value
             val sb = StringBuilder()
             var i = 0
             while (i < w.length) {
                 val d = digraphs.firstOrNull { w.startsWith(it.first, i) }
+                val c = w[i]; val next = w.getOrNull(i + 1)
                 if (d != null) { sb.append(d.second); i += d.first.length }
-                else { sb.append(singles[w[i]] ?: ""); i++ }
+                // c/g перед e/i/y мягкие («city», «gentle»); «y» на конце слова — «и» («city»).
+                else if (c == 'c' && next in softVowels) { sb.append("с"); i++ }
+                else if (c == 'g' && next in softVowels) { sb.append("дж"); i++ }
+                else if (c == 'y' && next == null && w.length > 1) { sb.append("и"); i++ }
+                else { sb.append(singles[c] ?: ""); i++ }
             }
             // немое e на конце
             if (w.length > 2 && w.endsWith("e") && !w.endsWith("ee")) sb.setLength(sb.length - 1)
@@ -975,6 +1057,6 @@ object Normalizer {
     // до romanNumerals(). latin() лоуэркейсит сам, так что дальше по пайплайну (символы/фильтр)
     // всё как раньше (review t17 round2 п.1).
     // Abbrev до latin(): latin() лоуэркейсит текст, а аббревиатуры узнаются по КАПСУ.
-    fun prepare(text: String, allowed: String): String =
-        symbols(latin(Abbrev.apply(numbers(punctuation(text)))), allowed)
+    fun prepare(text: String, allowed: String, rules: Rules = Rules()): String =
+        symbols(latin(Abbrev.apply(numbers(punctuation(text, rules), rules), rules), rules), allowed)
 }

@@ -57,7 +57,8 @@ object SentenceType {
      * это единственно верное поведение — вызывающая сторона (Splitter/Pipeline) уже передаёт
      * сюда одно предложение за раз.
      */
-    fun classify(text: String, d: SileroData): String = classifySentence(text, d)
+    fun classify(text: String, d: SileroData, rules: Rules = Rules()): String =
+        if (rules.on("intonation")) classifySentence(text, d) else "st"
 
     /** type_ids по символам входа модели (sos + prepared + eos), как build_type_ids_inference. */
     fun typeIds(prepared: String, typeStr: String, seqLen: Int, d: SileroData): LongArray {

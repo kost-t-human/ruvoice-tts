@@ -5,7 +5,10 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,6 +38,7 @@ class SettingsActivity : AppCompatActivity() {
         R.string.tab_pauses to { PausesFragment() },
         R.string.tab_stress to { StressFragment() },
         R.string.tab_replace to { ReplaceFragment() },
+        R.string.tab_rules to { RulesFragment() },
     )
     private val prefs by lazy { Prefs(this) }
     private var tts: TextToSpeech? = null
@@ -74,11 +78,14 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialToolbar>(R.id.toolbar).setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.about -> {
-                    MaterialAlertDialogBuilder(this)
+                    val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.about_title)
-                        .setMessage(R.string.about)
+                        .setMessage(getString(R.string.about, packageManager.getPackageInfo(packageName, 0).versionName))
                         .setPositiveButton(R.string.close, null)
                         .show()
+                    // ссылка на GitHub в тексте — кликабельная
+                    dialog.findViewById<TextView>(android.R.id.message)?.movementMethod = LinkMovementMethod.getInstance()
+                    dialog.findViewById<TextView>(android.R.id.message)?.let { Linkify.addLinks(it, Linkify.WEB_URLS) }
                     true
                 }
                 R.id.export_settings -> {

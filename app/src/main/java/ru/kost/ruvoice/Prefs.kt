@@ -3,6 +3,7 @@ package ru.kost.ruvoice
 import android.content.Context
 import java.io.File
 import ru.kost.ruvoice.text.Replacements
+import ru.kost.ruvoice.text.Rules
 
 class Prefs(private val context: Context) {
     private val p = context.getSharedPreferences("ruvoice", Context.MODE_PRIVATE)
@@ -19,6 +20,16 @@ class Prefs(private val context: Context) {
     var quoteVoice: String get() = p.getString("quote_voice", "")!!; set(v) = p.edit().putString("quote_voice", v).apply()
     var quoteRate: Float get() = p.getFloat("quote_rate", 1f); set(v) = p.edit().putFloat("quote_rate", v).apply()
     var quotePitch: Float get() = p.getFloat("quote_pitch", 1f); set(v) = p.edit().putFloat("quote_pitch", v).apply()
+    /** Распознавать прямую речь (отдельный голос/темп/высота); по умолчанию выключено. */
+    var quoteOn: Boolean get() = p.getBoolean("quote_on", false); set(v) = p.edit().putBoolean("quote_on", v).apply()
+    /** Выключенные правила вкладки «Правила» — ключи Rules.KEYS через запятую. */
+    var rulesOff: Set<String>
+        get() = p.getString("rules_off", "")!!.split(',').filter { it in Rules.KEYS }.toSet()
+        set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()
+    var maxLen: Int get() = p.getInt("max_len", Rules.MAX_LEN_DEFAULT); set(v) = p.edit().putInt("max_len", v).apply()
+
+    /** Правила для пайплайна: выключенные тумблеры плюс «прямая речь» с вкладки «Голос». */
+    fun rules() = Rules(rulesOff + (if (quoteOn) emptySet() else setOf("speech")), maxLen.coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX))
 
     val userDictFile: File get() = File(context.filesDir, "user_stress.txt")
     val userReplaceFile: File get() = File(context.filesDir, "user_replace.txt")
@@ -55,6 +66,9 @@ class Prefs(private val context: Context) {
             "quote_voice" to quoteVoice,
             "quote_rate" to quoteRate.toDouble(),
             "quote_pitch" to quotePitch.toDouble(),
+            "quote_on" to quoteOn,
+            "rules_off" to rulesOff.joinToString(","),
+            "max_len" to maxLen,
         )
         val stress = if (userDictFile.exists()) userDictFile.readText() else ""
         val replace = if (userReplaceFile.exists()) userReplaceFile.readText() else ""
@@ -81,6 +95,9 @@ class Prefs(private val context: Context) {
         (prefsMap["quote_voice"] as? String)?.let { quoteVoice = it }
         (prefsMap["quote_rate"] as? Number)?.let { quoteRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["quote_on"] as? Boolean)?.let { quoteOn = it }
+        (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
+        (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         parsed.stress?.let { userDictFile.writeText(it) }
         parsed.replace?.let { userReplaceFile.writeText(it) }
     }

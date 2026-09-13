@@ -19,18 +19,27 @@ object Pipeline {
     // Маркер паузы: {pause:N}, N — мс, режет текст сегмента на куски (см. plan ниже).
     private val pauseMarker = Regex("\\{pause:(\\d+)\\}")
     // Прямая речь: после trim — тире/дефис с пробелом или открывающая кавычка.
-    // ponytail: авторская часть после реплики («— Пойдём, — сказал он.») от диалоговой не отделяется
-    // (то же предложение или сосед, начинающийся с того же тире) — общий флаг speech, разделять при жалобах.
     private val speechStart = Regex("^([—–-]\\s|[«\"“„])")
-    private fun isSpeech(s: String) = speechStart.containsMatchIn(s.trim())
+    // Тире + строчная буква в начале — авторский хвост, который Splitter отрезал по «!»/«?»
+    // («— Привет! — сказал он.»), а не новая реплика.
+    private val authorStart = Regex("^[—–-]\\s+\\p{Ll}")
+    // Реплика с авторской вставкой: «— Пойдём, — сказал он, — нам пора.» режется по « — » на
+    // куски, чётные — речь, нечётные — автор. Перед таким тире всегда стоит знак («, —», «! —»,
+    // «. —»), перед тире внутри самой реплики («— Нам пора — уже поздно.») — нет, по нему не режем.
+    private val speechDash = Regex("(?<=[,.!?…»\"“”])\\s[—–-]\\s")
+    private fun speechPieces(s: String, rules: Rules): List<Pair<String, Boolean>> {
+        val t = s.trim()
+        if (!rules.on("speech") || !speechStart.containsMatchIn(t) || authorStart.containsMatchIn(t)) return listOf(t to false)
+        return speechDash.split(t).mapIndexed { i, p -> p to (i % 2 == 0) }
+    }
 
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
-             replacements: Replacements = Replacements.parse(emptyList())): List<Segment> {
+             replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules()): List<Segment> {
         val src = text.toString()
         // Последний абзац запроса намеренно без паузы абзаца — свою паузу до следующей
         // реплики читалка/пользователь и так делают между вызовами.
-        val segments = if (Ssml.isSsml(src)) Ssml.parse(src) else
-            Splitter.paragraphs(src).mapIndexed { i, p -> Segment(p, paragraph = true) }.let { if (it.isEmpty()) it else it.dropLast(1) + it.last().copy(paragraph = false) }
+        val segments = if (rules.on("ssml") && Ssml.isSsml(src)) Ssml.parse(src) else
+            Splitter.paragraphs(src, rules).mapIndexed { i, p -> Segment(p, paragraph = true) }.let { if (it.isEmpty()) it else it.dropLast(1) + it.last().copy(paragraph = false) }
         val out = ArrayList<Segment>()
         for (seg in segments) {
             // Замены — до разбиения на предложения; маркер {pause:N} (пришедший из замены или
@@ -40,7 +49,7 @@ object Pipeline {
             val pauses = pauseMarker.findAll(txt).map { m -> m.groupValues[1].toLongOrNull()?.coerceIn(0, 10000)?.toInt() ?: 10000 }.toList()
             for ((pi, piece) in pieces.withIndex()) {
                 val lastPiece = pi == pieces.size - 1
-                val sents = Splitter.sentences(piece)
+                val sents = Splitter.sentences(piece, rules)
                 for ((i, s) in sents.withIndex()) {
                     val lastInPiece = i == sents.size - 1
                     // {pause:N} на конце абзаца — маркер про паузу предложения (ruling, task 26/п.11
@@ -53,7 +62,12 @@ object Pipeline {
                     val breakMs = if (lastInPiece && !lastPiece)
                         pauses[pi] + (if (markerEndsParagraph && seg.paragraph) paragraphPauseMs else 0)
                         else sentencePauseMs + (if (last) seg.breakMs else 0) + (if (last && seg.paragraph) paragraphPauseMs else 0)
-                    out += Segment(s, seg.rate, seg.pitch, breakMs = breakMs, paragraph = last && seg.paragraph, speech = isSpeech(s))
+                    val parts = speechPieces(s, rules)
+                    for ((k, part) in parts.withIndex()) {
+                        val lastPart = k == parts.size - 1
+                        out += Segment(part.first, seg.rate, seg.pitch, breakMs = if (lastPart) breakMs else 0,
+                            paragraph = lastPart && last && seg.paragraph, speech = part.second)
+                    }
                 }
                 if (sents.isEmpty()) {
                     if (!lastPiece) {
@@ -76,8 +90,8 @@ class SileroTtsService : TextToSpeechService() {
     private val prefs: Prefs by lazy { Prefs(this) }
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var stopped = false
-    // ponytail: выгрузка на отдельном потоке — release() и synthesize() делят монитор models,
-    // поэтому release() просто дождётся текущего forward, а не заблокирует main на его время.
+    // Выгрузка на отдельном потоке: release() и synthesize() делят монитор models, поэтому
+    // release() просто дождётся текущего forward, а не заблокирует main на его время.
     private val unload = Runnable {
         Thread { models.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }.start()
     }
@@ -148,19 +162,20 @@ class SileroTtsService : TextToSpeechService() {
             val pitch = (request.pitch / 100f * prefs.pitch).coerceIn(0.5f, 2f)
             // настройки слушают слово «как модель», без пользовательского словаря
             val noDict = request.params?.getString("ruvoice.nodict") == "1"
-            val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict())
+            val rules = prefs.rules()
+            val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict(), rules)
             val replacements = prefs.replacements()
             // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
             val quoteSpeakerId = prefs.quoteVoice.takeIf { it in d.speakers }?.let { d.speakers.getValue(it) }
             val quoteRate = prefs.quoteRate
             val quotePitch = prefs.quotePitch
-            val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements)
+            val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             for (seg in segments) {
                 if (stopped) break
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
                 // по этому же тексту — так и надо.
-                val prepared = Normalizer.prepare(seg.text, d.allowed)
+                val prepared = Normalizer.prepare(seg.text, d.allowed, rules)
                 if (prepared.any { it != '+' && it in d.alphabet }) {
                     // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
                     // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
@@ -169,13 +184,14 @@ class SileroTtsService : TextToSpeechService() {
                             models.ensureLoaded()
                             val accented = stress.apply(prepared)
                             val seq = d.sequence(accented)
-                            val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d), seq.size, d)
+                            val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d, rules), seq.size, d)
                             val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
                             val curPitch = pitch * seg.pitch * (if (seg.speech) quotePitch else 1f)
                             val synth = models.synthesize(seq, curSpeakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { curPitch }, typeIds)
                             if (prefs.commaPauseMs > 0) {
                                 // seq = sos + accented + eos, индексы совпадают с durs напрямую.
-                                val commaIds = listOfNotNull(d.symbolToId[','], d.symbolToId[';'], d.symbolToId[':']).toHashSet()
+                                val commaIds = listOfNotNull(d.symbolToId[','],
+                                    *(if (rules.on("pause_semicolon")) arrayOf(d.symbolToId[';'], d.symbolToId[':']) else emptyArray())).toHashSet()
                                 val pauseIdx = seq.indices.filter { seq[it].toInt() in commaIds }.toIntArray()
                                 Pauses.insert(synth.audio, synth.durs, pauseIdx, sr * prefs.commaPauseMs / 1000)
                             } else synth.audio

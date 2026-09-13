@@ -58,9 +58,9 @@ object Abbrev {
     private val cyrToken = Regex("""(?<!\d-)(?<![\p{L}\d])[А-ЯЁ]{2,6}(?![\p{L}\d])(?!-\d)""")
     private val latToken = Regex("""(?<!\d-)(?<![\p{L}\d])[A-Z]{2,5}(?![\p{L}\d])(?!-\d)""")
 
-    fun apply(text: String): String {
-        val withCyr = cyrToken.replace(text) { spellCyr(it.value) }
-        return latToken.replace(withCyr) { spellLat(it.value) }
+    fun apply(text: String, rules: Rules = Rules()): String {
+        val withCyr = if (rules.on("spell_cyr")) cyrToken.replace(text) { spellCyr(it.value) } else text
+        return if (rules.on("spell_lat")) latToken.replace(withCyr) { spellLat(it.value) } else withCyr
     }
 
     private fun spellCyr(token: String): String {

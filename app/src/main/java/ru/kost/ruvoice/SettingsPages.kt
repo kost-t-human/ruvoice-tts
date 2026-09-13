@@ -4,17 +4,21 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.EditText
 import android.widget.TextView
 import java.util.Locale
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import ru.kost.ruvoice.text.Normalizer
+import ru.kost.ruvoice.text.Rules
 
 /**
  * Страница настроек: в onViewCreated читает Prefs в поля, в onPause пишет поля в Prefs.
@@ -58,6 +62,13 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
         v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
         v.slider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch)
+        // Настройки прямой речи видны только при включённом распознавании.
+        val quoteGroup = v.findViewById<View>(R.id.quoteGroup)
+        v.findViewById<MaterialSwitch>(R.id.quoteOn).apply {
+            isChecked = prefs.quoteOn
+            quoteGroup.visibility = if (isChecked) View.VISIBLE else View.GONE
+            setOnCheckedChangeListener { _, on -> quoteGroup.visibility = if (on) View.VISIBLE else View.GONE }
+        }
         v.findViewById<Button>(R.id.sysTtsSettings).setOnClickListener { openSysTtsSettings() }
         val previewText = v.findViewById<EditText>(R.id.previewText)
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
@@ -80,6 +91,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         prefs.pitch = v.findViewById<Slider>(R.id.pitch).value
         prefs.quoteRate = v.findViewById<Slider>(R.id.quoteRate).value
         prefs.quotePitch = v.findViewById<Slider>(R.id.quotePitch).value
+        prefs.quoteOn = v.findViewById<MaterialSwitch>(R.id.quoteOn).isChecked
     }
 
     private fun TextView.str() = text.toString()
@@ -133,14 +145,15 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         Thread {
             val report = try {
                 val d = SileroModels.data(ctx)
-                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements())
+                val rules = prefs.rules()
+                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
                 buildString {
                     for (seg in segments) {
                         var marks = ""
                         if (seg.speech) marks += " [речь]"
                         if (seg.paragraph) marks += " [¶]"
                         appendLine(seg.text + marks)
-                        appendLine("→ " + Normalizer.prepare(seg.text, d.allowed))
+                        appendLine("→ " + Normalizer.prepare(seg.text, d.allowed, rules))
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()
                     }
@@ -179,4 +192,40 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
     }
 
     private fun View.int(id: Int, default: Int) = findViewById<EditText>(id).str().toIntOrNull() ?: default
+}
+
+/** Тумблеры правил обработки текста (Rules.KEYS) и длина куска. */
+class RulesFragment : PageFragment(R.layout.fragment_rules) {
+    private fun res(name: String) = resources.getIdentifier(name, "string", requireContext().packageName)
+
+    override fun load(v: View) {
+        val list = v.findViewById<LinearLayout>(R.id.rulesList)
+        list.removeAllViews()
+        val off = prefs.rulesOff
+        val inflater = LayoutInflater.from(v.context)
+        for ((i, key) in Rules.KEYS.withIndex()) {
+            Rules.SECTIONS[i]?.let { section ->
+                list.addView(TextView(v.context, null, 0, R.style.Section).apply { setText(res("rules_section_$section")) },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                        .apply { topMargin = if (i == 0) 0 else (24 * resources.displayMetrics.density).toInt() })
+            }
+            val row = inflater.inflate(R.layout.item_rule, list, false)
+            row.findViewById<TextView>(R.id.title).setText(res("rule_$key"))
+            row.findViewById<TextView>(R.id.hint).setText(res("rule_${key}_hint"))
+            val toggle = row.findViewById<MaterialSwitch>(R.id.toggle)
+            toggle.tag = key
+            toggle.isChecked = key !in off
+            row.setOnClickListener { toggle.toggle() }
+            list.addView(row)
+        }
+        v.findViewById<EditText>(R.id.maxLen).setText(prefs.maxLen.toString())
+    }
+
+    override fun save(v: View) {
+        val list = v.findViewById<LinearLayout>(R.id.rulesList)
+        prefs.rulesOff = (0 until list.childCount).mapNotNull { list.getChildAt(it).findViewById<MaterialSwitch>(R.id.toggle) }
+            .filter { !it.isChecked }.map { it.tag as String }.toSet()
+        prefs.maxLen = (v.findViewById<EditText>(R.id.maxLen).str().toIntOrNull() ?: Rules.MAX_LEN_DEFAULT)
+            .coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX)
+    }
 }
