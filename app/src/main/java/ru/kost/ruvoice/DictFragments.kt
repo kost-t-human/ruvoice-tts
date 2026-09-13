@@ -38,7 +38,9 @@ import java.util.Locale
 abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     protected abstract val file: File
     protected abstract val emptyHintRes: Int
+    /** Текст справки вкладки — открывается попапом по ссылке над поиском; заголовок — имя вкладки. */
     protected abstract val helpRes: Int
+    protected abstract val helpTitleRes: Int
     /** true — видимый список сортируется по sortKey (ударения, это словарь); false — порядок
      * файла важен и сохраняется как есть (замены: длинные ключи должны идти раньше). */
     protected open val sorted: Boolean = false
@@ -60,7 +62,10 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     override fun load(v: View) {
         recycler = v.findViewById(R.id.list)
         emptyView = v.findViewById<TextView>(R.id.empty).apply { setText(emptyHintRes) }
-        v.findViewById<TextView>(R.id.help).setText(helpRes)
+        v.findViewById<TextView>(R.id.help).setOnClickListener {
+            MaterialAlertDialogBuilder(requireContext()).setTitle(helpTitleRes).setMessage(helpRes)
+                .setPositiveButton(android.R.string.ok, null).show()
+        }
         filterField = v.findViewById(R.id.filter)
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
@@ -136,6 +141,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val file get() = prefs.userDictFile
     override val emptyHintRes = R.string.stress_empty_hint
     override val helpRes = R.string.stress_help
+    override val helpTitleRes = R.string.tab_stress
     override val sorted = true
 
     private fun parsed(index: Int) = DictLines.parseStress(lines[index])
@@ -286,6 +292,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val file get() = prefs.userReplaceFile
     override val emptyHintRes = R.string.replace_empty_hint
     override val helpRes = R.string.replace_help
+    override val helpTitleRes = R.string.tab_replace
 
     private fun parsed(index: Int) = DictLines.parseReplace(lines[index])
     override fun isEntry(index: Int) = parsed(index) != null

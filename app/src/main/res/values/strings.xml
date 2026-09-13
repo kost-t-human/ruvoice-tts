@@ -49,6 +49,7 @@
 
     <!-- Словарь ударений и замены: списки записей -->
     <string name="filter_hint">Поиск</string>
+    <string name="help_link">Как это работает</string>
     <string name="add">Добавить</string>
     <string name="save">Сохранить</string>
     <string name="deleted">Удалено</string>
