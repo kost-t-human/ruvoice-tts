@@ -42,7 +42,8 @@
     <string name="pause_comma">После запятой</string>
     <string name="ms_suffix">мс</string>
     <string name="section_runtime">Память</string>
-    <string name="idle_minutes">Выгружать модели после простоя</string>
+    <string name="idle_on">Выгружать модели при простое</string>
+    <string name="idle_minutes">Через сколько минут без запросов</string>
     <string name="idle_minutes_hint">Модели занимают память, пока сервис работает. Через это время без запросов они выгружаются, следующий запрос загрузит их заново.</string>
     <string name="min_suffix">мин</string>
 
@@ -53,6 +54,8 @@
     <string name="deleted">Удалено</string>
     <string name="undo">Отменить</string>
     <string name="delete">Удалить</string>
+    <string name="stress_help">Слова, где движок ставит ударение не туда. Действует после словаря модели и выбора по контексту. Ударение, которое зависит от соседних слов, задаётся на вкладке «Замены»: «старый замок = старый з+амок».</string>
+    <string name="replace_help">Заменяются до озвучивания, целиком слово или фраза, без учёта регистра. Ударение — «+» перед гласной. Пустая замена или {skip} — пропустить. {pause:300} — пауза в мс. Ключ с «~» в начале — регулярное выражение, в замене работают $1, $2.</string>
     <string name="stress_empty_hint">Слова, в которых движок ставит ударение не туда. Нажмите +, чтобы добавить</string>
     <string name="stress_word">Слово</string>
     <string name="listen_as_model">Как читает модель</string>

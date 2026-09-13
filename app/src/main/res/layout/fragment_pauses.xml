@@ -66,7 +66,16 @@
             style="@style/SectionHint"
             android:text="@string/idle_minutes_hint" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/idleOn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:saveEnabled="false"
+            android:text="@string/idle_on" />
+
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/idleMinutesLayout"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

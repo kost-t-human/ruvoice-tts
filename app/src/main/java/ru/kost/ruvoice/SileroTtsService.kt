@@ -112,7 +112,7 @@ class SileroTtsService : TextToSpeechService() {
 
     private fun scheduleUnload() {
         handler.removeCallbacks(unload)
-        handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
+        if (prefs.idleOn) handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
     override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; models.release(); super.onDestroy() }

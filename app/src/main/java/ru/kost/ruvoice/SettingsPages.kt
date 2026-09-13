@@ -182,6 +182,12 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
         v.findViewById<EditText>(R.id.pauseParagraph).setText(prefs.paragraphPauseMs.toString())
         v.findViewById<EditText>(R.id.pauseComma).setText(prefs.commaPauseMs.toString())
         v.findViewById<EditText>(R.id.idleMinutes).setText(prefs.idleMinutes.toString())
+        val minutes = v.findViewById<View>(R.id.idleMinutesLayout)
+        v.findViewById<MaterialSwitch>(R.id.idleOn).apply {
+            isChecked = prefs.idleOn
+            minutes.visibility = if (isChecked) View.VISIBLE else View.GONE
+            setOnCheckedChangeListener { _, on -> minutes.visibility = if (on) View.VISIBLE else View.GONE }
+        }
     }
 
     override fun save(v: View) {
@@ -189,6 +195,7 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
         prefs.paragraphPauseMs = v.int(R.id.pauseParagraph, 300).coerceAtLeast(0)
         prefs.commaPauseMs = v.int(R.id.pauseComma, 100).coerceAtLeast(0)
         prefs.idleMinutes = v.int(R.id.idleMinutes, 5).coerceAtLeast(1)
+        prefs.idleOn = v.findViewById<MaterialSwitch>(R.id.idleOn).isChecked
     }
 
     private fun View.int(id: Int, default: Int) = findViewById<EditText>(id).str().toIntOrNull() ?: default

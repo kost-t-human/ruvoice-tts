@@ -30,6 +30,8 @@
         app:singleSelection="true"
         app:selectionRequired="true" />
 
+    <!-- match_parent у кнопок: длинная подпись переносится на две строки, короткая нет —
+         без этого кнопки разной высоты и не в линию. -->
     <LinearLayout
         android:orientation="horizontal"
         android:layout_width="match_parent"
@@ -40,7 +42,7 @@
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_marginEnd="6dp"
             android:text="@string/listen_as_model" />
         <Button
@@ -48,7 +50,7 @@
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_marginStart="6dp"
             android:text="@string/listen_stressed" />
     </LinearLayout>

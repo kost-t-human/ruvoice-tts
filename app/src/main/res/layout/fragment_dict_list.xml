@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Общий каркас вкладок «Ударения» и «Замены»: необязательное поле фильтра, список на
-     всю высоту (пустое состояние — центрированная подсказка) и FAB добавления поверх. -->
+<!-- Общий каркас вкладок «Ударения» и «Замены»: справка, поле фильтра, список на всю
+     высоту (пустое состояние — центрированная подсказка) и FAB добавления поверх. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -11,6 +11,13 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <TextView
+            android:id="@+id/help"
+            style="@style/SectionHint"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="0dp" />
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/filterLayout"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -18,8 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_margin="16dp"
             android:hint="@string/filter_hint"
-            app:startIconDrawable="@android:drawable/ic_menu_search"
-            android:visibility="gone">
+            app:startIconDrawable="@android:drawable/ic_menu_search">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/filter"
                 android:layout_width="match_parent"

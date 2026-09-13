@@ -36,6 +36,7 @@ import java.util.Locale
 abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     protected abstract val file: File
     protected abstract val emptyHintRes: Int
+    protected abstract val helpRes: Int
     /** true — видимый список сортируется по sortKey (ударения, это словарь); false — порядок
      * файла важен и сохраняется как есть (замены: длинные ключи должны идти раньше). */
     protected open val sorted: Boolean = false
@@ -57,6 +58,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     override fun load(v: View) {
         recycler = v.findViewById(R.id.list)
         emptyView = v.findViewById<TextView>(R.id.empty).apply { setText(emptyHintRes) }
+        v.findViewById<TextView>(R.id.help).setText(helpRes)
         filterField = v.findViewById(R.id.filter)
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
@@ -131,6 +133,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
 class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val file get() = prefs.userDictFile
     override val emptyHintRes = R.string.stress_empty_hint
+    override val helpRes = R.string.stress_help
     override val sorted = true
 
     private fun parsed(index: Int) = DictLines.parseStress(lines[index])
@@ -279,6 +282,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
 class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val file get() = prefs.userReplaceFile
     override val emptyHintRes = R.string.replace_empty_hint
+    override val helpRes = R.string.replace_help
 
     private fun parsed(index: Int) = DictLines.parseReplace(lines[index])
     override fun isEntry(index: Int) = parsed(index) != null
