@@ -1,6 +1,7 @@
 package ru.kost.ruvoice
 
 import android.os.Bundle
+import android.text.Html
 import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -368,7 +369,10 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         sampleField.doAfterTextChanged { validate() }
 
         view.findViewById<Button>(R.id.regexHelp).setOnClickListener {
-            MaterialAlertDialogBuilder(ctx).setTitle(R.string.regex_help_title).setMessage(R.string.regex_help)
+            // справка длинная — HTML из assets, сообщение диалога само прокручивается
+            val html = ctx.assets.open("regex_help.html").bufferedReader().readText()
+            MaterialAlertDialogBuilder(ctx).setTitle(R.string.regex_help_title)
+                .setMessage(Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT))
                 .setPositiveButton(android.R.string.ok, null).show()
         }
 
