@@ -54,9 +54,17 @@ object Pipeline {
         }
     }
 
+    // Запрос из одной буквы («б», «Б.», «заглавная В» — так TalkBack шлёт букву под курсором, эхо
+    // ввода, клавишу экранной клавиатуры): читаем имя буквы. Внутри текста одиночную букву не
+    // трогаем — там «в», «с», «к» предлоги, а «б», «ж» частицы.
+    private val loneLetter = Regex("""^\s*((?:заглавная\s+)?)(\p{L})\s*[.)]?\s*$""", RegexOption.IGNORE_CASE)
+
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
              replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules()): List<Segment> {
-        val src = text.toString()
+        val src = text.toString().let { t ->
+            if (!rules.on("letter_name")) t else loneLetter.matchEntire(t)?.let { m ->
+                Abbrev.letterName(m.groupValues[2][0])?.let { m.groupValues[1].lowercase() + it } } ?: t
+        }
         // Последний абзац запроса намеренно без паузы абзаца — свою паузу до следующей
         // реплики читалка/пользователь и так делают между вызовами.
         val segments = if (rules.on("ssml") && Ssml.isSsml(src)) Ssml.parse(src) else

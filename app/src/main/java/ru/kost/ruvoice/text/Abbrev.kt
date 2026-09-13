@@ -81,6 +81,10 @@ object Abbrev {
         return parts.joinToString(" ")
     }
 
+    /** Имя буквы с ударением для любой кириллической/латинской буквы; null — не буква из таблиц. */
+    fun letterName(c: Char): String? =
+        (cyrLetterNames[c.uppercaseChar()] ?: latLetterNames[c.uppercaseChar()])?.let(::withStress)
+
     private fun withStress(name: String): String {
         val i = name.indexOfFirst { it in VOWELS_IN_NAMES }
         return if (i < 0) name else name.substring(0, i) + "+" + name.substring(i)

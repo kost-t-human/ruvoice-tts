@@ -3,6 +3,7 @@ package ru.kost.ruvoice
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import ru.kost.ruvoice.text.Replacements
+import ru.kost.ruvoice.text.Rules
 import ru.kost.ruvoice.text.Segment
 
 class PipelineTest {
@@ -117,5 +118,19 @@ class PipelineTest {
     @Test fun ssmlDirectSpeechDetectedBySameCriterion() {
         val s = Pipeline.plan("<speak>— Реплика.</speak>", d, 0, 0)
         assertEquals(listOf(true), s.map { it.speech })
+    }
+
+    // TalkBack при посимвольной навигации/эхе ввода шлёт запрос из одной буквы — читаем её по имени.
+    @Test fun loneLetterRequestIsSpelled() {
+        fun first(t: String, rules: Rules = Rules()) = Pipeline.plan(t, d, 0, 0, rules = rules).single().text
+        assertEquals("б+э", first("б"))
+        assertEquals("б+э", first(" Б. "))
+        assertEquals("заглавная в+э", first("заглавная В"))
+        assertEquals("м+ягкий знак", first("ь"))
+        assertEquals("б+и", first("b"))
+        assertEquals("в+э", first("в"))
+        // внутри текста «в» — предлог, не трогаем
+        assertEquals("в 1917 году.", first("в 1917 году."))
+        assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
     }
 }

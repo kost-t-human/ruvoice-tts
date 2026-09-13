@@ -104,6 +104,8 @@
     <string name="max_len_hint">Предложение длиннее этого режется по запятой или пробелу и синтезируется по частям. От 100 до 900.</string>
     <string name="chars_suffix">симв.</string>
 
+    <string name="rule_letter_name">Одиночная буква по имени</string>
+    <string name="rule_letter_name_hint">Запрос из одной буквы (TalkBack: буква под курсором, эхо ввода, клавиша) читается как имя буквы: «б» → «бэ», «ь» → «мягкий знак». Внутри текста буквы-слова не трогаются.</string>
     <string name="rule_drop_links">Пропускать ссылки</string>
     <string name="rule_drop_links_hint">Адреса «https://…» и «www.…» не читаются вовсе. Выключено: ссылка читается по частям — «гитхаб точка ком слэш …».</string>
     <string name="rule_drop_emails">Пропускать почту</string>

@@ -25,7 +25,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
 
         /** Порядок списка = порядок на экране. Секция «Разное» вверху — для настроек без своего раздела. */
         val KEYS = listOf(
-            "drop_links", "drop_emails", "read_links",
+            "letter_name", "drop_links", "drop_emails", "read_links",
             "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
@@ -34,7 +34,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "pause_semicolon",
         )
         /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */
-        val SECTIONS = mapOf("drop_links" to "misc", "numbers" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
+        val SECTIONS = mapOf("letter_name" to "misc", "numbers" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
             "homo" to "stress", "pause_semicolon" to "audio")
     }
 }
