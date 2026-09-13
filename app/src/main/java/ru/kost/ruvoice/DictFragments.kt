@@ -23,6 +23,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.io.File
+import ru.kost.ruvoice.text.Replacements
 import java.text.Collator
 import java.util.Locale
 
@@ -278,7 +279,8 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
 }
 
 /** Вкладка «Замены»: список правил из user_replace.txt в порядке файла (порядок важен —
- * см. Replacements.parse), диалог «ключ / на что / regex» с прослушиванием замены как есть. */
+ * см. Replacements.parse), диалог «ключ / на что / regex» с проверкой regex на лету, полем
+ * «проверить на тексте» и прослушиванием замены как есть. */
 class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val file get() = prefs.userReplaceFile
     override val emptyHintRes = R.string.replace_empty_hint
@@ -326,32 +328,57 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
     private fun showDialog(editIndex: Int?) {
         val ctx = requireContext()
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_replace, null)
+        val keyLayout = view.findViewById<TextInputLayout>(R.id.keyLayout)
         val keyField = view.findViewById<TextInputEditText>(R.id.key)
-        // «=» — разделитель «ключ = замена» в файле, ключ с ним внутри сломал бы формат строки
-        keyField.filters = arrayOf(InputFilter { s, _, _, _, _, _ -> if (s.contains('=')) s.filter { it != '=' } else null })
         val valueLayout = view.findViewById<TextInputLayout>(R.id.valueLayout)
         val valueField = view.findViewById<TextInputEditText>(R.id.value)
         val regexSwitch = view.findViewById<MaterialSwitch>(R.id.regex)
+        val sampleField = view.findViewById<TextInputEditText>(R.id.sample)
+        val sampleResult = view.findViewById<TextView>(R.id.sampleResult)
         var posButton: Button? = null
+        // «=» — разделитель «ключ = замена» в файле, в обычном ключе он сломал бы строку;
+        // regex-строки делятся по « = » с пробелами, там «=» нужен для (?<=…) и (?=…)
+        keyField.filters = arrayOf(InputFilter { s, _, _, _, _, _ ->
+            if (!regexSwitch.isChecked && s.contains('=')) s.filter { it != '=' } else null
+        })
 
-        fun updateHelper() {
-            valueLayout.helperText = getString(
-                if (regexSwitch.isChecked) R.string.replace_value_helper_regex else R.string.replace_value_helper
-            )
+        fun currentLine(): String {
+            val key = keyField.text.toString().trim().let { if (regexSwitch.isChecked) it else it.filter { c -> c != '=' } }
+            return DictLines.formatReplace(key, valueField.text.toString().trim(), regexSwitch.isChecked)
         }
-        regexSwitch.setOnCheckedChangeListener { _, _ -> updateHelper() }
-        updateHelper()
 
-        fun updateSaveEnabled() { posButton?.isEnabled = keyField.text?.isNotBlank() == true }
-        keyField.doAfterTextChanged { updateSaveEnabled() }
+        /** Ошибки regex-ключа и замены — в поля, кнопка «Сохранить» гаснет; результат применения
+         * правила к тексту из поля «проверить» — под ним. */
+        fun validate() {
+            val key = keyField.text.toString().trim()
+            val regex = regexSwitch.isChecked
+            val keyErr = if (regex) Replacements.patternError(key) else null
+            val valErr = if (regex && keyErr == null) Replacements.replacementError(key, valueField.text.toString().trim()) else null
+            keyLayout.error = keyErr
+            valueLayout.error = valErr
+            if (valErr == null) valueLayout.helperText = getString(if (regex) R.string.replace_value_helper_regex else R.string.replace_value_helper)
+            val ok = key.isNotBlank() && keyErr == null && valErr == null
+            posButton?.isEnabled = ok
+            val sample = sampleField.text.toString()
+            sampleResult.text = if (ok && sample.isNotBlank()) getString(R.string.replace_arrow, Replacements.parse(listOf(currentLine())).apply(sample)) else ""
+        }
+        regexSwitch.setOnCheckedChangeListener { _, _ -> validate() }
+        keyField.doAfterTextChanged { validate() }
+        valueField.doAfterTextChanged { validate() }
+        sampleField.doAfterTextChanged { validate() }
+
+        view.findViewById<Button>(R.id.regexHelp).setOnClickListener {
+            MaterialAlertDialogBuilder(ctx).setTitle(R.string.regex_help_title).setMessage(R.string.regex_help)
+                .setPositiveButton(android.R.string.ok, null).show()
+        }
 
         editIndex?.let { i ->
             val (key, value, isRegex) = parsed(i)!!
+            regexSwitch.isChecked = isRegex
             keyField.setText(key)
             valueField.setText(value)
-            regexSwitch.isChecked = isRegex
-            updateHelper()
         }
+        validate()
 
         view.findViewById<Button>(R.id.listen).setOnClickListener { btn ->
             val text = valueField.text.toString()
@@ -361,9 +388,8 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
-                val key = keyField.text.toString().trim()
-                if (key.isNotBlank()) {
-                    val line = DictLines.formatReplace(key, valueField.text.toString().trim(), regexSwitch.isChecked)
+                if (keyField.text?.isNotBlank() == true) {
+                    val line = currentLine()
                     if (editIndex != null) lines[editIndex] = line else lines.add(line)
                     refresh(); persist()
                 }
@@ -373,7 +399,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             .create()
         dialog.setOnShowListener {
             posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            updateSaveEnabled()
+            validate()
         }
         dialog.show()
     }

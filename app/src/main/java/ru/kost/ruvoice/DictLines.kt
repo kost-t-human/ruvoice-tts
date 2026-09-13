@@ -1,5 +1,7 @@
 package ru.kost.ruvoice
 
+import ru.kost.ruvoice.text.Replacements
+
 /**
  * Чистый разбор/форматирование строк user_stress.txt и user_replace.txt для табличных
  * редакторов настроек (см. Prefs.userDict / Replacements.parse — тот же формат файлов,
@@ -38,14 +40,9 @@ object DictLines {
 
     /** «[~]ключ = замена» → (ключ без «~», замена, regex?); пустые, #-строки и строки без «=» — null. */
     fun parseReplace(line: String): Triple<String, String, Boolean>? {
-        val t = line.trim()
-        if (t.isEmpty() || t.startsWith("#")) return null
-        val i = t.indexOf('=')
-        if (i < 0) return null
-        var key = t.substring(0, i).trim()
-        val value = t.substring(i + 1).trim()
-        val isRegex = key.startsWith("~")
-        if (isRegex) key = key.removePrefix("~")
+        val (rawKey, value) = Replacements.split(line) ?: return null
+        val isRegex = rawKey.startsWith("~")
+        val key = rawKey.removePrefix("~")
         if (key.isEmpty()) return null
         return Triple(key, value, isRegex)
     }

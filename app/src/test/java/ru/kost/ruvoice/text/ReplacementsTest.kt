@@ -62,3 +62,35 @@ class ReplacementsTest {
         assertEquals("цена100 к+от", r.apply("цена100 кот"))
     }
 }
+
+class ReplacementsRegexTest {
+    @Test fun regexKeyMayContainEqualsInsideLookaround() {
+        // разделитель для regex-строк — « = » с пробелами, «=» внутри (?<=…) строку не рвёт
+        val r = Replacements.parse(listOf("""~(?<=\d)=(?=\d) = равно"""))
+        assertEquals("2равно2", r.apply("2=2"))
+        assertEquals("(?<=\\d)=(?=\\d)" to "равно", Replacements.split("""~(?<=\d)=(?=\d) = равно""")?.let { it.first.removePrefix("~") to it.second })
+    }
+
+    @Test fun regexLineWithoutSpacedSeparatorSplitsAtFirstEquals() {
+        assertEquals("~\\d+" to "число", Replacements.split("~\\d+=число"))
+    }
+
+    @Test fun inlineFlagTurnsCaseSensitivityOn() {
+        val r = Replacements.parse(listOf("~(?-i)Бог = Б+ог"))
+        assertEquals("Б+ог и бог", r.apply("Бог и бог"))
+    }
+
+    @Test fun patternErrorReportsBrokenRegexOnly() {
+        assertNotNull(Replacements.patternError("[("))
+        assertNull(Replacements.patternError("""(\d+)\s*шт\.?"""))
+    }
+
+    @Test fun replacementErrorCatchesWhatWouldFailAtSubstitution() {
+        assertNotNull(Replacements.replacementError("""(\d+)""", "$2"))
+        assertNull(Replacements.replacementError("""(\d+)""", "$1 и $0"))
+        assertNotNull(Replacements.replacementError("x", "$ руб."))
+        assertNull(Replacements.replacementError("x", "\\$ руб."))
+        assertNotNull(Replacements.replacementError("x", "хвост\\"))
+        assertNull(Replacements.replacementError("[(", "$1"))
+    }
+}
