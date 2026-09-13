@@ -20,6 +20,26 @@ class LatinSymbolsTest {
         assertEquals("нью йорк", Normalizer.latin("new york"))
     }
 
+    @Test fun latinCommonPatterns() {
+        assertEquals("найт", Normalizer.latin("night"))
+        assertEquals("сити", Normalizer.latin("city"))
+        assertEquals("бой", Normalizer.latin("boy"))
+        assertEquals("йеллоу", Normalizer.latin("yellow"))
+        assertEquals("ло", Normalizer.latin("law"))
+        assertEquals("сташн", Normalizer.latin("station"))
+        assertEquals("вержн", Normalizer.latin("version"))
+        assertEquals("джентл", Normalizer.latin("gentle"))
+    }
+
+    @Test fun latinCommonWords() {
+        assertEquals("эпл", Normalizer.latin("apple"))
+        assertEquals("майкрософт", Normalizer.latin("microsoft"))
+        assertEquals("компьютер", Normalizer.latin("computer"))
+        assertEquals("ютуб", Normalizer.latin("youtube"))
+        assertEquals("окей", Normalizer.latin("ok"))
+        assertEquals("вайлдберриз", Normalizer.latin("wildberries"))
+    }
+
     @Test fun cyrillicUntouched() {
         assertEquals("привет мир", Normalizer.latin("привет мир"))
     }

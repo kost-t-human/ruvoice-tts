@@ -67,10 +67,28 @@ class PipelineTest {
     }
 
     @Test fun directSpeechDashAndQuoteDetected() {
-        // Splitter режет по «!» и на «— сказал он.» — тоже реплика по критерию (тот же тире-старт),
-        // авторская часть отдельным флагом не выделяется (см. ponytail-комментарий в Pipeline).
+        // Splitter режет по «!»; «— сказал он.» — тире + строчная, это автор, не реплика.
+        // ««Тише», — шепнул кто-то.» — реплика и авторская часть отдельными сегментами.
         val s = Pipeline.plan("Он вошёл. — Привет! — сказал он. «Тише», — шепнул кто-то.", d, 0, 0)
-        assertEquals(listOf(false, true, true, true), s.map { it.speech })
+        assertEquals(listOf("Он вошёл.", "— Привет!", "— сказал он.", "«Тише»,", "шепнул кто-то."), s.map { it.text })
+        assertEquals(listOf(false, true, false, true, false), s.map { it.speech })
+    }
+
+    @Test fun authorInsertInsideDirectSpeech() {
+        // «— Пойдём, — сказал он, — нам пора.» → реплика / автор / реплика; пауза предложения и
+        // флаг абзаца — только у последнего куска.
+        val s = Pipeline.plan("— Пойдём, — сказал он, — нам пора.\n\nОн встал.", d, sentencePauseMs = 100, paragraphPauseMs = 500)
+        assertEquals(listOf("— Пойдём,", "сказал он,", "нам пора.", "Он встал."), s.map { it.text })
+        assertEquals(listOf(true, false, true, false), s.map { it.speech })
+        assertEquals(listOf(0, 0, 600, 100), s.map { it.breakMs })
+        assertEquals(listOf(false, false, true, false), s.map { it.paragraph })
+    }
+
+    @Test fun dashInsideDirectSpeechIsNotAuthorInsert() {
+        // Перед авторской вставкой стоит знак («— Пойдём, — сказал»), перед тире внутри речи — нет.
+        val s = Pipeline.plan("— Нам пора — уже поздно. — Да? — удивился он. — Ну — пошли.", d, 0, 0)
+        assertEquals(listOf("— Нам пора — уже поздно.", "— Да?", "— удивился он.", "— Ну — пошли."), s.map { it.text })
+        assertEquals(listOf(true, true, false, true), s.map { it.speech })
     }
 
     @Test fun dashInsideWordIsNotSpeech() {

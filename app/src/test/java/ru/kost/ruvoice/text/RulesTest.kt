@@ -27,6 +27,16 @@ class RulesTest {
         assertEquals("глава один двести читателей", n("глава 1 200 читателей"))
     }
 
+    @Test fun thousandsSeparatorRegularSpaceBeforeMoneyOrUnit() {
+        // Некруглая группа без продолжения, но следом деньги/единица — это одно число.
+        assertEquals("одна тысяча двести рублей", n("1 200 рублей"))
+        assertEquals("одна тысяча двести рублей", n("1 200 руб."))
+        assertEquals("одна тысяча двести рублей", n("1 200 ₽"))
+        assertEquals("две тысячи пятьсот километров", n("2 500 км"))
+        assertEquals("три тысячи пятьсот долларов", n("3 500 $"))
+        assertEquals("глава один двести читателей", n("глава 1 200 читателей"))
+    }
+
     @Test fun footnotes() {
         assertEquals("текст дальше", n("текст[1] дальше"))
     }
@@ -189,7 +199,10 @@ class RulesTest {
     @Test fun cardinalGenitiveSuffixBeforeUnitAbbreviation() {
         // review t17 п.4 (Normalizer.kt:228-284): суффикс числа перед сокращением единицы —
         // единица тоже должна раскрыться, а не остаться «км».
-        assertEquals("в пяти километров от города", n("в 5-ти км от города"))
+        assertEquals("в пяти километрах от города", n("в 5-ти км от города"))
+        assertEquals("к пяти километрам", n("к 5-ти км"))
+        assertEquals("пяти километров", n("5-ти км"))
+        assertEquals("в двух километрах", n("в 2-ух км"))
     }
 
     @Test fun units() {

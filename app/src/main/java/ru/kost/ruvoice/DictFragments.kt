@@ -51,14 +51,12 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     protected abstract fun showAddDialog()
 
     private lateinit var recycler: RecyclerView
-    private lateinit var filterLayout: TextInputLayout
     private lateinit var filterField: TextInputEditText
     private lateinit var emptyView: TextView
 
     override fun load(v: View) {
         recycler = v.findViewById(R.id.list)
         emptyView = v.findViewById<TextView>(R.id.empty).apply { setText(emptyHintRes) }
-        filterLayout = v.findViewById(R.id.filterLayout)
         filterField = v.findViewById(R.id.filter)
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
@@ -85,9 +83,6 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         val query = filterField.text?.toString()?.trim().orEmpty()
         val filtered = if (query.isEmpty()) all else all.filter { matches(it, query) }
         shown = if (sorted) filtered.sortedWith(compareBy(RU_COLLATOR) { sortKey(it) }) else filtered
-        // ponytail: порог 8 — просто «когда список уже неудобно листать»; сделать настраиваемым,
-        // если попросят показывать фильтр всегда.
-        filterLayout.visibility = if (all.size >= 8) View.VISIBLE else View.GONE
         emptyView.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
         recycler.visibility = if (shown.isEmpty()) View.GONE else View.VISIBLE
         recycler.adapter?.notifyDataSetChanged()

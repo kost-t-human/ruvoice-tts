@@ -100,12 +100,36 @@ class CasesTest {
         assertEquals("в пяти случаях", p("в 5 случаях"))
     }
 
-    // Fix round 1: «-ьми» — неправильный творительный («детьми», «людьми»), оканчивается на «и»,
-    // но это не повод склонять числительное «два/двадцать два» в «две/двадцать две».
-    @Test fun nominativeFeminineTwoDoesNotMatchIrregularInstrumentalTail() {
-        assertEquals("с два детьми", n("с 2 детьми"))
-        assertEquals("были заняты два детьми", n("были заняты 2 детьми"))
-        assertEquals("двадцать два людьми", n("22 людьми"))
+    // «-ьми» — неправильный творительный мн. ч. («детьми», «людьми»), число тоже в Т.п.,
+    // а не «две»/«двадцать две» по хвосту на «-и».
+    @Test fun irregularInstrumentalPluralEnding() {
+        assertEquals("с пятью детьми", n("с 5 детьми"))
+        assertEquals("с двумя детьми", n("с 2 детьми"))
+        assertEquals("были заняты двумя детьми", n("были заняты 2 детьми"))
+        assertEquals("двадцатью двумя людьми", n("22 людьми"))
+        assertEquals("четырьмя лошадьми", n("4 лошадьми"))
+    }
+
+    @Test fun unitAfterDativeTrigger() {
+        assertEquals("к пяти километрам", n("к 5 км"))
+        assertEquals("к одной минуте", n("к 1 мин"))
+        assertEquals("к двум килограммам", n("к 2 кг"))
+    }
+
+    @Test fun unitAfterPrepositionalTrigger() {
+        assertEquals("при пяти километрах в час", n("при 5 км/ч"))
+        assertEquals("о трёх минутах", n("о 3 мин"))
+    }
+
+    @Test fun unitInInstrumentalRange() {
+        assertEquals("между двумя и пятью километрами", n("между 2 и 5 км"))
+        assertEquals("между одной и тремя минутами", n("между 1 и 3 мин"))
+    }
+
+    @Test fun unitInGenitiveRange() {
+        assertEquals("с двух до пяти километров", n("с 2 до 5 км"))
+        assertEquals("от двух до пяти километров", n("от 2 до 5 км"))
+        assertEquals("от одной до трёх минут", n("от 1 до 3 мин"))
     }
 
     // «день + месяц» без точек («к 1 сентября») — не дата в формате dd.mm, cases() её не трогает
