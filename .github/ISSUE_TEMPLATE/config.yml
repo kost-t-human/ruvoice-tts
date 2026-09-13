@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Вопрос или идея
+    url: https://github.com/kost-t-human/ruvoice-tts/discussions
+    about: Как настроить, что добавить, работает ли с конкретной читалкой

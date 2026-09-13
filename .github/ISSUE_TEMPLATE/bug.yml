@@ -1,0 +1,44 @@
+name: Ошибка чтения
+description: Движок читает текст не так, как должен
+labels: [bug]
+body:
+  - type: textarea
+    id: text
+    attributes:
+      label: Текст, который читается неправильно
+      description: Скопируйте фрагмент как есть, вместе с соседними словами. Достаточно одного-двух предложений.
+      placeholder: Поезд отходил в 21:30, и до вокзала оставалось около 3 км.
+    validations:
+      required: true
+  - type: input
+    id: actual
+    attributes:
+      label: Как читается сейчас
+      placeholder: «двадцать один тридцать»
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: Как должно читаться
+      placeholder: «двадцать один час тридцать минут»
+    validations:
+      required: true
+  - type: textarea
+    id: parse
+    attributes:
+      label: Вывод «Разбора»
+      description: Вставьте текст в поле проверки на вкладке «Голос», нажмите «Разбор» и скопируйте результат. По нему видно, на каком шаге ломается.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Версия RuVoice и читалка
+      placeholder: 0.9.2, Moon+ Reader 9.4
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Телефон и версия Android
+      placeholder: Xiaomi 14, Android 15
