@@ -125,7 +125,7 @@ class PipelineTest {
         fun first(t: String, rules: Rules = Rules()) = Pipeline.plan(t, d, 0, 0, rules = rules).single().text
         assertEquals("б+э", first("б"))
         assertEquals("б+э", first(" Б. "))
-        assertEquals("заглавная в+э", first("заглавная В"))
+        assertEquals("прописная буква в+э", first("прописная буква В."))
         assertEquals("м+ягкий знак", first("ь"))
         assertEquals("б+и", first("b"))
         assertEquals("в+э", first("в"))

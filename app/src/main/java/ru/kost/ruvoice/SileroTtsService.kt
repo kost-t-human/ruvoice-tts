@@ -54,10 +54,11 @@ object Pipeline {
         }
     }
 
-    // Запрос из одной буквы («б», «Б.», «заглавная В» — так TalkBack шлёт букву под курсором, эхо
-    // ввода, клавишу экранной клавиатуры): читаем имя буквы. Внутри текста одиночную букву не
-    // трогаем — там «в», «с», «к» предлоги, а «б», «ж» частицы.
-    private val loneLetter = Regex("""^\s*((?:заглавная\s+)?)(\p{L})\s*[.)]?\s*$""", RegexOption.IGNORE_CASE)
+    // Запрос из одной буквы — так TalkBack шлёт букву под курсором, эхо ввода, клавишу экранной
+    // клавиатуры: строчную как есть, заглавную по умолчанию как «прописная буква Б.»
+    // (talkback: CompositorUtils.prependCapital, template_capital_letter в values-ru). Читаем имя
+    // буквы. Внутри текста одиночную букву не трогаем — там «в», «с», «к» предлоги, «б», «ж» частицы.
+    private val loneLetter = Regex("""^\s*((?:прописная буква\s+)?)(\p{L})\s*[.)]?\s*$""", RegexOption.IGNORE_CASE)
 
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
              replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules()): List<Segment> {
