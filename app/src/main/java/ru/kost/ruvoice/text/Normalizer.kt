@@ -269,6 +269,7 @@ object Normalizer {
     // иначе это десятичная дробь («3.5»).
     private val monthGenitive = arrayOf("", "января", "февраля", "марта", "апреля", "мая", "июня", "июля",
         "августа", "сентября", "октября", "ноября", "декабря")
+    private val monthGenAlt = monthGenitive.drop(1).joinToString("|")
     private val dateWithYearRe = Regex("""(?<!\d)(\d{1,2})[./](\d{1,2})[./](\d{4})(?!\d)""")
     // Лукбехайнд захватывает и точку (review final-fix п.3): «2.10.3» — составной номер раздела
     // (sectionRe ниже), а не «10.3» день.месяц внутри него — без этого фикса regex стартовал бы
@@ -353,8 +354,21 @@ object Normalizer {
     private val yearGBareRe =
         Regex("""(?<![а-яё\d])(\d{4}|\d{3}(?=\s*г\.\s*до\s+н\.\s*э\.))\s*г\.""", RegexOption.IGNORE_CASE)
 
+    // «г»/«гг» без точки после четырёх цифр («2050 г», «1941–1945 гг») — та же аббревиатура,
+    // точку просто дописываем и дальше работают правила выше. Только четыре цифры: «500 г муки» — граммы.
+    private val yearGNoDotRe = Regex("""(?<![а-яё\d])(\d{4}\s*гг?)(?![а-яё.])""", RegexOption.IGNORE_CASE)
+    // «20 июня 2050 г.» — полная дата: день порядковый (падеж по предлогу, см. dayMonth), год в родительном.
+    private val dayMonthYearGRe =
+        Regex("""(?<![\d-])(\d{1,2})(\s+)($monthGenAlt)(\s+)(\d{4})\s*г\.""", RegexOption.IGNORE_CASE)
+
     private fun yearsWithG(text: String): String {
         var s = text
+        s = yearGNoDotRe.replace(s) { m -> m.groupValues[1] + "." }
+        s = dayMonthYearGRe.replace(s) { m ->
+            val (d, sp1, month, sp2, y) = m.destructured
+            if (d.toInt() !in 1..31) return@replace m.value
+            "$d-${daySuffix(s.substring(0, m.range.first))}$sp1$month$sp2$y-го года"
+        }
         s = yearGRangeWithPrepRe.replace(s) { m ->
             val (prep, y1, y2) = m.destructured
             "$prep $y1-м – $y2-м годах"
@@ -379,6 +393,22 @@ object Normalizer {
         }
         s = yearGBareRe.replace(s) { m -> "${m.groupValues[1]}-й год" }
         return s
+    }
+
+    // 6a. День + месяц словом («20 июня», «к 1 сентября») — порядковое среднего рода, падеж по
+    // предлогу перед числом: «к» — дательный, «с/до/после/от» — родительный, иначе именительный.
+    // Запускается после cases(): там числа перед месяцем нарочно не трогаются (numTailExclude).
+    private val dayPrepRe = Regex("""(?<![а-яё])(к|ко|с|со|до|после|от|начиная\s+с)\s+$""", RegexOption.IGNORE_CASE)
+    private fun daySuffix(before: String) = when (dayPrepRe.find(before)?.groupValues?.get(1)?.lowercase()) {
+        null -> "е"
+        "к", "ко" -> "му"
+        else -> "го"
+    }
+    private val dayMonthRe = Regex("""(?<![\d-])(\d{1,2})(\s+)($monthGenAlt)(?![а-яё])""", RegexOption.IGNORE_CASE)
+    private fun dayMonth(text: String) = dayMonthRe.replace(text) { m ->
+        val (d, sp, month) = m.destructured
+        if (d.toInt() !in 1..31) return@replace m.value
+        "$d-${daySuffix(text.substring(0, m.range.first))}$sp$month"
     }
 
     // 6b. «г.» перед словом с заглавной буквы (task 18 п.7) — это «город», а не год: годовые
@@ -683,7 +713,6 @@ object Normalizer {
     // (ponytail: вне рамок задачи, число просто остаётся как было — «к один сентября»).
     private val amplifierRe =
         """(?:примерно|почти|приблизительно|чем|всего|целых|лишь|ещё|уже|только|каких-то|где-то)"""
-    private val monthGenAlt = monthGenitive.drop(1).joinToString("|")
     // Общий «хвост»-фильтр без месяца — отдельно нужен там, где месяц как раз обязателен
     // (второе число в «с N по M месяц», см. rangeSPoMonthRe ниже).
     private val numTailExcludeCore =
@@ -856,6 +885,7 @@ object Normalizer {
         // после abbreviations: «п. 2.10.3» должно сначала стать «пункт», а уже потом раскрыть номер
         s = sectionNumbers(s)
         s = cases(s)
+        s = dayMonth(s)
         s = yearRe.replace(s) { m ->
             m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]
         }
