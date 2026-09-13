@@ -71,7 +71,10 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             setOnCheckedChangeListener { _, on -> quoteGroup.visibility = if (on) View.VISIBLE else View.GONE }
         }
         v.findViewById<Button>(R.id.sysTtsSettings).setOnClickListener { requireContext().openSysTtsSettings(v) }
-        v.findViewById<TextView>(R.id.setupHelp).setOnClickListener { (activity as? SettingsActivity)?.showSetupHelp() }
+        v.findViewById<TextView>(R.id.setupHelp).apply {
+            paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG // иначе сливается с подписями ниже
+            setOnClickListener { (activity as? SettingsActivity)?.showSetupHelp() }
+        }
         val previewText = v.findViewById<EditText>(R.id.previewText)
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
 
