@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Меню «⋮» именного списка на вкладках «Ударения» и «Замены». -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/dict_new" android:title="@string/dict_new" />
+    <item android:id="@+id/dict_rename" android:title="@string/dict_rename" />
+    <item android:id="@+id/dict_delete" android:title="@string/dict_delete" />
+    <item android:id="@+id/dict_import" android:title="@string/dict_import" />
+    <item android:id="@+id/dict_export" android:title="@string/dict_export" />
+    <item android:id="@+id/dict_export_demagog" android:title="@string/dict_export_demagog" />
+</menu>

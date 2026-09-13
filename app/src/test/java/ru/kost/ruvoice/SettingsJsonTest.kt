@@ -11,15 +11,25 @@ class SettingsJsonTest {
     )
 
     @Test fun roundTripBuildAndParse() {
-        val json = SettingsJson.build(samplePrefs, "творог твор+ог", "т.е. = то есть")
+        val json = SettingsJson.build(samplePrefs, mapOf("Основной" to "творог твор+ог", "Книга" to ""), mapOf("Основной" to "т.е. = то есть"),
+            setOf("Книга"), emptySet())
         val parsed = SettingsJson.parse(json)
         assertEquals("xenia", parsed.prefs["voice"])
         assertEquals(48000, (parsed.prefs["sr"] as Number).toInt())
         assertEquals(0, (parsed.prefs["pause_sentence"] as Number).toInt())
         assertEquals(1.0, (parsed.prefs["rate"] as Number).toDouble(), 0.0)
         assertEquals(1.0, (parsed.prefs["pitch"] as Number).toDouble(), 0.0)
-        assertEquals("творог твор+ог", parsed.stress)
-        assertEquals("т.е. = то есть", parsed.replace)
+        assertEquals(mapOf("Основной" to "творог твор+ог", "Книга" to ""), parsed.stress)
+        assertEquals(mapOf("Основной" to "т.е. = то есть"), parsed.replace)
+        assertEquals(setOf("Книга"), parsed.stressOff)
+        assertEquals(emptySet<String>(), parsed.replaceOff)
+    }
+
+    @Test fun v1FlatStringsBecomeMainList() {
+        val parsed = SettingsJson.parse("""{"app":"ruvoice","version":1,"prefs":{},"stress":"творог твор+ог","replace":"кот = к+от"}""")
+        assertEquals(mapOf("Основной" to "творог твор+ог"), parsed.stress)
+        assertEquals(mapOf("Основной" to "кот = к+от"), parsed.replace)
+        assertNull(parsed.stressOff)
     }
 
     @Test fun oldFileWithoutRatePitchKeysHasThemAbsentAfterParse() {

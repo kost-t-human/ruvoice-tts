@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Общий каркас вкладок «Ударения» и «Замены»: ссылка на справку (попап), поле фильтра,
-     список на всю высоту (пустое состояние — центрированная подсказка) и FAB добавления поверх. -->
+<!-- Общий каркас вкладок «Ударения» и «Замены»: выбор именного списка с меню «⋮», ссылка на
+     справку (попап), поле фильтра, индикатор прогрева кэша (виден только если прогрев дольше
+     150 мс), список на всю высоту (пустое состояние — центрированная подсказка) и FAB поверх. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -10,6 +11,46 @@
         android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="12dp">
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="@string/dict_list">
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/dictName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="none"
+                    android:saveEnabled="false" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <ImageButton
+                android:id="@+id/dictMenu"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/dict_menu"
+                app:tint="?attr/colorOnSurfaceVariant"
+                android:src="@drawable/ic_more_vert" />
+        </LinearLayout>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/dictOn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="4dp"
+            android:paddingVertical="8dp"
+            android:textAppearance="?attr/textAppearanceBodyMedium" />
 
         <TextView
             android:id="@+id/help"
@@ -36,6 +77,30 @@
                 android:layout_height="wrap_content"
                 android:inputType="text" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <LinearLayout
+            android:id="@+id/cacheRow"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="8dp">
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/cacheBar"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:max="100" />
+            <TextView
+                android:id="@+id/cacheText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
 
         <FrameLayout
             android:layout_width="match_parent"

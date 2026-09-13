@@ -37,28 +37,33 @@ class Prefs(private val context: Context) {
     fun rules() = Rules(rulesOff + (if (quoteOn) emptySet() else setOf("speech")), maxLen.coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX),
         focusLevel.coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX))
 
-    val userDictFile: File get() = File(context.filesDir, "user_stress.txt")
-    val userReplaceFile: File get() = File(context.filesDir, "user_replace.txt")
+    /** Выключенные списки вида — имена через \n (в имени может быть запятая). */
+    fun off(kind: Dicts.Kind): Set<String> =
+        p.getString("${kind.dir}_off", "")!!.split('\n').filter { it.isNotEmpty() }.toSet()
+    fun setOff(kind: Dicts.Kind, names: Set<String>) = p.edit().putString("${kind.dir}_off", names.joinToString("\n")).apply()
+
+    /** Список, открытый на вкладке; если такого файла уже нет — первый по алфавиту. */
+    fun current(kind: Dicts.Kind): File {
+        val files = dictFiles(kind)
+        val name = p.getString("dict_cur_${kind.dir}", Dicts.MAIN)!!
+        return files.firstOrNull { Dicts.name(it) == name } ?: files.firstOrNull()
+            ?: Dicts.file(context.filesDir, kind, Dicts.MAIN).also { it.parentFile!!.mkdirs(); it.writeText("") }
+    }
+    fun setCurrent(kind: Dicts.Kind, name: String) = p.edit().putString("dict_cur_${kind.dir}", name).apply()
+
+    fun dictFiles(kind: Dicts.Kind): List<File> = Dicts.files(context.filesDir, kind)
+    fun enabledDictFiles(kind: Dicts.Kind): List<File> = off(kind).let { off -> dictFiles(kind).filter { Dicts.name(it) !in off } }
 
     init {
-        // Предустановки замен — только пока файла нет (первый запуск): дальше это обычный
-        // пользовательский список, удалённое не возвращаем.
-        if (!userReplaceFile.exists()) userReplaceFile.writeText(DEFAULT_REPLACE)
+        Dicts.migrate(context.filesDir, DEFAULT_REPLACE)
     }
 
-    /** Строки «слово сл+ово»; пустые и с # пропускаются. */
-    fun userDict(): Map<String, String> {
-        if (!userDictFile.exists()) return emptyMap()
-        return userDictFile.readLines().mapNotNull { line ->
-            val t = line.trim(); if (t.isEmpty() || t.startsWith("#")) return@mapNotNull null
-            val parts = t.split(Regex("\\s+")); if (parts.size < 2) null else parts[0].lowercase() to parts[1].lowercase()
-        }.toMap()
-    }
+    /** Слитые включённые списки ударений, из кэша процесса. */
+    fun userDict(): Map<String, String> = DictCache.stress(enabledDictFiles(Dicts.Kind.STRESS))
 
-    fun replacements(): Replacements =
-        Replacements.parse(if (userReplaceFile.exists()) userReplaceFile.readLines() else emptyList())
+    fun replacements(): Replacements = DictCache.replacements(enabledDictFiles(Dicts.Kind.REPLACE))
 
-    /** Собирает JSON-файл экспорта настроек (текущие Prefs + словарь ударений + замены). */
+    /** Собирает JSON-файл экспорта настроек (текущие Prefs + все списки ударений и замен). */
     fun exportJson(): String {
         val prefsMap = mapOf(
             "voice" to voice,
@@ -78,14 +83,14 @@ class Prefs(private val context: Context) {
             "max_len" to maxLen,
             "focus_level" to focusLevel,
         )
-        val stress = if (userDictFile.exists()) userDictFile.readText() else ""
-        val replace = if (userReplaceFile.exists()) userReplaceFile.readText() else ""
-        return SettingsJson.build(prefsMap, stress, replace)
+        fun all(kind: Dicts.Kind) = dictFiles(kind).associate { Dicts.name(it) to it.readText() }
+        return SettingsJson.build(prefsMap, all(Dicts.Kind.STRESS), all(Dicts.Kind.REPLACE), off(Dicts.Kind.STRESS), off(Dicts.Kind.REPLACE))
     }
 
     /**
      * Разбирает JSON-файл экспорта и применяет его: отсутствующие в файле ключи не трогает,
      * неизвестные игнорирует, числа приводит к тем же границам, что и UI (см. SettingsPages).
+     * Списки из файла перезаписывают одноимённые, остальные остаются.
      */
     fun importJson(text: String) {
         val parsed = SettingsJson.parse(text)
@@ -108,8 +113,12 @@ class Prefs(private val context: Context) {
         (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
-        parsed.stress?.let { userDictFile.writeText(it) }
-        parsed.replace?.let { userReplaceFile.writeText(it) }
+        fun write(kind: Dicts.Kind, dicts: Map<String, String>?) = dicts?.forEach { (name, body) ->
+            if (Dicts.validName(name)) Dicts.file(context.filesDir, kind, name.trim()).also { it.parentFile!!.mkdirs() }.writeText(body)
+        }
+        write(Dicts.Kind.STRESS, parsed.stress); write(Dicts.Kind.REPLACE, parsed.replace)
+        parsed.stressOff?.let { setOff(Dicts.Kind.STRESS, it) }
+        parsed.replaceOff?.let { setOff(Dicts.Kind.REPLACE, it) }
     }
 
     companion object {

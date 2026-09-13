@@ -138,6 +138,9 @@ class SileroTtsService : TextToSpeechService() {
     }
 
     private fun warmUp() {
+        // словари разбираются раз на процесс; большие списки — секунда на телефоне, лучше
+        // потратить её сейчас, чем на первой фразе
+        prefs.userDict(); prefs.replacements()
         synchronized(models) {
             models.ensureLoaded()
             val seq = models.data.sequence("прив+ет.")

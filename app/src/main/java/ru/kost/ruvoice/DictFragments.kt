@@ -1,6 +1,10 @@
 package ru.kost.ruvoice
 
+import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.OpenableColumns
 import android.text.Html
 import android.text.InputFilter
 import android.view.LayoutInflater
@@ -9,7 +13,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.PopupMenu
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -20,23 +26,28 @@ import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.io.File
 import ru.kost.ruvoice.text.Replacements
-import java.text.Collator
-import java.util.Locale
 
 /**
- * Общая часть вкладок «Ударения» и «Замены»: файл хранится как список сырых строк (lines) —
- * комментарии и пустые строки сохраняются как есть и не показываются в списке. Видимый список
- * (shown — индексы в lines) пересчитывается заново при любом изменении lines/фильтра, без
- * DiffUtil (записей мало, полная перерисовка не заметна). Свайп удаляет строку с Undo,
- * FAB открывает диалог добавления, поле фильтра — см. refresh().
+ * Общая часть вкладок «Ударения» и «Замены». У каждой вкладки несколько именных списков
+ * (Dicts): сверху выбор текущего и меню «⋮» (включить, переименовать, удалить, новый,
+ * импорт, экспорт). Файл текущего списка хранится как список сырых строк (lines) —
+ * комментарии и пустые строки сохраняются как есть и не показываются. Разбор строк (parsedLines)
+ * и порядок сортировки (order) считаются один раз при изменении lines: списки бывают на
+ * десятки тысяч строк, разбирать и сортировать их на каждый символ фильтра нельзя. Видимый
+ * список (shown — индексы в lines) пересчитывается при любом изменении lines/фильтра, без
+ * DiffUtil. Свайп удаляет строку с Undo, FAB открывает диалог добавления. После каждой правки
+ * и переключения списков кэш словарей (DictCache) греется в фоне; индикатор виден, только
+ * если прогрев длится дольше 150 мс.
  */
 abstract class DictListFragment(layout: Int) : PageFragment(layout) {
-    protected abstract val file: File
+    protected abstract val kind: Dicts.Kind
     protected abstract val emptyHintRes: Int
     /** Текст справки вкладки — открывается попапом по ссылке над поиском; заголовок — имя вкладки. */
     protected abstract val helpRes: Int
@@ -46,11 +57,20 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     protected open val sorted: Boolean = false
     protected open fun sortKey(index: Int): String = ""
 
-    protected val lines = mutableListOf<String>()
+    /** Файл текущего списка. */
+    protected val file: File get() = prefs.current(kind)
+    private val lines = mutableListOf<String>()
+    private val parsedLines = ArrayList<Any?>()
+    /** Индексы записей (не комментариев) в порядке показа до фильтра; null — пересчитать. */
+    private var order: List<Int>? = null
     /** Индексы строк в lines, которые сейчас показаны (после разбора, сортировки и фильтра). */
     protected var shown = listOf<Int>(); private set
 
-    protected abstract fun isEntry(index: Int): Boolean
+    protected val lineCount get() = lines.size
+    protected fun line(index: Int) = lines[index]
+    /** Разобранная строка (результат parseLine), null — комментарий/пустая/битая. */
+    protected fun parsedAny(index: Int): Any? = parsedLines[index]
+    protected abstract fun parseLine(line: String): Any?
     protected abstract fun matches(index: Int, query: String): Boolean
     protected abstract fun createAdapter(): RecyclerView.Adapter<*>
     protected abstract fun showAddDialog()
@@ -58,6 +78,26 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     private lateinit var recycler: RecyclerView
     private lateinit var filterField: TextInputEditText
     private lateinit var emptyView: TextView
+    private lateinit var nameField: MaterialAutoCompleteTextView
+    private lateinit var onSwitch: MaterialSwitch
+
+    // Экспорт: байты готовятся до выбора файла, после записи — необязательное продолжение
+    // (для Демагога — предложить сохранить пропущенные regex-строки).
+    private var pendingExport: ByteArray? = null
+    private var afterExport: (() -> Unit)? = null
+    private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        val bytes = pendingExport ?: return@registerForActivityResult
+        pendingExport = null
+        if (uri == null) return@registerForActivityResult
+        try {
+            requireContext().contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IllegalStateException("Не удалось открыть файл для записи")
+            snack(getString(R.string.dict_exported))
+            afterExport?.invoke(); afterExport = null
+        } catch (e: Exception) { snack(e.message ?: e.toString()) }
+    }
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) importFrom(uri)
+    }
 
     override fun load(v: View) {
         recycler = v.findViewById(R.id.list)
@@ -67,6 +107,20 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                 .setPositiveButton(android.R.string.ok, null).show()
         }
         filterField = v.findViewById(R.id.filter)
+        nameField = v.findViewById(R.id.dictName)
+        nameField.setOnItemClickListener { _, _, pos, _ ->
+            prefs.setCurrent(kind, Dicts.name(prefs.dictFiles(kind)[pos]))
+            loadLines()
+        }
+        v.findViewById<View>(R.id.dictMenu).setOnClickListener { showMenu(it) }
+        onSwitch = v.findViewById(R.id.dictOn)
+        onSwitch.setOnCheckedChangeListener { _, checked ->
+            val name = Dicts.name(file)
+            val off = prefs.off(kind)
+            if ((name in off) == !checked) return@setOnCheckedChangeListener // это loadLines выставил
+            prefs.setOff(kind, if (checked) off - name else off + name)
+            loadLines(); warm()
+        }
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
         filterField.doAfterTextChanged { refresh() }
@@ -74,24 +128,46 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         attachSwipeToDelete()
         // Файл могли поменять извне (импорт настроек + recreate, Task 25) — читаем заново,
         // не кэшируем между пересозданиями.
-        lines.clear()
-        if (file.exists()) lines.addAll(file.readLines())
-        refresh()
+        loadLines()
+        warm()
     }
 
     override fun save(v: View) = persist()
 
+    private fun loadLines() {
+        val f = file
+        lines.clear(); parsedLines.clear()
+        if (f.exists()) lines.addAll(f.readLines())
+        for (l in lines) parsedLines += parseLine(l)
+        order = null
+        val off = prefs.off(kind)
+        val names = prefs.dictFiles(kind).map { Dicts.name(it) }
+        nameField.setSimpleItems(names.map { if (it in off) getString(R.string.dict_off_suffix, it) else it }.toTypedArray())
+        val name = Dicts.name(f)
+        nameField.setText(if (name in off) getString(R.string.dict_off_suffix, name) else name, false)
+        onSwitch.isChecked = name !in off
+        onSwitch.setText(if (name in off) R.string.dict_off else R.string.dict_on)
+        refresh()
+    }
+
     /** Пишет lines в файл напрямую, без View — вызывается и из onPause/save (где view есть),
      * и из действий над списком (свайп, Undo, диалог), где к моменту записи view уже могло
      * не быть (например, Undo в Snackbar сработал после ухода со страницы). */
-    protected fun persist() = file.writeText(lines.joinToString("\n"))
+    protected fun persist() { file.writeText(lines.joinToString("\n")); warm() }
+
+    // ---- правки lines: только через эти методы, чтобы разбор и порядок не разъехались ----
+    protected fun setLine(index: Int, line: String) { lines[index] = line; parsedLines[index] = parseLine(line); order = null }
+    protected fun addLine(line: String) { lines += line; parsedLines += parseLine(line); order = null }
+    protected fun insertLine(index: Int, line: String) { lines.add(index, line); parsedLines.add(index, parseLine(line)); order = null }
+    protected fun removeLine(index: Int): String { parsedLines.removeAt(index); order = null; return lines.removeAt(index) }
 
     /** Пересчитать видимый список после изменения lines или фильтра. */
     protected fun refresh() {
-        val all = lines.indices.filter { isEntry(it) }
+        val all = order ?: lines.indices.filter { parsedLines[it] != null }
+            .let { if (sorted) it.sortedWith(compareBy(Dicts.COLLATOR) { sortKey(it) }) else it }
+            .also { order = it }
         val query = filterField.text?.toString()?.trim().orEmpty()
-        val filtered = if (query.isEmpty()) all else all.filter { matches(it, query) }
-        shown = if (sorted) filtered.sortedWith(compareBy(RU_COLLATOR) { sortKey(it) }) else filtered
+        shown = if (query.isEmpty()) all else all.filter { matches(it, query) }
         emptyView.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
         recycler.visibility = if (shown.isEmpty()) View.GONE else View.VISIBLE
         recycler.adapter?.notifyDataSetChanged()
@@ -99,15 +175,136 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
 
     /** Удаляет строку файла и даёт «Отменить» в снекбаре. */
     protected fun deleteLine(lineIndex: Int) {
-        val removed = lines.removeAt(lineIndex)
+        val removed = removeLine(lineIndex)
         refresh(); persist()
         // якорь на FAB: иначе снекбар ложится под «+», и тап по «Отменить» открывает диалог
         Snackbar.make(recycler, R.string.deleted, 6000) // LENGTH_LONG (2,75 с) не хватает, чтобы дотянуться до «Отменить»
             .setAnchorView(requireView().findViewById<View>(R.id.add))
             .setAction(R.string.undo) {
-                lines.add(lineIndex.coerceAtMost(lines.size), removed)
+                insertLine(lineIndex.coerceAtMost(lines.size), removed)
                 refresh(); persist()
             }.show()
+    }
+
+    private fun snack(text: String) {
+        val v = view ?: return
+        Snackbar.make(v, text, Snackbar.LENGTH_LONG).setAnchorView(v.findViewById<View>(R.id.add)).show()
+    }
+
+    /** Прогрев кэша словарей в фоне; индикатор показывается, только если не уложились в 150 мс. */
+    private fun warm() {
+        val v = view ?: return
+        val row = v.findViewById<View>(R.id.cacheRow)
+        val bar = v.findViewById<LinearProgressIndicator>(R.id.cacheBar)
+        val text = v.findViewById<TextView>(R.id.cacheText)
+        val handler = Handler(Looper.getMainLooper())
+        val show = Runnable { row.visibility = View.VISIBLE }
+        handler.postDelayed(show, 150)
+        DictCache.warm(prefs.enabledDictFiles(kind), kind,
+            // фрагмент могли закрыть, пока грелось — getString без контекста упадёт
+            { pct -> handler.post { if (isAdded) { bar.progress = pct; text.text = getString(R.string.dict_cache, pct) } } },
+            { handler.post { handler.removeCallbacks(show); row.visibility = View.GONE } })
+    }
+
+    // ---- меню списка ----
+    private fun showMenu(anchor: View) {
+        val name = Dicts.name(file)
+        val popup = PopupMenu(requireContext(), anchor)
+        popup.inflate(R.menu.dict_list)
+        popup.menu.findItem(R.id.dict_delete).isEnabled = prefs.dictFiles(kind).size > 1
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.dict_new -> nameDialog(R.string.dict_new, "") { newName ->
+                    Dicts.file(requireContext().filesDir, kind, newName).writeText("")
+                    prefs.setCurrent(kind, newName); loadLines()
+                }
+                R.id.dict_rename -> nameDialog(R.string.dict_rename, name) { newName ->
+                    persist()
+                    if (file.renameTo(Dicts.file(requireContext().filesDir, kind, newName))) {
+                        prefs.off(kind).let { if (name in it) prefs.setOff(kind, it - name + newName) }
+                        prefs.setCurrent(kind, newName); loadLines(); warm()
+                    }
+                }
+                R.id.dict_delete -> {
+                    val count = parsedLines.count { it != null }
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setMessage(getString(R.string.dict_delete_confirm, name, count))
+                        .setPositiveButton(R.string.delete) { _, _ ->
+                            file.delete()
+                            prefs.setOff(kind, prefs.off(kind) - name)
+                            prefs.setCurrent(kind, Dicts.MAIN); loadLines(); warm()
+                        }
+                        .setNegativeButton(R.string.cancel, null).show()
+                }
+                R.id.dict_import -> importLauncher.launch(arrayOf("text/*", "*/*"))
+                R.id.dict_export -> { persist(); launchExport("$name.txt", file.readBytes()) }
+                R.id.dict_export_demagog -> {
+                    persist()
+                    val (text, skipped) = Dicts.toDemagog(lines, kind)
+                    launchExport("$name.txt", Dicts.demagogBytes(text)) {
+                        if (skipped.isNotEmpty()) MaterialAlertDialogBuilder(requireContext())
+                            .setMessage(getString(R.string.dict_regex_skipped, skipped.size))
+                            .setPositiveButton(R.string.dict_regex_save) { _, _ ->
+                                launchExport("$name-regex.txt", skipped.joinToString("\n", postfix = "\n").toByteArray())
+                            }
+                            .setNegativeButton(R.string.cancel, null).show()
+                    }
+                }
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun launchExport(fileName: String, bytes: ByteArray, after: (() -> Unit)? = null) {
+        pendingExport = bytes; afterExport = after
+        exportLauncher.launch(fileName)
+    }
+
+    /** Диалог имени списка для «новый»/«переименовать»: проверка допустимости и занятости на лету. */
+    private fun nameDialog(titleRes: Int, initial: String, onOk: (String) -> Unit) {
+        val ctx = requireContext()
+        val layout = TextInputLayout(ctx, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = getString(R.string.dict_name_hint)
+            val pad = (20 * resources.displayMetrics.density).toInt(); setPadding(pad, pad / 2, pad, 0)
+        }
+        val field = TextInputEditText(layout.context).apply { setText(initial); setSelection(initial.length) }
+        layout.addView(field)
+        var posButton: Button? = null
+        fun validate() {
+            val name = field.text.toString().trim()
+            layout.error = when {
+                name.isEmpty() -> null
+                !Dicts.validName(name) -> getString(R.string.dict_name_bad)
+                name != initial && Dicts.file(ctx.filesDir, kind, name).exists() -> getString(R.string.dict_name_taken)
+                else -> null
+            }
+            posButton?.isEnabled = name.isNotEmpty() && name != initial && layout.error == null
+        }
+        field.doAfterTextChanged { validate() }
+        val dialog = MaterialAlertDialogBuilder(ctx).setTitle(titleRes).setView(layout)
+            .setPositiveButton(R.string.save) { _, _ -> onOk(field.text.toString().trim()) }
+            .setNegativeButton(R.string.cancel, null).create()
+        dialog.setOnShowListener { posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE); validate() }
+        dialog.show()
+    }
+
+    /** Импорт файла списка: кодировка по содержимому (UTF-8, иначе cp1251 Демагога), имя —
+     * из имени файла, занятое имя получает « (2)»; список становится текущим. */
+    private fun importFrom(uri: Uri) {
+        val ctx = requireContext()
+        try {
+            val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл")
+            val display = ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            } ?: "Импорт"
+            val base = display.substringBeforeLast('.').trim().take(60).ifEmpty { "Импорт" }.replace('/', ' ').replace('\\', ' ')
+            val name = Dicts.freeName(ctx.filesDir, kind, base)
+            Dicts.file(ctx.filesDir, kind, name).writeText(Dicts.importText(Dicts.decode(bytes), kind))
+            prefs.setCurrent(kind, name)
+            loadLines(); warm()
+            snack(getString(R.string.dict_imported, name))
+        } catch (e: Exception) { snack(e.message ?: e.toString()) }
     }
 
     private fun attachSwipeToDelete() {
@@ -128,24 +325,20 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
             }
         }).attachToRecyclerView(recycler)
     }
-
-    companion object {
-        // ё стоит в Unicode после я — обычное String.compareTo() увело бы её в конец списка
-        private val RU_COLLATOR: Collator = Collator.getInstance(Locale("ru"))
-    }
 }
 
 /** Вкладка «Ударения»: список слов из user_stress.txt в алфавитном порядке, диалог с чипами
  * по гласным слова и прослушиванием «как модель» / «с ударением». */
 class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
-    override val file get() = prefs.userDictFile
+    override val kind = Dicts.Kind.STRESS
     override val emptyHintRes = R.string.stress_empty_hint
     override val helpRes = R.string.stress_help
     override val helpTitleRes = R.string.tab_stress
     override val sorted = true
 
-    private fun parsed(index: Int) = DictLines.parseStress(lines[index])
-    override fun isEntry(index: Int) = parsed(index) != null
+    override fun parseLine(line: String) = DictLines.parseStress(line)
+    @Suppress("UNCHECKED_CAST")
+    private fun parsed(index: Int) = parsedAny(index) as Pair<String, String>?
     override fun sortKey(index: Int) = parsed(index)!!.first
     override fun matches(index: Int, query: String) = parsed(index)!!.first.contains(query, ignoreCase = true)
 
@@ -174,7 +367,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override fun showAddDialog() = showDialog(null)
 
     private fun findLineIndexForWord(word: String): Int? =
-        lines.indices.firstOrNull { parsed(it)?.first?.equals(word, ignoreCase = true) == true }
+        (0 until lineCount).firstOrNull { parsed(it)?.first?.equals(word, ignoreCase = true) == true }
 
     private fun showDialog(editIndex: Int?) {
         val ctx = requireContext()
@@ -265,11 +458,11 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
                     val dupIndex = findLineIndexForWord(word)
                     when {
                         editIndex != null -> {
-                            lines[editIndex] = line
-                            if (dupIndex != null && dupIndex != editIndex) lines.removeAt(dupIndex)
+                            setLine(editIndex, line)
+                            if (dupIndex != null && dupIndex != editIndex) removeLine(dupIndex)
                         }
-                        dupIndex != null -> lines[dupIndex] = line
-                        else -> lines.add(line)
+                        dupIndex != null -> setLine(dupIndex, line)
+                        else -> addLine(line)
                     }
                     refresh(); persist()
                 }
@@ -289,13 +482,14 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
  * см. Replacements.parse), диалог «ключ / на что / regex» с проверкой regex на лету, полем
  * «проверить на тексте» и прослушиванием замены как есть. */
 class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
-    override val file get() = prefs.userReplaceFile
+    override val kind = Dicts.Kind.REPLACE
     override val emptyHintRes = R.string.replace_empty_hint
     override val helpRes = R.string.replace_help
     override val helpTitleRes = R.string.tab_replace
 
-    private fun parsed(index: Int) = DictLines.parseReplace(lines[index])
-    override fun isEntry(index: Int) = parsed(index) != null
+    override fun parseLine(line: String) = DictLines.parseReplace(line)
+    @Suppress("UNCHECKED_CAST")
+    private fun parsed(index: Int) = parsedAny(index) as Triple<String, String, Boolean>?
     override fun matches(index: Int, query: String): Boolean {
         val (key, value, _) = parsed(index)!!
         return key.contains(query, ignoreCase = true) || value.contains(query, ignoreCase = true)
@@ -401,7 +595,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             .setPositiveButton(R.string.save) { _, _ ->
                 if (keyField.text?.isNotBlank() == true) {
                     val line = currentLine()
-                    if (editIndex != null) lines[editIndex] = line else lines.add(line)
+                    if (editIndex != null) setLine(editIndex, line) else addLine(line)
                     refresh(); persist()
                 }
             }
