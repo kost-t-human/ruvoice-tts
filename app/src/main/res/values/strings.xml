@@ -93,6 +93,7 @@
 
     <!-- Правила: rule_<ключ Rules.KEYS> и rule_<ключ>_hint, секции rules_section_<имя> -->
     <string name="rules_hint">Что движок делает с текстом перед озвучиванием. Выключенное правило оставляет текст как есть. Эффект видно в «Разборе» на вкладке «Голос».</string>
+    <string name="rules_section_misc">Разное</string>
     <string name="rules_section_numbers">Числа</string>
     <string name="rules_section_abbrev">Сокращения и латиница</string>
     <string name="rules_section_split">Разбиение текста</string>
@@ -103,10 +104,16 @@
     <string name="max_len_hint">Предложение длиннее этого режется по запятой или пробелу и синтезируется по частям. От 100 до 900.</string>
     <string name="chars_suffix">симв.</string>
 
+    <string name="rule_drop_links">Пропускать ссылки</string>
+    <string name="rule_drop_links_hint">Адреса «https://…» и «www.…» не читаются вовсе. Выключено: ссылка читается по частям — «гитхаб точка ком слэш …».</string>
+    <string name="rule_drop_emails">Пропускать почту</string>
+    <string name="rule_drop_emails_hint">Адреса «кто-то@где-то.ру» не читаются вовсе. Выключено: «мейл собака ексампл точка ком».</string>
+    <string name="rule_read_links">Ссылки и почта по частям</string>
+    <string name="rule_read_links_hint">«ya.ru/page?id=42» → «йа точка ру слэш пейдж вопрос ай ди равно четыре два». Выключено: адрес читается как попало, цифры внутри не трогаются.</string>
     <string name="rule_numbers">Числа словами</string>
     <string name="rule_numbers_hint">21 → «двадцать один», 3,5 → «три целых пять десятых», 10 % → «десять процентов», № и §. Базовое правило: без него цифры пропадают из речи, а остальные правила чисел теряют смысл.</string>
     <string name="rule_cases">Падеж числительного</string>
-    <string name="rule_cases_hint">По предлогу или соседнему слову: «около 500 рублей» → «пятисот», «2 книги» → «две», «с 5 друзьями» → «пятью».</string>
+    <string name="rule_cases_hint">По предлогу или соседнему слову: «около 500 рублей» → «пятисот», «1 книга» → «одна», «2 книги» → «две», «с 5 друзьями» → «пятью».</string>
     <string name="rule_roman">Римские цифры</string>
     <string name="rule_roman_hint">С подсказкой рядом или целиком заглавные: «XX век» → «двадцатый», «глава IV», «том II».</string>
     <string name="rule_roman_name">Римское число после имени</string>
@@ -133,6 +140,8 @@
     <string name="rule_gen_suffix_hint">«5-ти» → «пяти», «2-ух» → «двух», «3-х» → «трёх».</string>
     <string name="rule_sections">Номера разделов</string>
     <string name="rule_sections_hint">«2.10.3» → «два точка десять точка три». Два числа через точку («1.2») остаются дробью или датой.</string>
+    <string name="rule_arith">Арифметика</string>
+    <string name="rule_arith_hint">«2 + 3 = 5» → «два плюс три равно пять», также «×», «÷», «^» и минус перед «=».</string>
     <string name="rule_thousands">Разряды тысяч</string>
     <string name="rule_thousands_hint">«12 345 678» и «1 200 000» читаются одним числом, а не тремя. Выключено: каждая группа цифр отдельно.</string>
     <string name="rule_footnotes">Сноски</string>
@@ -143,6 +152,8 @@
     <string name="rule_spell_cyr_hint">По буквам: «ФСБ» → «эф эс бэ», «МГУ» → «эм гэ у». Выключено: как модель прочитает сама.</string>
     <string name="rule_spell_lat">Аббревиатуры латиницей</string>
     <string name="rule_spell_lat_hint">По буквам: «USB» → «ю эс би», «FBI» → «эф би ай».</string>
+    <string name="rule_letter_digit">Латинская буква при цифре</string>
+    <string name="rule_letter_digit_hint">Названием буквы: «5800X» → «пять тысяч восемьсот экс», «5800X3D» → «… экс три ди», «GPT-4o» → «… четыре оу», «1080p» → «… пи».</string>
     <string name="rule_latin">Латинские слова</string>
     <string name="rule_latin_hint">Транслитерация: «iphone» → «айфон», «sherlock» → «шерлок». Выключено: латинские буквы выпадают из речи.</string>
     <string name="rule_homoglyphs">Латинская буква в русском слове</string>

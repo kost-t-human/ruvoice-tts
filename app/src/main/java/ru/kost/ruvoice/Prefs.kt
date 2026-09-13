@@ -26,7 +26,7 @@ class Prefs(private val context: Context) {
     var quotePitch: Float get() = p.getFloat("quote_pitch", 1f); set(v) = p.edit().putFloat("quote_pitch", v).apply()
     /** Распознавать прямую речь (отдельный голос/темп/высота); по умолчанию выключено. */
     var quoteOn: Boolean get() = p.getBoolean("quote_on", false); set(v) = p.edit().putBoolean("quote_on", v).apply()
-    /** Выключенные правила вкладки «Правила» — ключи Rules.KEYS через запятую. */
+    /** Переключённые относительно умолчания правила вкладки «Правила» — ключи Rules.KEYS через запятую. */
     var rulesOff: Set<String>
         get() = p.getString("rules_off", "")!!.split(',').filter { it in Rules.KEYS }.toSet()
         set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()

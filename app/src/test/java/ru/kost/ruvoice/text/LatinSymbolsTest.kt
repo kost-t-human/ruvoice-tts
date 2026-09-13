@@ -60,7 +60,7 @@ class LatinSymbolsTest {
     @Test fun prepareWholePipeline() {
         assertEquals("в две тысячи двадцать четвёртом году вышел айфон пятнадцать.",
             Normalizer.prepare("В 2024-м году вышел iPhone 15.", allowed))
-        assertEquals("глава три. конец.", Normalizer.prepare("  Глава  3.   Конец.  ", allowed))
+        assertEquals("глава третья. конец.", Normalizer.prepare("  Глава  3.   Конец.  ", allowed))
     }
 
     // Контракт нормализатора (спецификация §2): Normalizer.prepare на golden.json обязан

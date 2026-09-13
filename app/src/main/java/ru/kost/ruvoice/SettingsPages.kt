@@ -206,10 +206,10 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     override fun load(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
         list.removeAllViews()
-        val off = prefs.rulesOff
+        val rules = Rules(prefs.rulesOff)
         val inflater = LayoutInflater.from(v.context)
         for ((i, key) in Rules.KEYS.withIndex()) {
-            Rules.SECTIONS[i]?.let { section ->
+            Rules.SECTIONS[key]?.let { section ->
                 list.addView(TextView(v.context, null, 0, R.style.Section).apply { setText(res("rules_section_$section")) },
                     LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                         .apply { topMargin = if (i == 0) 0 else (24 * resources.displayMetrics.density).toInt() })
@@ -219,7 +219,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             row.findViewById<TextView>(R.id.hint).setText(res("rule_${key}_hint"))
             val toggle = row.findViewById<MaterialSwitch>(R.id.toggle)
             toggle.tag = key
-            toggle.isChecked = key !in off
+            toggle.isChecked = rules.on(key)
             row.setOnClickListener { toggle.toggle() }
             list.addView(row)
             // поле силы ударения — сразу под своим тумблером
@@ -233,7 +233,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     override fun save(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
         prefs.rulesOff = (0 until list.childCount).mapNotNull { list.getChildAt(it).findViewById<MaterialSwitch>(R.id.toggle) }
-            .filter { !it.isChecked }.map { it.tag as String }.toSet()
+            .filter { it.isChecked == (it.tag in Rules.DEFAULT_OFF) }.map { it.tag as String }.toSet()
         prefs.maxLen = (v.findViewById<EditText>(R.id.maxLen).str().toIntOrNull() ?: Rules.MAX_LEN_DEFAULT)
             .coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX)
         prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)

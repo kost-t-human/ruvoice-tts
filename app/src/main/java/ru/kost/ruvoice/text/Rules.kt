@@ -1,12 +1,13 @@
 package ru.kost.ruvoice.text
 
 /**
- * Переключатели правил обработки текста (вкладка «Правила»). Всё включено по умолчанию,
- * off — ключи выключенных правил; maxLen — предел длины куска для синтеза (Splitter.sentences).
+ * Переключатели правил обработки текста (вкладка «Правила»). Всё включено по умолчанию, кроме
+ * DEFAULT_OFF; off — ключи, переключённые относительно умолчания (для DEFAULT_OFF — включённые);
+ * maxLen — предел длины куска для синтеза (Splitter.sentences).
  * Ключи и их порядок в UI — KEYS; подписи к ним лежат в strings.xml как rule_<key> / rule_<key>_hint.
  */
 class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT, val focus: Int = FOCUS_DEFAULT) {
-    fun on(key: String) = key !in off
+    fun on(key: String) = (key in off) == (key in DEFAULT_OFF)
     /** Сила логического ударения `*слово*` для focus_mask модели; 0 — правило выключено. */
     val focusLevel get() = if (on("focus")) focus.coerceIn(FOCUS_MIN, FOCUS_MAX) else 0
 
@@ -19,16 +20,21 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         const val FOCUS_MIN = 1
         const val FOCUS_MAX = 3
 
-        /** Ключ → секция UI. Порядок списка = порядок на экране. */
+        /** Правила, выключенные по умолчанию. */
+        val DEFAULT_OFF = setOf("drop_links", "drop_emails")
+
+        /** Порядок списка = порядок на экране. Секция «Разное» вверху — для настроек без своего раздела. */
         val KEYS = listOf(
-            "numbers", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
+            "drop_links", "drop_emails", "read_links",
+            "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
-            "abbrev", "spell_cyr", "spell_lat", "latin", "homoglyphs",
+            "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
             "dehyphen", "soft_break", "punct", "ssml",
             "homo", "accentor", "intonation", "focus",
             "pause_semicolon",
         )
-        /** Индексы KEYS, с которых начинается новая секция, и её заголовок (см. strings.xml). */
-        val SECTIONS = mapOf(0 to "numbers", 17 to "abbrev", 22 to "split", 26 to "stress", 30 to "audio")
+        /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */
+        val SECTIONS = mapOf("drop_links" to "misc", "numbers" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
+            "homo" to "stress", "pause_semicolon" to "audio")
     }
 }

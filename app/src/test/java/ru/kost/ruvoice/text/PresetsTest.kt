@@ -50,9 +50,11 @@ class PresetsTest {
     }
 
     @Test fun romanCenturyAbbreviation() {
-        assertTrue(p("в XX в.").contains("двадцатый век"))
-        // первый токен диапазона остаётся количественным — принятый потолок
-        assertEquals("девятнадцать–двадцатые века", n("XIX–XX вв."))
+        assertTrue(p("в XX в.").contains("двадцатом веке"))
+        assertEquals("девятнадцатый – двадцатый века", n("XIX–XX вв."))
+        assertEquals("в пятнадцатом - шестнадцатом веках", n("В XV-XVI вв.").lowercase())
+        assertEquals("к четвёртому кварталу", n("К IV кв.").lowercase())
+        assertEquals("главы четвёртая и пятая", n("Главы IV и V").lowercase())
     }
 
     @Test fun symbols() {

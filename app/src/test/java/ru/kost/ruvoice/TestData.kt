@@ -4,7 +4,7 @@ import org.json.JSONArray
 import java.io.File
 
 object TestData {
-    private fun root(): File {
+    fun root(): File {
         var f = File(System.getProperty("user.dir"))
         while (!File(f, "app/src/main/assets/silero/silero_ru.json").exists()) f = f.parentFile ?: error("нет silero_ru.json")
         return f

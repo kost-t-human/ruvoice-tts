@@ -46,7 +46,7 @@ object Abbrev {
         'Ы' to "ы", 'Ь' to "мягкий знак", 'Э' to "э", 'Ю' to "ю", 'Я' to "я"
     )
 
-    private val latLetterNames = mapOf(
+    val latLetterNames = mapOf(
         'A' to "эй", 'B' to "би", 'C' to "си", 'D' to "ди", 'E' to "и", 'F' to "эф",
         'G' to "джи", 'H' to "эйч", 'I' to "ай", 'J' to "джей", 'K' to "кей", 'L' to "эл",
         'M' to "эм", 'N' to "эн", 'O' to "оу", 'P' to "пи", 'Q' to "кью", 'R' to "ар",

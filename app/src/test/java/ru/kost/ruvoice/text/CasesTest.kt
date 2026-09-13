@@ -72,8 +72,12 @@ class CasesTest {
         assertEquals("два стола", n("2 стола"))
     }
 
-    @Test fun unitAbbreviationStaysCardinal() {
-        assertEquals("в пять километров", n("в 5 км"))
+    @Test fun unitAfterV() {
+        // «в 5 км (от города)» — предложный; «весом в 300 г», «в 3 ч» — винительный = именительный.
+        assertEquals("в пяти километрах", n("в 5 км"))
+        assertEquals("в ста граммах продукта", n("в 100 г продукта"))
+        assertEquals("весом в триста граммов", n("весом в 300 г"))
+        assertEquals("в три часа", n("в 3 ч"))
     }
 
     @Test fun unitAfterGenitiveTrigger() {
