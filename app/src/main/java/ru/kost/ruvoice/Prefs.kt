@@ -15,6 +15,8 @@ class Prefs(private val context: Context) {
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
     /** Выгружать модели по простою; выключено — держать в памяти, пока жив сервис. */
     var idleOn: Boolean get() = p.getBoolean("idle_on", true); set(v) = p.edit().putBoolean("idle_on", v).apply()
+    /** Справка «Как включить» показана при первом запуске. */
+    var setupShown: Boolean get() = p.getBoolean("setup_shown", false); set(v) = p.edit().putBoolean("setup_shown", v).apply()
     /** Множители темпа/высоты поверх того, что просит читалка; 1 — без изменений. */
     var rate: Float get() = p.getFloat("rate", 1f); set(v) = p.edit().putFloat("rate", v).apply()
     var pitch: Float get() = p.getFloat("pitch", 1f); set(v) = p.edit().putFloat("pitch", v).apply()

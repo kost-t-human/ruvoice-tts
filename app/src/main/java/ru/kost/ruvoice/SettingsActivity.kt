@@ -1,5 +1,7 @@
 package ru.kost.ruvoice
 
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -75,8 +77,11 @@ class SettingsActivity : AppCompatActivity() {
             root.post { showSnackbar(getString(R.string.import_done)) }
         }
 
+        if (!prefs.setupShown) { prefs.setupShown = true; root.post { showSetupHelp() } }
+
         findViewById<MaterialToolbar>(R.id.toolbar).setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.setup_help -> { showSetupHelp(); true }
                 R.id.about -> {
                     val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.about_title)
@@ -107,6 +112,17 @@ class SettingsActivity : AppCompatActivity() {
             override fun createFragment(position: Int): Fragment = pages[position].second()
         }
         TabLayoutMediator(findViewById<TabLayout>(R.id.tabs), pager) { tab, i -> tab.setText(pages[i].first) }.attach()
+    }
+
+    /** «Как включить»: путь к системному экрану синтеза речи и объяснение стандартного
+     * предупреждения Android про сторонний движок. Показывается при первом запуске и из меню. */
+    fun showSetupHelp() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.setup_title)
+            .setMessage(R.string.setup_text)
+            .setPositiveButton(R.string.setup_open) { _, _ -> openSysTtsSettings(findViewById(R.id.root)) }
+            .setNegativeButton(R.string.setup_ok, null)
+            .show()
     }
 
     /** Сохраняет поля всех сейчас созданных страниц (обычно это видимая и её соседи по
@@ -203,5 +219,14 @@ class SettingsActivity : AppCompatActivity() {
         // internal: PageFragment.onPause читает его, чтобы не затирать только что
         // импортированные файлы устаревшими полями старых фрагментов при recreate().
         internal const val EXTRA_IMPORT_DONE = "import_done"
+    }
+}
+
+/** Системный экран «Синтез речи»; на прошивке без него — Snackbar на [anchor]. */
+fun Context.openSysTtsSettings(anchor: View) {
+    try {
+        startActivity(Intent("com.android.settings.TTS_SETTINGS"))
+    } catch (e: ActivityNotFoundException) {
+        Snackbar.make(anchor, R.string.sys_settings_missing, Snackbar.LENGTH_LONG).show()
     }
 }

@@ -82,6 +82,11 @@
     <string name="cancel">Отмена</string>
     <string name="export_done">Настройки экспортированы</string>
     <string name="import_done">Настройки импортированы</string>
+    <string name="setup_title">Как включить</string>
+    <string name="setup_text">RuVoice — движок для системы, сам он книги не читает. Чтобы им заговорили читалки:\n\n1. Настройки Android → Система → Язык и ввод → Синтез речи (на Xiaomi: Расширенные настройки → Язык и ввод). Кнопка «Открыть настройки речи» ведёт прямо туда.\n\n2. Предпочитаемый движок → RuVoice TTS.\n\n3. Android предупредит, что движок «может собирать весь произносимый текст, включая пароли и номера карт». Это стандартная фраза для любого стороннего движка, система показывает её всем одинаково. У RuVoice нет ни одного разрешения, интернет ему не нужен, ничего никуда не отправляется: модель и синтез целиком на телефоне.\n\n4. В читалке выбрать движок RuVoice TTS или «системный по умолчанию».\n\nГолос, паузы, словари и правила настраиваются здесь, на вкладках. Эта справка открывается ссылкой вверху вкладки «Голос» и из меню.</string>
+    <string name="setup_link">Как включить движок в Android</string>
+    <string name="setup_open">Открыть настройки речи</string>
+    <string name="setup_ok">Понятно</string>
     <string name="about_title">О программе</string>
     <string name="close">Закрыть</string>
     <string name="about">RuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>

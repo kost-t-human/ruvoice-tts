@@ -70,7 +70,8 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             quoteGroup.visibility = if (isChecked) View.VISIBLE else View.GONE
             setOnCheckedChangeListener { _, on -> quoteGroup.visibility = if (on) View.VISIBLE else View.GONE }
         }
-        v.findViewById<Button>(R.id.sysTtsSettings).setOnClickListener { openSysTtsSettings() }
+        v.findViewById<Button>(R.id.sysTtsSettings).setOnClickListener { requireContext().openSysTtsSettings(v) }
+        v.findViewById<TextView>(R.id.setupHelp).setOnClickListener { (activity as? SettingsActivity)?.showSetupHelp() }
         val previewText = v.findViewById<EditText>(R.id.previewText)
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
 
@@ -131,13 +132,6 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             getString(R.string.sys_values, read("tts_default_rate"), read("tts_default_pitch"))
     }
 
-    private fun openSysTtsSettings() {
-        try {
-            startActivity(Intent("com.android.settings.TTS_SETTINGS"))
-        } catch (e: ActivityNotFoundException) {
-            Snackbar.make(requireView(), R.string.sys_settings_missing, Snackbar.LENGTH_LONG).show()
-        }
-    }
 
     // Разбор на сегменты и их нормализация читают словари с диска (SileroModels.data,
     // Normalizer) — считаем в фоновом потоке, диалог показываем на UI-потоке.
