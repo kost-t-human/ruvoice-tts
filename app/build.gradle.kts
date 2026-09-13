@@ -35,6 +35,8 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release")
         }
+        // debug тем же ключом: ставится поверх релиза с телефона без удаления настроек и словарей
+        debug { signingConfigs.findByName("release")?.let { signingConfig = it } }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

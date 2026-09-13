@@ -29,9 +29,11 @@ class Prefs(private val context: Context) {
         get() = p.getString("rules_off", "")!!.split(',').filter { it in Rules.KEYS }.toSet()
         set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()
     var maxLen: Int get() = p.getInt("max_len", Rules.MAX_LEN_DEFAULT); set(v) = p.edit().putInt("max_len", v).apply()
+    var focusLevel: Int get() = p.getInt("focus_level", Rules.FOCUS_DEFAULT); set(v) = p.edit().putInt("focus_level", v).apply()
 
     /** Правила для пайплайна: выключенные тумблеры плюс «прямая речь» с вкладки «Голос». */
-    fun rules() = Rules(rulesOff + (if (quoteOn) emptySet() else setOf("speech")), maxLen.coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX))
+    fun rules() = Rules(rulesOff + (if (quoteOn) emptySet() else setOf("speech")), maxLen.coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX),
+        focusLevel.coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX))
 
     val userDictFile: File get() = File(context.filesDir, "user_stress.txt")
     val userReplaceFile: File get() = File(context.filesDir, "user_replace.txt")
@@ -72,6 +74,7 @@ class Prefs(private val context: Context) {
             "quote_on" to quoteOn,
             "rules_off" to rulesOff.joinToString(","),
             "max_len" to maxLen,
+            "focus_level" to focusLevel,
         )
         val stress = if (userDictFile.exists()) userDictFile.readText() else ""
         val replace = if (userReplaceFile.exists()) userReplaceFile.readText() else ""
@@ -102,6 +105,7 @@ class Prefs(private val context: Context) {
         (prefsMap["quote_on"] as? Boolean)?.let { quoteOn = it }
         (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
+        (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
         parsed.stress?.let { userDictFile.writeText(it) }
         parsed.replace?.let { userReplaceFile.writeText(it) }
     }

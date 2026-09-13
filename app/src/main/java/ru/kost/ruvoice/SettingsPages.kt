@@ -17,6 +17,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import ru.kost.ruvoice.text.Marks
 import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.Rules
 
@@ -153,7 +154,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
                         if (seg.speech) marks += " [речь]"
                         if (seg.paragraph) marks += " [¶]"
                         appendLine(seg.text + marks)
-                        appendLine("→ " + Normalizer.prepare(seg.text, d.allowed, rules))
+                        appendLine("→ " + Normalizer.prepare(Marks.parse(seg.text).text, d.allowed, rules))
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()
                     }
@@ -224,6 +225,10 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             toggle.isChecked = key !in off
             row.setOnClickListener { toggle.toggle() }
             list.addView(row)
+            // поле силы ударения — сразу под своим тумблером
+            if (key == "focus") list.addView(inflater.inflate(R.layout.item_focus_level, list, false).apply {
+                findViewById<EditText>(R.id.focusLevel).setText(prefs.focusLevel.toString())
+            })
         }
         v.findViewById<EditText>(R.id.maxLen).setText(prefs.maxLen.toString())
     }
@@ -234,5 +239,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             .filter { !it.isChecked }.map { it.tag as String }.toSet()
         prefs.maxLen = (v.findViewById<EditText>(R.id.maxLen).str().toIntOrNull() ?: Rules.MAX_LEN_DEFAULT)
             .coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX)
+        prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)
+            .coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX)
     }
 }

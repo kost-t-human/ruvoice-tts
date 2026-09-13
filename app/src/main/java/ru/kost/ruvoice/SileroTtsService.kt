@@ -9,15 +9,22 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import android.speech.tts.Voice
 import android.util.Log
-import ru.kost.ruvoice.audio.Pauses
 import ru.kost.ruvoice.audio.Pcm
 import ru.kost.ruvoice.audio.Tempo
 import ru.kost.ruvoice.text.*
 import java.util.Locale
 
 object Pipeline {
-    // Маркер паузы: {pause:N}, N — мс, режет текст сегмента на куски (см. plan ниже).
-    private val pauseMarker = Regex("\\{pause:(\\d+)\\}")
+    // Маркер паузы {pause:N} (N — мс) на границе предложений режет текст сегмента на куски
+    // с тишиной между ними (см. plan ниже); внутри предложения остаётся в тексте, и Marks
+    // делает из него запятую заданной длины — фраза синтезируется целиком, с интонацией.
+    private val pauseMarker = Marks.pauseRe
+    private val sentenceTail = Regex("[.!?…]$|\\{pause:\\d+\\}$")
+    private fun isBoundary(txt: String, m: MatchResult): Boolean {
+        val before = txt.substring(0, m.range.first).trimEnd()
+        val after = txt.substring(m.range.last + 1).trimStart()
+        return before.isEmpty() || sentenceTail.containsMatchIn(before) || after.isEmpty() || pauseMarker.matchAt(after, 0) != null
+    }
     // Прямая речь: после trim — тире/дефис с пробелом или открывающая кавычка.
     private val speechStart = Regex("^([—–-]\\s|[«\"“„])")
     // Тире + строчная буква в начале — авторский хвост, который Splitter отрезал по «!»/«?»
@@ -28,9 +35,23 @@ object Pipeline {
     // «. —»), перед тире внутри самой реплики («— Нам пора — уже поздно.») — нет, по нему не режем.
     private val speechDash = Regex("(?<=[,.!?…»\"“”])\\s[—–-]\\s")
     private fun speechPieces(s: String, rules: Rules): List<Pair<String, Boolean>> {
-        val t = s.trim()
-        if (!rules.on("speech") || !speechStart.containsMatchIn(t) || authorStart.containsMatchIn(t)) return listOf(t to false)
-        return speechDash.split(t).mapIndexed { i, p -> p to (i % 2 == 0) }
+        val t0 = s.trim()
+        // маркер {prosody} перед репликой (из SSML) — не часть текста, тире ищем за ним
+        val prefix = Marks.prosodyRe.matchAt(t0, 0)?.value ?: ""
+        val t = t0.substring(prefix.length)
+        if (!rules.on("speech") || !speechStart.containsMatchIn(t) || authorStart.containsMatchIn(t)) return listOf(t0 to false)
+        return speechDash.split(t).mapIndexed { i, p -> (if (i == 0) prefix + p else p) to (i % 2 == 0) }
+    }
+
+    /** Маркер {prosody:R:P} действует до следующего; после разбиения на предложения его надо
+     * повторить в начале каждого следующего сегмента, пока не встретится сброс. */
+    private fun carryProsody(segments: List<Segment>): List<Segment> {
+        var state: String? = null
+        return segments.map { seg ->
+            val text = if (state != null && seg.text.isNotBlank() && Marks.prosodyRe.matchAt(seg.text, 0) == null) state + seg.text else seg.text
+            Marks.prosodyRe.findAll(seg.text).lastOrNull()?.let { state = it.value.takeIf { v -> v != "{prosody}" } }
+            if (text === seg.text) seg else seg.copy(text = text)
+        }
     }
 
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
@@ -45,8 +66,14 @@ object Pipeline {
             // Замены — до разбиения на предложения; маркер {pause:N} (пришедший из замены или
             // стоявший прямо в тексте) режет результат на куски, между которыми — пауза N мс.
             val txt = replacements.apply(seg.text)
-            val pieces = pauseMarker.split(txt)
-            val pauses = pauseMarker.findAll(txt).map { m -> m.groupValues[1].toLongOrNull()?.coerceIn(0, 10000)?.toInt() ?: 10000 }.toList()
+            val pieces = ArrayList<String>(); val pauses = ArrayList<Int>()
+            var from = 0
+            for (m in pauseMarker.findAll(txt)) {
+                if (!isBoundary(txt, m)) continue
+                pieces += txt.substring(from, m.range.first); from = m.range.last + 1
+                pauses += m.groupValues[1].toLongOrNull()?.coerceIn(0, 10000)?.toInt() ?: 10000
+            }
+            pieces += txt.substring(from)
             for ((pi, piece) in pieces.withIndex()) {
                 val lastPiece = pi == pieces.size - 1
                 val sents = Splitter.sentences(piece, rules)
@@ -65,7 +92,7 @@ object Pipeline {
                     val parts = speechPieces(s, rules)
                     for ((k, part) in parts.withIndex()) {
                         val lastPart = k == parts.size - 1
-                        out += Segment(part.first, seg.rate, seg.pitch, breakMs = if (lastPart) breakMs else 0,
+                        out += Segment(part.first, breakMs = if (lastPart) breakMs else 0,
                             paragraph = lastPart && last && seg.paragraph, speech = part.second)
                     }
                 }
@@ -75,12 +102,12 @@ object Pipeline {
                         // в предыдущий добавленный сегмент, а если его ещё нет — заводим пустой
                         val n = pauses[pi]
                         if (out.isNotEmpty()) out[out.size - 1] = out.last().copy(breakMs = out.last().breakMs + n)
-                        else out += Segment("", seg.rate, seg.pitch, breakMs = n)
+                        else out += Segment("", breakMs = n)
                     } else if (seg.breakMs > 0) out += seg.copy(text = "")
                 }
             }
         }
-        return out
+        return carryProsody(out)
     }
 }
 
@@ -105,7 +132,7 @@ class SileroTtsService : TextToSpeechService() {
         synchronized(models) {
             models.ensureLoaded()
             val seq = models.data.sequence("прив+ет.")
-            models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size))
+            models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size), LongArray(seq.size), emptyMap())
         }
         scheduleUnload()
     }
@@ -170,45 +197,67 @@ class SileroTtsService : TextToSpeechService() {
             val quoteRate = prefs.quoteRate
             val quotePitch = prefs.quotePitch
             val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
+            // Пауза после запятой — явная длительность самой запятой в кадрах модели (Marks.frames).
+            val commaIds = if (prefs.commaPauseMs <= 0) emptySet() else listOfNotNull(d.symbolToId[','],
+                *(if (rules.on("pause_semicolon")) arrayOf(d.symbolToId[';'], d.symbolToId[':']) else emptyArray())).toHashSet()
+            val commaFrames = Marks.frames(prefs.commaPauseMs)
+            // Слова запроса для подсветки читаемого слова (rangeStart): ключ и смещения в тексте.
+            // SSML-теги и маркеры заменяются пробелами той же длины, чтобы смещения не поехали.
+            val srcText = request.charSequenceText.toString().let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }
+                .let { Marks.blank(it) }
+            val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), it.range.first, it.range.last + 1) }.toList()
+            val matcher = Marks.Matcher(srcWords.map { it.first })
+            var written = 0L // сэмплов отдано читалке — точка отсчёта markerInFrames
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             for (seg in segments) {
                 if (stopped) break
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
                 // по этому же тексту — так и надо.
-                val prepared = Normalizer.prepare(seg.text, d.allowed, rules)
+                val marks = Marks.parse(seg.text, rules.focusLevel)
+                val prepared = Normalizer.prepare(marks.text, d.allowed, rules)
                 if (prepared.any { it != '+' && it in d.alphabet }) {
                     // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
                     // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
-                    val audio = synchronized(models) {
+                    val synth = synchronized(models) {
                         try {
                             models.ensureLoaded()
                             val accented = stress.apply(prepared)
                             val seq = d.sequence(accented)
-                            val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(seg.text, d, rules), seq.size, d)
+                            val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
                             val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
-                            val curPitch = pitch * seg.pitch * (if (seg.speech) quotePitch else 1f)
-                            val synth = models.synthesize(seq, curSpeakerId, sr, FloatArray(seq.size) { seg.rate }, FloatArray(seq.size) { curPitch }, typeIds)
-                            if (prefs.commaPauseMs > 0) {
-                                // seq = sos + accented + eos, индексы совпадают с durs напрямую.
-                                val commaIds = listOfNotNull(d.symbolToId[','],
-                                    *(if (rules.on("pause_semicolon")) arrayOf(d.symbolToId[';'], d.symbolToId[':']) else emptyArray())).toHashSet()
-                                val pauseIdx = seq.indices.filter { seq[it].toInt() in commaIds }.toIntArray()
-                                Pauses.insert(synth.audio, synth.durs, pauseIdx, sr * prefs.commaPauseMs / 1000)
-                            } else synth.audio
+                            val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
+                            val al = Marks.align(marks.words, accented, seq.size, d)
+                            for (i in al.pitches.indices) al.pitches[i] *= curPitch
+                            // seq = sos + accented + eos, индексы совпадают с durs напрямую.
+                            val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
+                            Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs), Marks.tokens(accented, d))
                         } catch (e: Throwable) {
                             // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
                             Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
                         }
                     }
-                    if (audio != null) {
+                    if (synth != null) {
+                        val (out, tokens) = synth
+                        val audio = out.audio
                         Pcm.fadeEdges(audio, sr, 5)
                         val segRate = rate * (if (seg.speech) quoteRate else 1f)
                         val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)
+                        // Границы слов: сумма durs до первого символа слова × сэмплов на кадр, после
+                        // Sonic — в пропорции длин. Слово, которого нет в запросе (число, сокращение,
+                        // латиница), подсветку не двигает.
+                        val perFrame = pcm.size.toDouble() / out.durs.sum()
+                        val cum = DoubleArray(out.durs.size + 1)
+                        for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
+                        for (t in tokens) {
+                            val j = matcher.next(t.key)
+                            if (j >= 0) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
+                        }
                         if (!write(callback, pcm)) return
+                        written += pcm.size
                         Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                     }
                 }
-                if (seg.breakMs > 0) if (!write(callback, Pcm.silence(sr, seg.breakMs))) return
+                if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
             }
             callback.done()
             Log.i(SileroModels.TAG, "запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., ${System.currentTimeMillis() - t0} мс")

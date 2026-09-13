@@ -67,14 +67,20 @@ class SileroModels(private val context: Context) : StressModels {
     /** durs[i] — число фреймов, занятых i-м входным символом seq (включая sos/eos). */
     data class Synth(val audio: FloatArray, val durs: FloatArray)
 
-    fun synthesize(seq: LongArray, speakerId: Int, sampleRate: Int, rates: FloatArray, pitches: FloatArray, typeIds: LongArray): Synth {
+    /**
+     * rates/pitches — коэффициенты темпа и высоты по символам (durs_rate, pitch_coefs; высота 0 —
+     * «робот»), focus — логическое ударение по символам (focus_mask, 0..3), symbDurs — явная
+     * длительность символа в кадрах (symb_durs: индекс в seq → кадры по 12.5 мс), паузы модели.
+     */
+    fun synthesize(seq: LongArray, speakerId: Int, sampleRate: Int, rates: FloatArray, pitches: FloatArray, typeIds: LongArray,
+                   focus: LongArray, symbDurs: Map<Long, Long>): Synth {
         ensureLoaded()
         val n = seq.size.toLong()
         val out = tts!!.forward(
             IValue.from(Tensor.fromBlob(seq, longArrayOf(1, n))),
             IValue.from(Tensor.fromBlob(longArrayOf(speakerId.toLong()), longArrayOf(1))),
             IValue.from(sampleRate.toLong()),
-            IValue.optionalNull(),
+            if (symbDurs.isEmpty()) IValue.optionalNull() else IValue.dictLongKeyFrom(symbDurs.mapValues { IValue.from(it.value) }),
             IValue.from(Tensor.fromBlob(rates, longArrayOf(1, n))),
             IValue.from(Tensor.fromBlob(pitches, longArrayOf(1, n))),
             IValue.optionalNull(),
@@ -83,7 +89,7 @@ class SileroModels(private val context: Context) : StressModels {
             IValue.from(-1L),
             IValue.from(false),
             IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n))),
-            IValue.optionalNull()
+            if (focus.all { it == 0L }) IValue.optionalNull() else IValue.from(Tensor.fromBlob(focus, longArrayOf(1, n)))
         ).toTuple()
         return Synth(out[0].toTensor().dataAsFloatArray, out[1].toTensor().dataAsFloatArray)
     }

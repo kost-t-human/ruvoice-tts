@@ -1,15 +1,19 @@
 package ru.kost.ruvoice.text
 
-data class Segment(val text: String, val rate: Float = 1f, val pitch: Float = 1f, val breakMs: Int = 0, val paragraph: Boolean = false, val speech: Boolean = false)
+/** Темп/высота <prosody> и <emphasis> живут прямо в text как маркеры Marks ({prosody:R:P}, *слово*). */
+data class Segment(val text: String, val breakMs: Int = 0, val paragraph: Boolean = false, val speech: Boolean = false)
 
 object Ssml {
     private val strength = mapOf("x-weak" to 25, "weak" to 75, "medium" to 150, "strong" to 300, "x-strong" to 1000)
     private val rateWords = mapOf("x-slow" to 0.5f, "slow" to 0.8f, "medium" to 1f, "fast" to 1.2f, "x-fast" to 1.5f)
     // Таблица пакета Silero (pitch2value), не показатели SSML-стандарта.
-    private val pitchWords = mapOf("x-low" to 0.75f, "low" to 0.85f, "medium" to 1f, "high" to 1.15f, "x-high" to 1.25f)
+    private val pitchWords = mapOf("x-low" to 0.75f, "low" to 0.85f, "medium" to 1f, "high" to 1.15f, "x-high" to 1.25f, "robot" to 0f)
     private val tagRe = Regex("<\\?.*?\\?>|<(/?)([a-zA-Z]+)([^>]*?)(/?)>")
     private val attrRe = Regex("([a-zA-Z]+)\\s*=\\s*\"([^\"]*)\"")
     private val entityRe = Regex("&(#x[0-9a-fA-F]+|#[0-9]+|amp|lt|gt|quot|apos);")
+
+    /** Теги → пробелы той же длины: слова остаются на своих смещениях в исходном тексте. */
+    fun blankTags(text: String): String = tagRe.replace(text) { " ".repeat(it.value.length) }
 
     fun isSsml(text: CharSequence): Boolean {
         val t = text.trimStart()
@@ -45,29 +49,41 @@ object Ssml {
         val buf = StringBuilder()
         var rate = 1f; var pitch = 1f
         val stack = ArrayList<Pair<Float, Float>>()
+        // Маркер темпа/высоты ставится перед ближайшим текстом после смены состояния, не сразу
+        // за тегом: «Раз.{prosody} Два.» Splitter не разрезал бы по точке.
+        var pending = false
+        fun marker() = if (rate == 1f && pitch == 1f) "{prosody}" else "{prosody:${Math.round(rate * 100)}:${Math.round(pitch * 100)}}"
+        fun append(chunk: String) {
+            if (pending && chunk.isNotBlank()) {
+                val lead = chunk.length - chunk.trimStart().length
+                buf.append(chunk, 0, lead).append(marker()).append(chunk, lead, chunk.length)
+                pending = false
+            } else buf.append(chunk)
+        }
         fun flush(breakMs: Int = 0, paragraph: Boolean = false) {
             if (buf.isNotEmpty() || breakMs > 0 || paragraph) {
                 if (buf.isEmpty() && out.isNotEmpty()) {
                     val last = out.removeAt(out.size - 1)
                     out += last.copy(breakMs = last.breakMs + breakMs, paragraph = last.paragraph || paragraph)
-                } else out += Segment(buf.toString(), rate, pitch, breakMs, paragraph)
+                } else out += Segment(buf.toString(), breakMs, paragraph)
                 buf.setLength(0)
             }
         }
         var pos = 0
         for (m in tagRe.findAll(text)) {
-            buf.append(decode(text.substring(pos, m.range.first))); pos = m.range.last + 1
+            append(decode(text.substring(pos, m.range.first))); pos = m.range.last + 1
             val closing = m.groupValues[1] == "/"; val name = m.groupValues[2].lowercase(); val a = attrs(m.groupValues[3])
             when (name) {
                 "break" -> flush(breakMs = a["time"]?.let { t -> if (t.endsWith("ms")) t.dropLast(2).trim().toInt() else if (t.endsWith("s")) (t.dropLast(1).trim().toFloat() * 1000).toInt() else t.toInt() } ?: strength[a["strength"] ?: "medium"] ?: 150)
-                "prosody" -> if (closing) { if (stack.isNotEmpty()) { flush(); val (r, p) = stack.removeAt(stack.size - 1); rate = r; pitch = p } }
-                            else { flush(); stack += rate to pitch; a["rate"]?.let { rate = rateValue(it) }; a["pitch"]?.let { pitch = pitchValue(it) } }
+                "prosody" -> if (closing) { if (stack.isNotEmpty()) { val (r, p) = stack.removeAt(stack.size - 1); rate = r; pitch = p; pending = true } }
+                            else { stack += rate to pitch; a["rate"]?.let { rate = rateValue(it) }; a["pitch"]?.let { pitch = pitchValue(it) }; pending = true }
+                "emphasis" -> buf.append('*')
                 "s" -> if (closing) flush()
                 "p" -> if (closing) flush(paragraph = true)
                 else -> {}
             }
         }
-        buf.append(decode(text.substring(pos, text.length)))
+        append(decode(text.substring(pos, text.length)))
         flush()
         return out.filter { it.text.isNotBlank() || it.breakMs > 0 }
     }

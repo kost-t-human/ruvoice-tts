@@ -17,13 +17,31 @@ class PipelineTest {
 
     @Test fun ssmlKeepsProsodyPerSentence() {
         val s = Pipeline.plan("<speak><prosody rate=\"fast\">Раз. Два.</prosody><break time=\"1s\"/></speak>", d, 0, 300)
-        assertEquals(listOf(Segment("Раз.", rate = 1.2f), Segment("Два.", rate = 1.2f, breakMs = 1000)), s)
+        assertEquals(listOf(Segment("{prosody:120:100}Раз."), Segment("{prosody:120:100}Два.", breakMs = 1000)), s)
+    }
+
+    @Test fun prosodyCarriedUntilReset() {
+        val s = Pipeline.plan("<speak><prosody rate=\"fast\">Раз. Два.</prosody> Три. Четыре.</speak>", d, 0, 0)
+        assertEquals(listOf(Segment("{prosody:120:100}Раз."), Segment("{prosody:120:100}Два."), Segment("{prosody}Три."), Segment("Четыре.")), s)
+    }
+
+    @Test fun prosodyBeforeSpeechDash() {
+        val s = Pipeline.plan("<speak><prosody rate=\"fast\">— Привет, — сказал он.</prosody></speak>", d, 0, 0)
+        assertEquals(listOf(Segment("{prosody:120:100}— Привет,", speech = true), Segment("{prosody:120:100}сказал он.")), s)
     }
 
     @Test fun pauseMarkerInPlainTextBecomesBreak() {
         // маркер прямо в исходном тексте, без словаря замен
         val s = Pipeline.plan("Раз.{pause:700}Два.", d, sentencePauseMs = 0, paragraphPauseMs = 300)
         assertEquals(listOf(Segment("Раз.", breakMs = 700), Segment("Два.")), s)
+    }
+
+    @Test fun pauseMarkerInsideSentenceStaysInText() {
+        // внутри предложения маркер не режет — Marks сделает из него запятую заданной длины
+        val s = Pipeline.plan("Он ушёл{pause:500}и всё. Два.", d, sentencePauseMs = 0, paragraphPauseMs = 0)
+        assertEquals(listOf(Segment("Он ушёл{pause:500}и всё."), Segment("Два.")), s)
+        val r = Pipeline.plan("Он ушёл {pause:500} и всё.", d, sentencePauseMs = 0, paragraphPauseMs = 0)
+        assertEquals(listOf(Segment("Он ушёл {pause:500} и всё.")), r)
     }
 
     @Test fun pauseMarkerAtStartProducesEmptyLeadingSegment() {

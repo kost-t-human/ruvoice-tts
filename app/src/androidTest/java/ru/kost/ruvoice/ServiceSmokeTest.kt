@@ -47,4 +47,42 @@ class ServiceSmokeTest {
         tts.shutdown()
         assertEquals(0, errors)
     }
+
+    /** Демо новых входов модели (фокус, пауза в предложении, prosody, робот, подсветка слов) на трёх темпах — файлы для прослушивания. */
+    @Test fun demoMarksAtThreeRates() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val plain = "Он *не* пришёл, хотя обещал. Ждал пять{pause:600}минут и ушёл. " +
+            "{prosody:80:90}Не оборачивайся, он рядом. {prosody}Всё в порядке, в 21:30 вернёмся. {prosody:100:0}Я робот, и это мой голос."
+        // SSML парами «как есть / с тегом», чтобы разница была слышна рядом
+        val ssml = "<speak>Раз, два, три.<break time=\"700ms\"/>Раз, два, <emphasis>три</emphasis>.<break time=\"1s\"/>" +
+            "Медленно и обычно.<break time=\"700ms\"/><prosody rate=\"x-slow\">Медленно и</prosody> обычно.<break time=\"1s\"/>" +
+            "<prosody rate=\"x-fast\">Быстро и</prosody> обычно.<break time=\"1s\"/>" +
+            "Голос робота.<break time=\"700ms\"/><prosody pitch=\"robot\">Голос робота.</prosody><break time=\"1s\"/>" +
+            "<prosody pitch=\"x-high\">Высоко</prosody>, <prosody pitch=\"x-low\">низко</prosody>, обычно.</speak>"
+        val ready = CountDownLatch(1); var status = -1
+        val tts = TextToSpeech(ctx, { s -> status = s; ready.countDown() }, "ru.kost.ruvoice")
+        assertTrue("engine bind timeout", ready.await(60, TimeUnit.SECONDS))
+        assertEquals(TextToSpeech.SUCCESS, status)
+        tts.setLanguage(Locale("ru", "RU"))
+        var errors = 0; val ranges = ArrayList<String>()
+        for (rate in floatArrayOf(1f, 1.5f, 2f)) for ((name, text) in listOf("plain" to plain, "ssml" to ssml)) {
+            val done = CountDownLatch(1)
+            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { done.countDown() }
+                @Deprecated("") override fun onError(id: String?) { errors++; done.countDown() }
+                override fun onError(id: String?, code: Int) { errors++; done.countDown() }
+                override fun onRangeStart(id: String?, a: Int, b: Int, c: Int) { ranges += "$id $a $b $c" }
+            })
+            tts.setSpeechRate(rate)
+            val f = File(ctx.cacheDir, "demo_${name}_$rate.wav")
+            assertEquals(TextToSpeech.SUCCESS, tts.synthesizeToFile(text, Bundle(), f, "$name$rate"))
+            assertTrue("synth timeout $name $rate", done.await(180, TimeUnit.SECONDS))
+            Log.i("RuVoiceTest", "$name rate=$rate bytes=${f.length()} path=${f.path}")
+        }
+        for (r in ranges) Log.i("RuVoiceTest", "range $r")
+        tts.shutdown()
+        assertEquals(0, errors)
+        assertTrue("нет rangeStart", ranges.isNotEmpty())
+    }
 }

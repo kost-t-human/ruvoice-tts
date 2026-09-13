@@ -20,7 +20,7 @@ class SileroModelsTest {
         val seq = m.data.sequence("прив+ет, м+ир.")
         val n = seq.size
         val t1 = System.currentTimeMillis()
-        val audio = m.synthesize(seq, 4, 48000, FloatArray(n) { 1f }, FloatArray(n) { 1f }, LongArray(n)).audio
+        val audio = m.synthesize(seq, 4, 48000, FloatArray(n) { 1f }, FloatArray(n) { 1f }, LongArray(n), LongArray(n), emptyMap()).audio
         val synthMs = System.currentTimeMillis() - t1
         android.util.Log.i("RuVoiceTest", "load=${loadMs}ms synth=${synthMs}ms len=${audio.size / 48}ms rtf=${audio.size / 48f / synthMs}")
         assertTrue(audio.size > 48000 / 2)
