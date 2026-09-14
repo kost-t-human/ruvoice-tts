@@ -82,6 +82,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialToolbar>(R.id.toolbar).setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.setup_help -> { showSetupHelp(); true }
+                R.id.troubleshoot -> { startActivity(Intent(this, TroubleshootActivity::class.java)); true }
                 R.id.about -> {
                     val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.about_title)
@@ -219,6 +220,15 @@ class SettingsActivity : AppCompatActivity() {
         // internal: PageFragment.onPause читает его, чтобы не затирать только что
         // импортированные файлы устаревшими полями старых фрагментов при recreate().
         internal const val EXTRA_IMPORT_DONE = "import_done"
+    }
+}
+
+/** Системный экран «Звук» (эффекты вроде Dolby Atmos живут там); без него — Snackbar на [anchor]. */
+fun Context.openSysSoundSettings(anchor: View) {
+    try {
+        startActivity(Intent(android.provider.Settings.ACTION_SOUND_SETTINGS))
+    } catch (e: ActivityNotFoundException) {
+        Snackbar.make(anchor, R.string.sound_settings_missing, Snackbar.LENGTH_LONG).show()
     }
 }
 

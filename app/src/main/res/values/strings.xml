@@ -108,6 +108,15 @@
     <string name="setup_link">Как включить движок в Android</string>
     <string name="setup_open">Открыть настройки речи</string>
     <string name="setup_ok">Понятно</string>
+    <string name="troubleshoot_title">Решение проблем</string>
+    <string name="troubleshoot_hint">Что делать, когда причина не в движке: в телефоне, читалке или системе. Список пополняется.</string>
+    <string name="back">Назад</string>
+    <string name="ts_fade_title">Начало фразы звучит тихо и нарастает, или рвано</string>
+    <string name="ts_fade_text">Так делают звуковые эффекты телефона: Dolby Atmos, MiSound, эквалайзер, «улучшение звука». Их выравниватель громкости плавно поднимает усиление после тишины, и первое слово после паузы попадает под подъём. Выключить в настройках звука (кнопка ниже), в шторке или в настройках наушников.\n\nЕщё помогает тумблер «Тишина перед фразой» на вкладке «Правила»: плеер Android в первые доли секунды после старта теряет кадры, с тишиной это не попадает на речь.</string>
+    <string name="ts_stutter_title">Звук заикается, телефон не успевает</string>
+    <string name="ts_stutter_text">На вкладке «Голос» поставить частоту 24 000 Гц: синтез вдвое легче, буфер плеера вдвое длиннее, на слух почти не отличается.</string>
+    <string name="troubleshoot_sound">Настройки звука</string>
+    <string name="sound_settings_missing">Экран настроек звука не найден</string>
     <string name="about_title">О программе</string>
     <string name="close">Закрыть</string>
     <string name="about">RuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
@@ -126,6 +135,8 @@
     <string name="chars_suffix">симв.</string>
 
     <string name="rule_letter_name">Одиночная буква по имени</string>
+    <string name="rule_lead_in">Тишина перед фразой</string>
+    <string name="rule_lead_in_hint">300 мс тишины перед первым словом, если с прошлого звука прошло больше 2,5 с. Плеер Android в первые доли секунды после старта теряет кадры, и с тишиной это не попадает на речь. Выключить, если задержка после паузы мешает.</string>
     <string name="rule_letter_name_hint">Запрос из одной буквы (TalkBack: буква под курсором, эхо ввода, клавиша) читается как имя буквы: «б» → «бэ», «ь» → «мягкий знак». Внутри текста буквы-слова не трогаются.</string>
     <string name="rule_drop_links">Пропускать ссылки</string>
     <string name="rule_drop_links_hint">Адреса «https://…» и «www.…» не читаются вовсе. Выключено: ссылка читается по частям — «гитхаб точка ком слэш …».</string>

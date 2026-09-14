@@ -41,5 +41,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <activity android:name=".TroubleshootActivity" android:exported="false" android:label="@string/troubleshoot_title" />
     </application>
 </manifest>
