@@ -126,6 +126,11 @@ class SileroTtsService : TextToSpeechService() {
     private val prefs: Prefs by lazy { Prefs(this) }
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var stopped = false
+    // Аудиовыход телефона уходит в standby через ~3 с тишины, а после пробуждения HAL плавно
+    // поднимает громкость — первое слово фразы выходит тихим. Если с прошлого звука прошло
+    // больше LEAD_GAP_MS, начинаем с LEAD_IN_MS тишины, чтобы подъём пришёлся на неё.
+    // ponytail: пороги под AOSP standby 3 с; сделать настройкой, если на другом телефоне не совпадёт.
+    private var lastAudioAt = 0L
     // Выгрузка на отдельном потоке: release() и synthesize() делят монитор models, поэтому
     // release() просто дождётся текущего forward, а не заблокирует main на его время.
     private val unload = Runnable {
@@ -221,6 +226,7 @@ class SileroTtsService : TextToSpeechService() {
             val matcher = Marks.Matcher(srcWords.map { it.first })
             var written = 0L // сэмплов отдано читалке — точка отсчёта markerInFrames
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
+            if (System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
             for (seg in segments) {
                 if (stopped) break
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
@@ -291,6 +297,12 @@ class SileroTtsService : TextToSpeechService() {
             if (callback.audioAvailable(bytes, off, n) != TextToSpeech.SUCCESS) { stopped = true; return false }
             off += n
         }
+        lastAudioAt = System.currentTimeMillis()
         return true
+    }
+
+    companion object {
+        const val LEAD_GAP_MS = 2500L
+        const val LEAD_IN_MS = 300
     }
 }
