@@ -3,13 +3,16 @@
 (tools/wiki_yo_corpus.py, Википедия); из предложения «ё» стирается, модель ставит её заново.
 Слова делятся по словарю eyo (github.com/e2yo/eyo-kernel, MIT; safe.txt и not_safe.txt рядом с корпусом):
 однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Поверх модели — наши фразы системного словаря
-(tools/phrases_extra.txt), как замены в аппке. Промахи — app/build/yo_eval_miss.txt.
+(tools/phrases_extra.txt), как замены в аппке, и правило «все» + слово только мн. ч. из Stress.gramPass
+(tools/phrases_extra.vse_pick, таблица morph.bin). Промахи — app/build/yo_eval_miss.txt.
 Запуск: <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений]"""
-import os, re, sys, collections, itertools
+import os, re, sys, json, collections, itertools
 from silero_stress import load_accentor
 
 HERE = os.path.dirname(os.path.abspath(__file__)); BUILD = os.path.join(os.path.dirname(HERE), 'app/build')
 sys.path.insert(0, HERE); import phrases_extra as pe
+from aot_morph import Table
+morph = Table(); gram = json.load(open(pe.JSON, encoding='utf-8'))['gram']
 LIMIT = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 word_re = re.compile(r'[а-яё]+')
 # слово → [(regex фразы, смещение слова в фразе, вариант)], длинные фразы раньше, как в homo_eval.py
@@ -51,9 +54,12 @@ for n, sent in enumerate(lines):
     if len(got) != len(orig): st['всего']['предложений не сравнить'] += 1; continue
     low = deyo.lower(); starts = {m.start(): i for i, m in enumerate(word_re.finditer(low))}
     for i, w in enumerate(orig):
-        for p, off, v in phrases.get(w.replace('ё', 'е'), ()):
+        w = w.replace('ё', 'е')
+        for p, off, v in phrases.get(w, ()):
             hit = next((m for m in p.finditer(low) if starts.get(m.start() + off) == i), None)
             if hit: got[i] = v; break
+        else:
+            if w == 'все' and i + 1 < len(orig) and pe.vse_pick(orig[i + 1].replace('ё', 'е'), morph, gram): got[i] = 'все'
     st['всего']['предложений'] += 1
     for o, g in zip(orig, got):
         if 'ё' in o:

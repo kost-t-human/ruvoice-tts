@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.kost.ruvoice.TestData
+import java.io.File
 
 class StressTest {
     private val d = TestData.data()
@@ -111,6 +112,28 @@ class StressTest {
         assertEquals("стены", s.gramPass("стены"))
         // дальше омографы и акцентор слово не трогают
         assertEquals("з+а сел+о", s.apply("за село"))
+    }
+
+    @Test fun gramPassAgreesWithAdjective() {
+        val morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin"))
+        val s = Stress(d, firstVowel, morph = morph)
+        // прилагательное согласуется со словом только в одном числе: мн. или род. ед.; после «две» — род. ед.
+        assertEquals("высокие ст+ены", s.gramPass("высокие стены"))
+        assertEquals("высокой стен+ы", s.gramPass("высокой стены"))
+        assertEquals("эти р+уки", s.gramPass("эти руки"))
+        assertEquals("крупные оз+ёра", s.gramPass("крупные озера"))
+        assertEquals("крупного +озера", s.gramPass("крупного озера"))
+        assertEquals("две толстые ног+и", s.gramPass("две толстые ноги"))
+        // «все» + слово только мн. ч. → «вс+е»; перед ед. ч. и не по таблице — молчим
+        assertEquals("вс+е +окна", s.gramPass("все окна"))
+        assertEquals("Вс+е крупные оз+ёра", s.gramPass("Все крупные озера"))
+        assertEquals("все время", s.gramPass("все время"))
+        assertEquals("все они", s.gramPass("все они"))
+        assertEquals("все новых", s.gramPass("все новых"))
+        assertEquals("всё дома", s.gramPass("всё дома"))
+        // без таблицы — как раньше
+        assertEquals("высокие стены", Stress(d, firstVowel, morph = null).gramPass("высокие стены"))
+        assertEquals("все окна", Stress(d, firstVowel, morph = null).gramPass("все окна"))
     }
 
     @Test fun unsureWordsReported() {

@@ -47,6 +47,8 @@ class Morph(private val buf: ByteBuffer) {
         fun isNoun(t: Int) = t and NOUN != 0
         fun isAdjective(t: Int) = t and (ADJ or ORD or PRON) != 0
         fun animate(t: Int) = t and 128 != 0
+        /** Форма только мн. ч. и есть им./вин. — согласуется с «все»; «новых» (род. мн.) — нет: «всё новых и новых». */
+        fun pluralOnly(t: Int) = t and 0x24000 != 0 && t and 0xFFF03F00.toInt() == 0
         /** Род леммы существительного; null — формы нет, род не проставлен или общий («сирота»). */
         fun gender(t: Int): Gender? = when (t shr 4 and 7) { 1 -> Gender.M; 2 -> Gender.F; 4 -> Gender.N; else -> null }
         /** Все роды леммы (у формы-омонима двух лемм их может быть два). */

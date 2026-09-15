@@ -10,6 +10,7 @@
       словарь замен, tools/system_dicts.py).
 Формат строки: «фраза = слов+о». Слово с «+» должно входить в фразу."""
 import json, os, re, sys, collections
+from aot_morph import Table
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 BUILD = os.path.join(ROOT, 'app/build'); EXTRA = os.path.join(HERE, 'phrases_extra.txt')
@@ -21,11 +22,13 @@ GEN = set('с со из изо от ото у до без безо для око
           'два две три четыре полтора полторы нет'.split())
 PREP = set('в во на за под подо через про сквозь о об обо по при к ко над надо перед передо между меж'.split())
 PRON = set('я ты он она оно мы вы они'.split())
+COUNT = set('два две три четыре оба обе полтора полторы'.split())
 NOT_ADJ = set('его него чего кого ничего никого некого нечего всего сего много немного итого'.split())
 
 
-def gram_pick(prev, prev2, e, in_homo=False):
-    """Зеркало Stress.gramPass: что поставит грамматический проход, None — молчит."""
+def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None):
+    """Зеркало Stress.gramPass: что поставит грамматический проход, None — молчит. morph — aot_morph.Table для согласования
+    с прилагательным (w — само слово); без неё, как в Kotlin без Morph, это правило выключено."""
     if prev in ('под', 'за') and prev2 == 'из': return e.get('g') or e.get('n')
     if prev == 'за' and prev2 == 'что': return None
     if prev in GEN: return e.get('g') or e.get('n')
@@ -34,6 +37,34 @@ def gram_pick(prev, prev2, e, in_homo=False):
     if prev in PRON: return e.get('v')
     if prev.endswith(('ого', 'его')):
         return None if prev in NOT_ADJ or prev.startswith(('сам', 'котор')) or prev.endswith(('вшего', 'ющего', 'ущего', 'ащего', 'ящего')) else e.get('g') or e.get('n')
+    if morph and w and ('g' in e or 'p' in e): return agree(morph, prev, prev2, w, e)
+    return None
+
+
+def agree(m, prev, prev2, w, e):
+    """Зеркало Stress.agree: «высокие стены» → мн., «высокой стены» → род. ед. Прилагательное перед словом согласуется
+    с ним в клетке род. ед. (g) или им./вин. мн. (p), но не в обеих; в обеих или ни в одной («вся округа») — молчим.
+    После «две/три/четыре» прилагательное во мн., а слово — в род. ед.: «две толстые ноги»."""
+    if prev == 'всё': return None  # в таблице «ё» = «е», а «всё» — не «все»
+    ta = m.tags(prev.replace('+', ''))
+    if not m.is_adjective(ta) or m.is_noun(ta): return None
+    tw = m.tags(w)
+    if not m.is_noun(tw): return None
+    if prev2 in COUNT: return e.get('g')
+    def fit(plural):
+        noun = m.noun_cases(tw, plural) & ({'nom', 'acc'} if plural else {'gen'})
+        genders = [None] if plural else m.genders(tw) or ['m', 'f', 'n']
+        return any(m.adj_cases(ta, g, plural) & noun for g in genders)
+    sg, pl = fit(False), fit(True)
+    return e.get('g') if sg and not pl else e.get('p') if pl and not sg else None
+
+
+def vse_pick(nxt, morph, gram):
+    """«все» + слово только мн. ч. («все крупные») или слово из gram, согласованное с «все» во мн. («все окна») → «вс+е»;
+    None — молчим."""
+    if not morph or not nxt: return None
+    e = gram.get(nxt)
+    if morph.plural_only(morph.tags(nxt.replace('+', ''))) or e and 'p' in e and agree(morph, 'все', None, nxt, e) == e['p']: return 'вс+е'
     return None
 
 
@@ -88,7 +119,7 @@ def build():
     homo, gram = d['homodict'], d['gram']
     mine = {(w, p) for w, l in load_extra().items() for p, _ in l}  # уже наложенные наши фразы не считаем чужими
     have = {(w, p) for w, l in d['phrases'].items() for p, _ in l} - mine
-    seen = set(); rows = []
+    seen = set(); rows = []; morph = Table()
     by_word = dict_phrases()  # все фразы словарей, не только промахи
     for line in open(os.path.join(BUILD, 'ss_rows.tsv'), encoding='utf-8'):
         key, val, got = line.rstrip('\n').split('\t')
@@ -100,7 +131,7 @@ def build():
             if '+' not in dv or dv == gw[i][1]: continue
             ok = w in homo and dv in homo[w] or w in gram and dv in gram[w].values()
             if not ok: continue
-            if w in gram and i > 0 and gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo) is not None: continue
+            if w in gram and i > 0 and gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph) is not None: continue
             phrase = norm(key)
             if (w, phrase) in have or (w, phrase) in seen or w not in phrase.split(' ') and w not in re.split(r'[ ,-]+', phrase): continue
             seen.add((w, phrase)); rows.append((w, phrase, dv, w in homo))

@@ -33,6 +33,41 @@ def fnv1a(s):
     return h
 
 
+class Table:
+    """Чтение готового morph.bin (mmap, бинарный поиск по хэшу) — зеркало text/Morph.kt для tools/phrases_extra.py."""
+
+    def __init__(self, path=OUT):
+        import mmap
+        self.f = open(path, 'rb'); self.buf = mmap.mmap(self.f.fileno(), 0, access=mmap.ACCESS_READ); self.n = len(self.buf) // 12
+
+    def tags(self, form):
+        h = fnv1a(form.lower().replace('ё', 'е')); h = h - (1 << 64) if h >> 63 else h
+        lo, hi = 0, self.n - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2; v, t = struct.unpack_from('<qI', self.buf, mid * 12)
+            if v < h: lo = mid + 1
+            elif v > h: hi = mid - 1
+            else: return t
+        return 0
+
+    @staticmethod
+    def is_noun(t): return t & 1 != 0
+    @staticmethod
+    def is_adjective(t): return t & 14 != 0
+    @staticmethod
+    def genders(t): return [g for g, b in (('m', 16), ('f', 32), ('n', 64)) if t & b]
+    @staticmethod
+    def cases(t, shift): return {c for i, c in enumerate(CASES) if t >> (shift + i) & 1}
+    @classmethod
+    def noun_cases(cls, t, plural): return cls.cases(t, 14 if plural else 8)
+    @classmethod
+    def adj_cases(cls, t, gender, plural): return cls.cases(t, 14 if plural else {'f': 20, 'n': 26}.get(gender, 8))
+    @staticmethod
+    def plural_only(t):
+        """Форма только мн. ч. и есть им./вин. — согласуется с «все»; «новых» (род. мн.) — нет: «всё новых и новых»."""
+        return t & 0x24000 != 0 and t & 0xFFF03F00 == 0
+
+
 def cells(pos, gr):
     """Биты сетки число×падеж для одного разбора; 0 — разбор без падежа (сравнительная, звательный)."""
     cases = [i for i, c in enumerate(CASES) if c in gr] or (list(range(6)) if '0' in gr else [])
