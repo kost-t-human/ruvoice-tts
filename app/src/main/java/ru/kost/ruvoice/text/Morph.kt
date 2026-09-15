@@ -49,6 +49,8 @@ class Morph(private val buf: ByteBuffer) {
         fun animate(t: Int) = t and 128 != 0
         /** Род леммы существительного; null — формы нет, род не проставлен или общий («сирота»). */
         fun gender(t: Int): Gender? = when (t shr 4 and 7) { 1 -> Gender.M; 2 -> Gender.F; 4 -> Gender.N; else -> null }
+        /** Все роды леммы (у формы-омонима двух лемм их может быть два). */
+        fun genders(t: Int): List<Gender> = Gender.values().filter { t shr (4 + it.ordinal) and 1 != 0 }
         fun nounCases(t: Int, plural: Boolean): Set<Case> = cases(t shr if (plural) 14 else 8)
         fun adjCases(t: Int, gender: Gender?, plural: Boolean): Set<Case> =
             cases(t shr when { plural -> 14; gender == Gender.F -> 20; gender == Gender.N -> 26; else -> 8 })

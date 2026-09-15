@@ -111,6 +111,22 @@ object Declension {
 
     private fun scaleWord(forms: Array<Array<String>>, count: Long, case: Case) = forms[bucket(count)][case.ordinal]
 
+    // Окончания полного прилагательного: [NOM, GEN, DAT, ACC, INS, PRE]; винительный — неодушевлённый.
+    private val adjM = arrayOf("ый", "ого", "ому", "ый", "ым", "ом")
+    private val adjF = arrayOf("ая", "ой", "ой", "ую", "ой", "ой")
+    private val adjN = arrayOf("ое", "ого", "ому", "ое", "ым", "ом")
+    private val adjPl = arrayOf("ые", "ых", "ым", "ые", "ыми", "ых")
+
+    /**
+     * Полное прилагательное: основа + окончание по роду, числу и падежу («государственн» → «государственной»).
+     * Основа на к/г/х даёт «-ий/-ие/-им»; одушевлённый винительный (м. р. и мн. ч.) совпадает с родительным.
+     */
+    fun adjective(stem: String, gender: Gender?, plural: Boolean, case: Case, animate: Boolean = false): String {
+        val c = if (case == Case.ACC && animate && (plural || gender != Gender.F && gender != Gender.N)) Case.GEN else case
+        val e = (if (plural) adjPl else when (gender) { Gender.F -> adjF; Gender.N -> adjN; else -> adjM })[c.ordinal]
+        return stem + if (stem.last() in "кгх") e.replace('ы', 'и') else e
+    }
+
     /** Количественное числительное в падеже. feminine — для 1 и 2 (одна/две, одной/двух…). n в 0..999_999_999_999. */
     fun cardinal(n: Long, case: Case, feminine: Boolean = false): String {
         if (n == 0L) return digits[0][case.ordinal]

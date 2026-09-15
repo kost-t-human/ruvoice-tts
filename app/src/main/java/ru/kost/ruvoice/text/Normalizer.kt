@@ -1237,6 +1237,54 @@ object Normalizer {
     private val saintForms = mapOf(
         'm' to arrayOf("Святой", "Святого", "Святому", "Святого", "Святым", "Святом"),
         'f' to arrayOf("Святая", "Святой", "Святой", "Святую", "Святой", "Святой"))
+    // 10b. Сокращения-прилагательные — по таблице морфологии: раскрываем, только если существительное
+    // следом (через одно-два прилагательных: «гос. часовой службы») известно и все его разборы дают одну
+    // форму прилагательного. «службы» — Р.п. ед. или И./В.п. мн. — неоднозначно; тогда решает слово перед
+    // сокращением: существительное («порядок гос. службы») или, через «и/или», существительное только в
+    // родительном («контроля и полит. системы») — берём родительный, иначе оставляем сокращение.
+    private val adjAbbrevStems = mapOf("гос" to "государственн", "офиц" to "официальн", "полит" to "политическ",
+        "междунар" to "международн", "лат" to "латинск", "греч" to "греческ", "физ" to "физическ", "хим" to "химическ",
+        "мат" to "математическ", "ист" to "историческ", "экон" to "экономическ", "соц" to "социальн", "фед" to "федеральн",
+        "муниц" to "муниципальн", "тех" to "техническ", "мед" to "медицинск", "юр" to "юридическ", "воен" to "военн",
+        "англ" to "английск", "нем" to "немецк", "фр" to "французск", "рус" to "русск", "рос" to "российск",
+        "науч" to "научн", "лит" to "литературн")
+    private val adjAbbrevRe = Regex(
+        """(?<![\p{L}\d])((?:${adjAbbrevStems.keys.joinToString("|")})\.)(?=\s+(\p{L}+)(?:\s+(\p{L}+))?(?:\s+(\p{L}+))?)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val prevWordRe = Regex("""(\p{L}+)(\s+(?:и|или))?\s*$""", RegexOption.IGNORE_CASE)
+    private fun adjAbbrev(s: String, morph: Morph) = adjAbbrevRe.replace(s) { m ->
+        val stem = adjAbbrevStems.getValue(m.groupValues[1].dropLast(1).lowercase())
+        val adjs = mutableListOf<Int>()
+        var tn = 0
+        for (i in 2..4) {
+            val w = m.groupValues[i]
+            if (w.isEmpty()) break
+            val t = morph.tags(w)
+            // «часовой» — и существительное, и прилагательное: существительное, если дальше не существительное
+            val nextNoun = i < 4 && m.groupValues[i + 1].isNotEmpty() && Morph.isNoun(morph.tags(m.groupValues[i + 1]))
+            if (Morph.isNoun(t) && !(Morph.isAdjective(t) && nextNoun)) { tn = t; break }
+            if (!Morph.isAdjective(t)) break
+            adjs += t
+        }
+        if (tn == 0) return@replace m.value
+        val anim = Morph.animate(tn)
+        val forms = LinkedHashMap<String, Case>() // форма прилагательного → падеж, ед. ч. раньше мн. ч.
+        // род перебираем: у формы-омонима двух лемм («стрелки» — стрелка и стрелок) он в таблице общий
+        for (plural in listOf(false, true)) for (g in if (plural) listOf(null) else Morph.genders(tn)) for (c in Morph.nounCases(tn, plural)) {
+            if (adjs.any { a -> Morph.adjCases(a, g, plural).let { c !in it && !(c == Case.ACC && anim && Case.GEN in it) } }) continue
+            forms.putIfAbsent(Declension.adjective(stem, g, plural, c, anim), c)
+        }
+        val form = forms.keys.singleOrNull() ?: run {
+            val prev = prevWordRe.find(s.substring(0, m.range.first)) ?: return@replace m.value
+            val tp = morph.tags(prev.groupValues[1])
+            if (!Morph.isNoun(tp)) return@replace m.value
+            if (prev.groupValues[2].isNotEmpty() && Morph.nounCases(tp, false) + Morph.nounCases(tp, true) != setOf(Case.GEN)) return@replace m.value
+            forms.entries.firstOrNull { it.value == Case.GEN }?.key ?: return@replace m.value
+        }
+        m.withGroupReplaced(1 to if (m.groupValues[1][0].isUpperCase()) form.replaceFirstChar { it.uppercase() } else form)
+    }
+
     // «см. рис. 2 и табл. 3, стр. 4» — всё перечисление после «см.» в винительном: «таблицу три, страницу четыре».
     private val seeListRe = Regex("""(?<![\p{L}])((?:смотри|см\.)\s+)([^!?;\n]*?)(?=[!?;\n]|\.\s+[А-ЯЁ]|\.?\s*$)""", RegexOption.IGNORE_CASE)
     private val seeAccRe = Regex("""(?<![\p{L}\d])(табл|стр|гл)\.(?![\p{L}])""", RegexOption.IGNORE_CASE)
@@ -1245,6 +1293,7 @@ object Normalizer {
         var s = seeListRe.replace(abbrevPrep(text)) { m ->
             m.groupValues[1] + seeAccRe.replace(m.groupValues[2]) { seeAccWords.getValue(it.groupValues[1].lowercase()) }
         }
+        morph?.let { s = adjAbbrev(s, it) }
         s = saintRe.replace(s) { m ->
             val (abbr, name) = m.destructured
             val (female, case) = nameGenderCase(name)
