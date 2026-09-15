@@ -146,10 +146,18 @@ class SileroTtsService : TextToSpeechService() {
         // словари разбираются раз на процесс; большие списки — секунда на телефоне, лучше
         // потратить её сейчас, чем на первой фразе
         prefs.userDict(); prefs.replacements()
+        val lang = readingLang(null)
         synchronized(models) {
-            models.ensureLoaded()
-            val seq = models.data.sequence("прив+ет.")
-            models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size), LongArray(seq.size), emptyMap())
+            if (lang == "rus") {
+                models.ensureLoaded()
+                val seq = models.data.sequence("прив+ет.")
+                models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size), LongArray(seq.size), emptyMap())
+            } else {
+                val pack = Packs.byLang(packs(), lang).first()
+                models.ensurePack(pack)
+                val seq = pack.sym.sequence("а.")
+                models.synthesizePack(seq, pack.languages.getValue(lang).speakers.values.first(), prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, emptyMap())
+            }
         }
         scheduleUnload()
     }
@@ -161,31 +169,61 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; models.release(); super.onDestroy() }
 
-    override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int =
-        if (lang == "rus") TextToSpeech.LANG_COUNTRY_AVAILABLE else TextToSpeech.LANG_NOT_SUPPORTED
-    override fun onGetLanguage(): Array<String> = arrayOf("rus", "RUS", "")
+    private fun packs(): List<Pack> = Packs.installed(filesDir)
+    private fun packLangs(): Set<String> = packs().flatMap { it.languages.keys }.toSet()
+
+    /** Язык чтения: Locale читалки — только если это язык установленного пака; иначе настройка;
+     * если её пак удалён — русский. Читалки, шлющие «ru» или мусор, выбор не перебивают. */
+    private fun readingLang(requested: String?): String {
+        val langs = packLangs()
+        if (requested != null && requested != "rus" && requested in langs) return requested
+        return prefs.lang.takeIf { it in langs } ?: "rus"
+    }
+
+    override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int = when {
+        lang == "rus" -> TextToSpeech.LANG_COUNTRY_AVAILABLE
+        lang != null && lang in packLangs() -> TextToSpeech.LANG_AVAILABLE
+        else -> TextToSpeech.LANG_NOT_SUPPORTED
+    }
+    override fun onGetLanguage(): Array<String> = readingLang(null).let { if (it == "rus") arrayOf("rus", "RUS", "") else arrayOf(it, "", "") }
     override fun onLoadLanguage(lang: String?, country: String?, variant: String?): Int {
         val r = onIsLanguageAvailable(lang, country, variant)
         // TextToSpeechService.onCreate() зовёт этот метод синхронно на главном потоке — грузить
         // модели прямо тут нельзя, это надолго заблокирует главный поток. Прогрев (onCreate выше)
         // и так грузит их отдельным потоком, поэтому с главного потока просто отвечаем по языку.
-        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE && Looper.myLooper() != Looper.getMainLooper()) {
-            runCatching { models.ensureLoaded() }.onFailure {
-                Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
-            }
+        if (r != TextToSpeech.LANG_NOT_SUPPORTED && Looper.myLooper() != Looper.getMainLooper()) {
+            runCatching {
+                if (lang == "rus") models.ensureLoaded() else models.ensurePack(Packs.byLang(packs(), lang!!).first())
+            }.onFailure { Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED }
             scheduleUnload()
         }
         return r
     }
 
     private fun voiceName(speaker: String) = "ru-ru-$speaker"
-    override fun onGetVoices(): List<Voice> = models.data.speakers.keys.sorted().map {
-        Voice(voiceName(it), Locale("ru", "RU"), Voice.QUALITY_HIGH, Voice.LATENCY_NORMAL, false, emptySet())
+    private fun packVoiceName(lang: String, speaker: String) = "$lang-$speaker"
+    override fun onGetVoices(): List<Voice> =
+        models.data.speakers.keys.sorted().map { Voice(voiceName(it), Locale("ru", "RU"), Voice.QUALITY_HIGH, Voice.LATENCY_NORMAL, false, emptySet()) } +
+        packs().flatMap { p -> p.languages.flatMap { (lang, l) -> l.speakers.keys.sorted().map {
+            Voice(packVoiceName(lang, it), Locale(lang), Voice.QUALITY_HIGH, Voice.LATENCY_NORMAL, false, emptySet()) } } }
+    /** "<lang>-<speaker>" → пара, если такой голос есть в установленных паках. */
+    private fun packVoice(name: String?): Pair<String, String>? {
+        val i = name?.indexOf('-') ?: return null
+        if (i <= 0 || name.startsWith("ru-ru-")) return null
+        val lang = name.substring(0, i); val speaker = name.substring(i + 1)
+        return if (Packs.forSpeaker(packs(), lang, speaker) != null) lang to speaker else null
     }
     override fun onIsValidVoiceName(name: String?): Int =
-        if (name != null && name.removePrefix("ru-ru-") in models.data.speakers) TextToSpeech.SUCCESS else TextToSpeech.ERROR
+        if (name != null && (name.removePrefix("ru-ru-") in models.data.speakers || packVoice(name) != null)) TextToSpeech.SUCCESS else TextToSpeech.ERROR
     override fun onLoadVoice(name: String?): Int = onIsValidVoiceName(name)
-    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(prefs.voice)
+    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String {
+        val l = readingLang(lang)
+        if (l == "rus") return voiceName(prefs.voice)
+        return packVoiceName(l, defaultSpeaker(l))
+    }
+    /** Голос языка из настроек, если он ещё установлен, иначе первый говорящий первого пака. */
+    private fun defaultSpeaker(lang: String): String =
+        prefs.voice(lang).takeIf { Packs.forSpeaker(packs(), lang, it) != null } ?: Packs.byLang(packs(), lang).first().languages.getValue(lang).speakers.keys.sorted().first()
 
     override fun onStop() { stopped = true }
 
@@ -194,6 +232,8 @@ class SileroTtsService : TextToSpeechService() {
         handler.removeCallbacks(unload)
         val t0 = System.currentTimeMillis()
         try {
+            val lang = readingLang(request.language)
+            if (lang != "rus") { synthesizePack(request, callback, lang); return }
             models.ensureLoaded()
             val d = models.data
             val sr = prefs.sampleRate
@@ -256,23 +296,7 @@ class SileroTtsService : TextToSpeechService() {
                     }
                     if (synth != null) {
                         val (out, tokens) = synth
-                        val audio = out.audio
-                        Pcm.fadeEdges(audio, sr, 5)
-                        val segRate = rate * (if (seg.speech) quoteRate else 1f)
-                        val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)
-                        // Границы слов: сумма durs до первого символа слова × сэмплов на кадр, после
-                        // Sonic — в пропорции длин. Слово, которого нет в запросе (число, сокращение,
-                        // латиница), подсветку не двигает.
-                        val perFrame = pcm.size.toDouble() / out.durs.sum()
-                        val cum = DoubleArray(out.durs.size + 1)
-                        for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
-                        for (t in tokens) {
-                            val j = matcher.next(t.key)
-                            if (j >= 0) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
-                        }
-                        if (!write(callback, pcm)) return
-                        written += pcm.size
-                        Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
+                        written += emit(callback, out, tokens, sr, rate * (if (seg.speech) quoteRate else 1f), matcher, srcWords, written) ?: return
                     }
                 }
                 if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
@@ -285,6 +309,84 @@ class SileroTtsService : TextToSpeechService() {
         } finally {
             scheduleUnload()
         }
+    }
+
+    /** Нерусский язык: короткий конвейер без нормализации чисел, ударений и типов предложений. */
+    private fun synthesizePack(request: SynthesisRequest, callback: SynthesisCallback, lang: String) {
+        val t0 = System.currentTimeMillis()
+        val all = packs()
+        val speaker = packVoice(request.voiceName)?.takeIf { it.first == lang }?.second ?: defaultSpeaker(lang)
+        val pack = Packs.forSpeaker(all, lang, speaker) ?: Packs.byLang(all, lang).first()
+        val speakerId = pack.speakerId(lang, speaker) ?: pack.languages.getValue(lang).speakers.values.first()
+        val sr = prefs.sampleRate
+        val rate = (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
+        val pitch = (request.pitch / 100f * prefs.pitch).coerceIn(0.5f, 2f)
+        val rules = prefs.rules()
+        val replacements = prefs.replacements()
+        // Голос прямой речи — из того же пака и языка, иначе основной.
+        val quoteSpeakerId = prefs.quoteVoice(lang).let { pack.speakerId(lang, it) }
+        val quoteRate = prefs.quoteRate; val quotePitch = prefs.quotePitch
+        val d = models.data // Pipeline.plan принимает SileroData, внутри для разбиения он не нужен
+        val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
+        val commaIds = if (prefs.commaPauseMs <= 0) emptySet() else listOfNotNull(pack.sym.symbolToId[','],
+            *(if (rules.on("pause_semicolon")) arrayOf(pack.sym.symbolToId[';'], pack.sym.symbolToId[':']) else emptyArray())).toHashSet()
+        val commaFrames = Marks.frames(prefs.commaPauseMs)
+        val srcText = request.charSequenceText.toString().let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }.let { Marks.blank(it) }
+        val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), it.range.first, it.range.last + 1) }.toList()
+        val matcher = Marks.Matcher(srcWords.map { it.first })
+        var written = 0L
+        if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
+        if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
+        for (seg in segments) {
+            if (stopped) break
+            val marks = Marks.parse(seg.text, 0)
+            val prepared = PackText.prepare(marks.text, pack, lang, rules)
+            if (prepared.any { it in pack.sym.alphabet }) {
+                val synth = synchronized(models) {
+                    try {
+                        models.ensurePack(pack)
+                        val seq = pack.sym.sequence(prepared)
+                        val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
+                        val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
+                        val al = Marks.align(marks.words, prepared, seq.size, pack.sym)
+                        for (i in al.pitches.indices) al.pitches[i] *= curPitch
+                        val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
+                        Pair(models.synthesizePack(seq, curSpeakerId, sr, al.rates, al.pitches, symbDurs), Marks.tokens(prepared, pack.sym))
+                    } catch (e: Throwable) {
+                        Log.e(SileroModels.TAG, "синтез паком ${pack.id} не удался: «${seg.text.take(60)}»", e); null
+                    }
+                }
+                if (synth != null) {
+                    val (out, tokens) = synth
+                    written += emit(callback, out, tokens, sr, rate * (if (seg.speech) quoteRate else 1f), matcher, srcWords, written) ?: return
+                }
+            }
+            if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
+        }
+        callback.done()
+        Log.i(SileroModels.TAG, "запрос [$lang/${pack.id}] ${request.charSequenceText.length} симв., ${segments.size} сегм., ${System.currentTimeMillis() - t0} мс")
+    }
+
+    /** Звук сегмента → читалке: фейд, темп через Sonic, границы слов, запись. Возвращает
+     * число отданных сэмплов или null, если клиент ушёл. */
+    private fun emit(callback: SynthesisCallback, out: SileroModels.Synth, tokens: List<Marks.Token>, sr: Int, segRate: Float,
+                     matcher: Marks.Matcher, srcWords: List<Triple<String, Int, Int>>, written: Long): Long? {
+        val audio = out.audio
+        Pcm.fadeEdges(audio, sr, 5)
+        val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)
+        // Границы слов: сумма durs до первого символа слова × сэмплов на кадр, после
+        // Sonic — в пропорции длин. Слово, которого нет в запросе (число, сокращение,
+        // латиница), подсветку не двигает.
+        val perFrame = pcm.size.toDouble() / out.durs.sum()
+        val cum = DoubleArray(out.durs.size + 1)
+        for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
+        for (t in tokens) {
+            val j = matcher.next(t.key)
+            if (j >= 0) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
+        }
+        if (!write(callback, pcm)) return null
+        Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
+        return pcm.size.toLong()
     }
 
     /** false — клиент ушёл (framework вернул не SUCCESS), дальше синтезировать незачем. */

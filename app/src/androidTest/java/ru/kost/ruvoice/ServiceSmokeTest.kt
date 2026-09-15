@@ -85,4 +85,20 @@ class ServiceSmokeTest {
         assertEquals(0, errors)
         assertTrue("нет rangeStart", ranges.isNotEmpty())
     }
+
+    @Test fun packVoicesListedWhenInstalled() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val packs = Packs.installed(ctx.filesDir)
+        val ready = CountDownLatch(1)
+        val tts = TextToSpeech(ctx, { ready.countDown() }, "ru.kost.ruvoice")
+        assertTrue(ready.await(60, TimeUnit.SECONDS))
+        val names = tts.voices.map { it.name }.toSet()
+        assertTrue(names.contains("ru-ru-xenia"))
+        for (p in packs) for ((lang, l) in p.languages) for (s in l.speakers.keys) assertTrue("$lang-$s", names.contains("$lang-$s"))
+        if (packs.isNotEmpty()) {
+            val lang = packs.first().languages.keys.first()
+            assertEquals(TextToSpeech.LANG_AVAILABLE, tts.setLanguage(Locale(lang)))
+        }
+        tts.shutdown()
+    }
 }
