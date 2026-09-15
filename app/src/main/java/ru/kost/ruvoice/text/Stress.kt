@@ -33,6 +33,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         "два", "две", "три", "четыре", "полтора", "полторы", "нет")
     private val prepOther = setOf("в", "во", "на", "за", "под", "подо", "через", "про", "сквозь", "о", "об", "обо", "по", "при",
         "к", "ко", "над", "надо", "перед", "передо", "между", "меж")
+    /** Причастие в род. п. управляет винительным: «прикрывавшего ворота», «туманящего глаза». */
+    private val participle = listOf("вшего", "ющего", "ущего", "ащего", "ящего")
     private val locPrep = setOf("в", "во", "на", "при")
     private val pronouns = setOf("я", "ты", "он", "она", "оно", "мы", "вы", "они")
     /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
@@ -60,7 +62,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     prev in prepOther -> e["p"] ?: e["g"] ?: if (prev in locPrep && w in d.homodict) null else e["n"]
                     prev in pronouns -> e["v"]
                     // прилагательное в род. ед. («вечного города», «тёплой стены» не берём: «-ой» и у творительного — «вытер рукой глаза»)
-                    prev.endsWith("ого") || prev.endsWith("его") -> if (prev in notAdjective || prev.startsWith("сам") || prev.startsWith("котор")) null else e["g"] ?: e["n"]
+                    prev.endsWith("ого") || prev.endsWith("его") ->
+                        if (prev in notAdjective || prev.startsWith("сам") || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
                     else -> null
                 }
                 if (pick != null) {

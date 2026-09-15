@@ -32,7 +32,7 @@ def gram_pick(prev, prev2, e, in_homo=False):
     if prev in PREP: return e.get('p') or e.get('g') or (None if prev in ('в', 'во', 'на', 'при') and in_homo else e.get('n'))
     if prev in PRON: return e.get('v')
     if prev.endswith(('ого', 'его')):
-        return None if prev in NOT_ADJ or prev.startswith(('сам', 'котор')) else e.get('g') or e.get('n')
+        return None if prev in NOT_ADJ or prev.startswith(('сам', 'котор')) or prev.endswith(('вшего', 'ющего', 'ущего', 'ащего', 'ящего')) else e.get('g') or e.get('n')
     return None
 
 

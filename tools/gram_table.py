@@ -2,6 +2,7 @@
 """Таблица грамматических омографов для Stress.gramPass → ключ «gram» в silero_ru.json.
 Вход: app/build/aot_forms.tsv (tools/aot_forms.py, морфословарь AOT, LGPL).
 Берутся формы, где ударение решает падеж или часть речи:
+  Сущ./глагол не берётся, если глагольное ударение совпадает с местным падежом по Викисловарю (в чест+и).
   g — род. ед. (стен+ы, для одушевлённых это же вин. ед.), p — им./вин. мн. (ст+ены; только если есть вин.,
       у одушевлённых им. мн. после предлога не бывает), n — существительное (сел+а), v — глагол (с+ела).
 Варианты с иным различием (м+орщило/морщ+ило — просто два допустимых ударения) не берутся."""
@@ -11,8 +12,21 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 SRC = os.path.join(ROOT, 'app/build/aot_forms.tsv'); JSON = os.path.join(ROOT, 'app/src/main/assets/silero/silero_ru.json')
 
 
+def locatives():
+    """форма → {ударные варианты, помеченные в Викисловаре как locative} (в чест+и, в цвет+у)."""
+    out = collections.defaultdict(set)
+    path = os.path.join(ROOT, 'app/build/wikt_forms.tsv')
+    if not os.path.exists(path): return out
+    for line in open(path, encoding='utf-8'):
+        p = line.rstrip('\n').split('\t')
+        for v in p[1:]:
+            st, gr = v.split(' ', 1)
+            if 'locative' in gr: out[p[0]].add(st)
+    return out
+
+
 def build():
-    out = {}; stat = collections.Counter()
+    out = {}; stat = collections.Counter(); loc = locatives()
     for line in open(SRC, encoding='utf-8'):
         p = line.rstrip('\n').split('\t'); w = p[0]
         if len(p) < 3 or not w.isalpha(): continue
@@ -38,7 +52,7 @@ def build():
             e['g'] = G[0]
             if 'pa' in tags[P[0]]: e['p'] = P[0]
             stat['род.ед./мн.'] += 1
-        if len(N) == 1 and len(V) == 1: e['n'] = N[0]; e['v'] = V[0]; stat['сущ./глагол'] += 1
+        if len(N) == 1 and len(V) == 1 and V[0] not in loc.get(w, ()): e['n'] = N[0]; e['v'] = V[0]; stat['сущ./глагол'] += 1
         if e: out[w] = e
     return out, stat
 

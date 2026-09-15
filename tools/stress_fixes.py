@@ -3,7 +3,7 @@
 
   python3 tools/stress_fixes.py build   — собрать список: промахи модели по AOT (app/build/aot_survey.txt,
       tools/aot_survey.py), подтверждённые Викисловарём (app/build/wikt_forms.tsv, tools/wikt_forms.py);
-      имена, слова с «ё» (и те, что модель читает через «ё») и слова, уже лежащие в exceptions, не берутся. Частота — ru_full.txt
+      имена, слова с «ё» (и те, что модель читает через «ё») и слова, уже лежащие в exceptions, не берутся. Частота для сортировки — ru_full.txt
       (github.com/hermitdave/FrequencyWords, OpenSubtitles) рядом с aot_survey.txt, если есть.
   python3 tools/stress_fixes.py apply   — записать список в exceptions (export_silero_stress.py делает это сам).
 Формат строки: «слово = сл+ово  # комментарий». Список можно править руками, build его перезаписывает."""
@@ -38,6 +38,7 @@ def apply(data):
 
 def build():
     with open(JSON, encoding='utf-8') as f: exc = json.load(f)['exceptions']
+    exc = {w for w in exc if w not in load_fixes()}  # свои же поправки не считаем чужими исключениями
     wk = {}
     for l in open(os.path.join(BUILD, 'wikt_forms.tsv'), encoding='utf-8'):
         p = l.rstrip('\n').split('\t'); wk[p[0]] = [v.split(' ')[0] for v in p[1:]]
@@ -54,7 +55,6 @@ def build():
         if i >= 0 and (got[:i] + 'ё' + got[i + 2:]) in wk: continue
         if any('ё' in a.split(':')[0] for a in gr.split('|')): continue
         if NAMES & set(gr.split('|')[0].split(':')[2].split(',')): continue
-        if freq and w not in freq: continue
         rows.append((w, aot, got, freq.get(w, 0), gr.split('|')[0]))
     rows.sort(key=lambda r: (-r[3], r[0]))
     with open(FIXES, 'w', encoding='utf-8') as o:
