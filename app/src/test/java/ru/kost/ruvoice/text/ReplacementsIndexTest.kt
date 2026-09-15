@@ -41,7 +41,8 @@ class ReplacementsIndexTest {
 
     /** Эталон: каждое правило — regex через ту же Replacements.toRegex, применяются все подряд. */
     private fun reference(lines: List<String>): (String) -> String {
-        val rules = lines.mapNotNull { Replacements.split(it) }.sortedByDescending { it.first.length }
+        val rules = lines.mapNotNull { Replacements.split(it) }.reversed().distinctBy { it.first }.reversed()
+            .sortedByDescending { it.first.length }
             .map { (k, v) -> Replacements.toRegex(k) to v }
         return { text ->
             rules.fold(text) { t, (re, v) ->

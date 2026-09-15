@@ -12,12 +12,16 @@ import java.util.regex.PatternSyntaxException
  * Строка «ключ = замена»; пустая замена удаляет ключ из текста.
  * «*» в обычном ключе — маска: буквы/цифры/дефис, в том числе ничего; для границ слова
  * считается буквой («прочита*» — слово с таким началом, «*ходить» — с таким концом, одна «*» —
- * любое слово). «*» в замене подставляет то, что захватила такая же по счёту «*» ключа.
+ * любое слово). «*» в замене подставляет то, что захватила такая же по счёту «*» ключа; замена
+ * без «*» подменяет только буквы ключа, захват «*» остаётся на месте («туник* = тун+ик» читает
+ * «тун+ика») — так у Говорилки и Демагога; см. implicitStars. Пустая замена удаляет всё совпадение.
  * «,» в обычном ключе матчит запятую с любым числом пробелов после — словари Демагога пишут
- * её без пробела. Это и есть формат Демагога, конвертер не нужен.
+ * её без пробела. «$» в начале ключа — совпадение с учётом регистра («$Ворон» — только имя);
+ * «$$» и «##» в начале — просто «$» и «#». Это и есть формат Демагога, конвертер не нужен.
  * Ключ, начинающийся с «~», — Java-regex (без автоматических границ слова), его замена
  * подставляется как есть (работают $1, $2); битый regex молча пропускается. Регистр
  * игнорируется, внутри regex это отключается через «(?-i)».
+ * Один и тот же ключ дважды — действует последняя строка.
  * Замена «{skip}» равносильна пустой. Маркер «{pause:N}» в замене превращается в паузу
  * N мс — его уже разбирает Pipeline.plan, здесь это просто часть подставляемого текста.
  *
@@ -28,11 +32,11 @@ import java.util.regex.PatternSyntaxException
  */
 class Replacements private constructor(private val rules: List<Rule>, private val index: HashMap<String, IntArray>,
                                        private val always: IntArray) {
-    /** key — lowercase ключ без «~». value: LITERAL — текст как есть, WILD — текст с «*» на месте
+    /** key — lowercase ключ без «~» (для правила с «$» — как написан). value: LITERAL — текст как есть, WILD — текст с «*» на месте
      * захваченного, REGEX — строка замены Java. tokens — слова ключа не у «*» (для индекса и
      * отсечки), anchor — самое редкое из них, по нему правило лежит в index. */
     private class Rule(val key: String, val value: String, val kind: Int, val isWord: Boolean, val tokens: Array<String>,
-                       var re: Regex? = null) {
+                       var re: Regex? = null, val caseSensitive: Boolean = false) {
         var anchor: String? = null
     }
 
@@ -79,15 +83,16 @@ class Replacements private constructor(private val rules: List<Rule>, private va
 
     private fun applyLiteral(text: String, lower: String, rule: Rule): String? {
         val key = rule.key
-        var i = lower.indexOf(key); if (i < 0) return null
+        val hay = if (rule.caseSensitive) text else lower
+        var i = hay.indexOf(key); if (i < 0) return null
         var sb: StringBuilder? = null; var last = 0
         while (i >= 0) {
             val end = i + key.length
             val ok = !rule.isWord || ((i == 0 || !wordChar(lower[i - 1])) && (end == lower.length || !wordChar(lower[end])))
             if (ok) {
                 (sb ?: StringBuilder(text.length).also { sb = it }).append(text, last, i).append(rule.value)
-                last = end; i = lower.indexOf(key, end)
-            } else i = lower.indexOf(key, i + 1)
+                last = end; i = hay.indexOf(key, end)
+            } else i = hay.indexOf(key, i + 1)
         }
         return sb?.append(text, last, text.length)?.toString()
     }
@@ -97,7 +102,7 @@ class Replacements private constructor(private val rules: List<Rule>, private va
      * содержать. Без lower/якоря — одно окно на весь текст. ponytail: окно = длина ключа + 64
      * символа в обе стороны, захват «*» длиннее этого совпадение потеряет. */
     private fun applyWild(text: String, lower: String?, rule: Rule): String? {
-        val re = rule.re ?: toRegex(rule.key).also { rule.re = it }
+        val re = rule.re ?: toRegex(rule.key, rule.caseSensitive).also { rule.re = it }
         val m = re.toPattern().matcher(text).useTransparentBounds(true).useAnchoringBounds(false)
         var sb: StringBuilder? = null; var last = 0
         fun scan(from: Int, to: Int) {
@@ -156,6 +161,25 @@ class Replacements private constructor(private val rules: List<Rule>, private va
             return out.toString()
         }
 
+        /** Замена без «*» при маске в ключе — «*» расставляются в неё явно, один раз при разборе:
+         * Говорилка и Демагог подразумевают, что захват остаётся («туник*=туни<к» читает «туни<ка»,
+         * «ворот* города=воро<т го<рода» — «воротах города»). По словам, если их в ключе и замене
+         * поровну и все «*» ключа по краям слов; иначе краевые «*» ключа — на края замены, а
+         * серединные при хвостовой «*» уходят вместе с ней в хвост (нумерация захватов сохраняется).
+         * Пустая замена удаляет всё совпадение. */
+        fun implicitStars(key: String, value: String): String {
+            if ('*' in value || value.isEmpty() || !hasMask(key)) return value
+            val kw = key.split(' ').filter { it.isNotEmpty() }
+            val vw = value.split(' ').filter { it.isNotEmpty() }
+            fun lead(w: String) = w.startsWith("*")
+            fun trail(w: String) = w.endsWith("*") && w.length > 1
+            if (kw.size == vw.size && kw.all { '*' !in it.trim('*') })
+                return kw.indices.joinToString(" ") { i -> (if (lead(kw[i])) "*" else "") + vw[i] + (if (trail(kw[i])) "*" else "") }
+            val pre = if (lead(key)) "*" else ""
+            val post = if (trail(key)) "*".repeat(key.count { it == '*' } - pre.length) else ""
+            return pre + value + post
+        }
+
         /** Слово ключа с числом правил, где оно встречается: один объект на слово, без боксинга. */
         private class Tok(val s: String) { var n = 0 }
 
@@ -175,6 +199,12 @@ class Replacements private constructor(private val rules: List<Rule>, private va
                 }
                 out
             }) { done -> onProgress?.invoke(done / 2) }
+            // одинаковый ключ дважды — побеждает последняя строка: правку дописывают в конец списка
+            run {
+                val seen = HashSet<String>(pairs.size * 2); var w = pairs.size
+                for (i in pairs.indices.reversed()) if (seen.add(pairs[i].first)) pairs[--w] = pairs[i]
+                pairs.subList(0, w).clear()
+            }
             pairs.sortWith { a, b -> b.first.length - a.first.length }
             val canon = ConcurrentHashMap<String, Tok>() // одно слово — один объект на все правила
             // Rule + его слова; regex-правило с битым паттерном — null, выбрасывается ниже
@@ -186,10 +216,13 @@ class Replacements private constructor(private val rules: List<Rule>, private va
                             catch (e: PatternSyntaxException) { return@map null }
                         Rule(rawKey, value, REGEX, false, emptyArray(), re) to emptyArray<Tok>()
                     } else {
-                        val key = rawKey.lowercase()
+                        val cs = rawKey.length > 1 && rawKey[0] == '$' && rawKey[1] != '$'
+                        val raw = if (cs || rawKey.startsWith("$$") || rawKey.startsWith("##")) rawKey.substring(1) else rawKey
+                        val key = raw.lowercase()
                         val mask = hasMask(key)
                         val toks = keyTokens(key, mask, canon)
-                        Rule(key, value, if (mask || ',' in key) WILD else LITERAL, isWord(key, mask), Array(toks.size) { toks[it].s }) to toks
+                        Rule(if (cs) raw else key, implicitStars(key, value), if (mask || ',' in key) WILD else LITERAL, isWord(key, mask),
+                            Array(toks.size) { toks[it].s }, caseSensitive = cs) to toks
                     }
                 }
             }) { done -> onProgress?.invoke(lines.size / 2 + done * (lines.size - lines.size / 2) / maxOf(1, pairs.size)) }
@@ -255,21 +288,23 @@ class Replacements private constructor(private val rules: List<Rule>, private va
         }
 
         /** Regex для обычного (не «~») ключа: границы слова, маска «*» как группа, «,» с пробелами. */
-        fun toRegex(key: String): Regex {
-            val k = key.lowercase()
+        fun toRegex(key: String, caseSensitive: Boolean = false): Regex {
+            val k = if (caseSensitive) key else key.lowercase()
             val mask = hasMask(k)
             val body = (if (mask) k.split('*') else listOf(k)).joinToString("([\\p{L}\\d-]*)") { part ->
                 part.split(',').joinToString(",\\s*") { if (it.isEmpty()) "" else Regex.escape(it) }
             }
-            return Regex(if (isWord(k, mask)) "(?<![\\p{L}\\d])$body(?![\\p{L}\\d])" else body, RegexOption.IGNORE_CASE)
+            val src = if (isWord(k, mask)) "(?<![\\p{L}\\d])$body(?![\\p{L}\\d])" else body
+            return if (caseSensitive) Regex(src) else Regex(src, RegexOption.IGNORE_CASE)
         }
 
         /** «ключ = замена» → (ключ с «~», если есть; замена). Для regex-ключа разделитель —
          * первое « = » с пробелами, чтобы «=» внутри (?<=…) не рвал строку; если такого нет —
-         * первый «=». Пустые, #-строки и строки без разделителя — null. */
+         * первый «=». Пустые, #-строки (кроме «##» — экранированной решётки Демагога) и строки
+         * без разделителя — null. */
         fun split(line: String): Pair<String, String>? {
             val t = line.trim()
-            if (t.isEmpty() || t.startsWith("#")) return null
+            if (t.isEmpty() || (t.startsWith("#") && !t.startsWith("##"))) return null
             val sep = if (t.startsWith("~") && t.contains(" = ")) " = " else "="
             val i = t.indexOf(sep)
             if (i < 0) return null

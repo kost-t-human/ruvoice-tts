@@ -69,4 +69,46 @@ class ReplacementsWildTest {
         val r = Replacements.parse(listOf("дорого не надо = д+орого не надо"))
         assertEquals("Тут д+орого не надо Было", r.apply("Тут ДОРОГО не надо Было"))
     }
+
+    @Test fun dollarPrefixMakesKeyCaseSensitive() {
+        // «$Ворон» — имя, «ворон» — птица; по руководству Демагога «$» включает учёт регистра
+        val r = Replacements.parse(listOf("\$Ворон поднял = В+орон поднял", "\$Серов* = Сер+ов*"))
+        assertEquals("В+орон поднял голову, ворон поднял голову", r.apply("Ворон поднял голову, ворон поднял голову"))
+        assertEquals("Сер+ова, серова", r.apply("Серова, серова"))
+    }
+
+    @Test fun doubledDollarAndHashAreLiteral() {
+        val r = Replacements.parse(listOf("\$\$100 = сто долларов", "##2 = номер два", "# комментарий = нет"))
+        assertEquals("дали сто долларов и номер два", r.apply("дали \$100 и #2"))
+        assertEquals("# комментарий", r.apply("# комментарий"))
+    }
+
+    @Test fun duplicateKeyLastLineWins() {
+        // словари Демагога и KooBAudio правят ошибки строкой в конце, не поиском старой
+        val r = Replacements.parse(listOf("абсент = абс+ент", "авиа* = +авиа-*", "абсент = абс+энт"))
+        assertEquals("абс+энт", r.apply("абсент"))
+    }
+
+    @Test fun valueWithoutStarKeepsCaptures() {
+        // формат Говорилки/Демагога: «туник*=туни<к», «*графия=гра<фия», «ворот* города=воро<т го<рода»
+        val r = Replacements.parse(listOf("туник* = тун+ик", "*графия = гр+афия", "*автобус* = авт+обус", "*ё* = е", "прочита* =",
+            "ворот* города = вор+от г+орода"))
+        assertEquals("тун+ика, фотогр+афия, микроавт+обусы", r.apply("туника, фотография, микроавтобусы"))
+        assertEquals("все", r.apply("всё"))
+        assertEquals("не то", r.apply("прочитанное не то"))
+        assertEquals("на вор+отах г+орода", r.apply("на воротах города"))
+    }
+
+    @Test fun implicitStarsPlacement() {
+        assertEquals("*вор+от* г+орода*", Replacements.implicitStars("*ворот* города*", "вор+от г+орода"))
+        assertEquals("*- Аллё,*", Replacements.implicitStars("*- Але,*", "- Аллё,"))
+        // слов не поровну: края ключа — на края замены, серединная «*» уходит в хвост вместе с последней
+        assertEquals("Зм+ея*", Replacements.implicitStars("Змея Горыныч*", "Зм+ея"))
+        assertEquals("*Зм+ея**", Replacements.implicitStars("*Змея гор* ыныч*", "Зм+ея"))
+        assertEquals("Зм+ея", Replacements.implicitStars("Змея гор* ыныч", "Зм+ея"))
+        // уже явные «*», пустая замена и ключ без маски — как есть
+        assertEquals("а*", Replacements.implicitStars("а*", "а*"))
+        assertEquals("", Replacements.implicitStars("а*", ""))
+        assertEquals("б", Replacements.implicitStars("***", "б"))
+    }
 }
