@@ -12,8 +12,9 @@ HERE = os.path.dirname(os.path.abspath(__file__)); BUILD = os.path.join(os.path.
 sys.path.insert(0, HERE); import phrases_extra as pe
 LIMIT = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 word_re = re.compile(r'[а-яё]+')
-phrases = {w: [(re.compile(r'(?<![а-яё-])' + re.escape(p) + r'(?![а-яё-])'), v.replace('+', '')) for p, v in sorted(items, key=lambda x: -len(x[0]))]
-           for w, items in pe.load_extra().items()}  # длинные фразы раньше, как в homo_eval.py
+# слово → [(regex фразы, смещение слова в фразе, вариант)], длинные фразы раньше, как в homo_eval.py
+phrases = {w: [(re.compile(r'(?<![а-яё-])' + re.escape(p) + r'(?![а-яё-])'), re.search(r'(?<![а-яё])' + w + r'(?![а-яё])', p).start(), v.replace('+', ''))
+               for p, v in sorted(items, key=lambda x: -len(x[0]))] for w, items in pe.load_extra().items()}
 
 
 def expand(line):
@@ -48,10 +49,11 @@ for n, sent in enumerate(lines):
     deyo = sent.replace('ё', 'е').replace('Ё', 'Е')
     got = [w.replace('+', '') for w in re.findall(r'[а-яё+]+', ss(deyo, put_yo=True, put_yo_homo=True).lower())]
     if len(got) != len(orig): st['всего']['предложений не сравнить'] += 1; continue
-    low = deyo.lower()
+    low = deyo.lower(); starts = {m.start(): i for i, m in enumerate(word_re.finditer(low))}
     for i, w in enumerate(orig):
-        for p, v in phrases.get(w.replace('ё', 'е'), ()):
-            if p.search(low): got[i] = v; break
+        for p, off, v in phrases.get(w.replace('ё', 'е'), ()):
+            hit = next((m for m in p.finditer(low) if starts.get(m.start() + off) == i), None)
+            if hit: got[i] = v; break
     st['всего']['предложений'] += 1
     for o, g in zip(orig, got):
         if 'ё' in o:
