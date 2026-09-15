@@ -23,7 +23,7 @@
             android:id="@+id/tabs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:tabMode="fixed"
+            app:tabMode="auto"
             app:tabGravity="fill" />
     </com.google.android.material.appbar.AppBarLayout>
 
