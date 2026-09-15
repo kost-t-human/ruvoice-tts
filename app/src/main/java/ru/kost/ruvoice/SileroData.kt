@@ -11,6 +11,8 @@ class SileroData(json: String) {
     val speakers: Map<String, Int>
     val exceptions: Map<String, IntArray>
     val homodict: Map<String, List<String>>
+    /** Фразы Silero Stress: слово → [(фраза, вариант с «+»)], порядок важен — длинные фразы раньше. */
+    val phrases: Map<String, List<Pair<String, String>>>
     val bertVocab: Map<String, Int>
     val bertCls: Int
     val bertSep: Int
@@ -37,6 +39,9 @@ class SileroData(json: String) {
         }
         homodict = o.getJSONObject("homodict").let { j ->
             j.keys().asSequence().associateWith { k -> val a = j.getJSONArray(k); List(a.length()) { a.getString(it) } }
+        }
+        phrases = o.getJSONObject("phrases").let { j ->
+            j.keys().asSequence().associateWith { k -> val a = j.getJSONArray(k); List(a.length()) { a.getJSONArray(it).let { p -> p.getString(0) to p.getString(1) } } }
         }
         val bert = o.getJSONObject("bert")
         bertVocab = bert.getJSONObject("vocab").let { j -> j.keys().asSequence().associateWith { j.getInt(it) } }

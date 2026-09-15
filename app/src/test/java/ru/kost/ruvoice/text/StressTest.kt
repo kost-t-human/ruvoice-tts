@@ -55,4 +55,31 @@ class StressTest {
     @Test fun punctuationAndHyphenPreserved() {
         assertEquals("кт+о-то, +а т+ы?", Stress(d, firstVowel).apply("кто-то, а ты?"))
     }
+
+    @Test fun goldenHomographContexts() {
+        // контекст с [HOMO]-маркерами (окно 150 символов, чистка HomoSolver._clean_text) — как в Python
+        val g = TestData.golden()
+        var checked = 0
+        for (i in 0 until g.length()) {
+            val o = g.getJSONObject(i)
+            if (!o.has("bert")) continue
+            val exp = o.getJSONArray("bert").let { a -> List(a.length()) { a.getJSONObject(it).getString("marked") } }
+            assertEquals(o.getString("prepared"), exp, Stress(d, firstVowel).tagHomos(o.getString("prepared")).map { it.marked })
+            checked += exp.size
+        }
+        assert(checked >= 5) { "мало омографов в golden: $checked" }
+    }
+
+    @Test fun phraseBeatsModel() {
+        // «замок казался очень тихим» есть во фразах Silero Stress → з+амок, хотя заглушка-BERT даёт зам+ок
+        val neural = Stress(d, firstVowel).apply("замок")
+        assertEquals("зам+ок", neural)
+        assertEquals("З+амок к+азался +очень т+ихим.", Stress(d, firstVowel).apply("Замок казался очень тихим."))
+    }
+
+    @Test fun phraseOnlyWordWithoutPhraseIsLeftToAccentor() {
+        // «толстая» есть только во фразах («людмила толстая»); без фразы слово идёт в accentor, не в BERT
+        assertEquals("т+олстая", Stress(d, firstVowel).apply("толстая"))
+        assertEquals("л+юдмила толст+ая", Stress(d, firstVowel).apply("людмила толстая"))
+    }
 }

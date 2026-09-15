@@ -25,26 +25,98 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         return userDictPass(s)
     }
 
-    // ---- homosolver ----
-    private fun homographPass(sentence: String): String {
-        data class Hit(val start: Int, val end: Int, val word: String, val marked: String)
-        val hits = homoWordRe.findAll(sentence).mapNotNull { m ->
+    // ---- homosolver (Silero Stress) ----
+    /** Окно контекста вокруг омографа: по 150 символов очищенного текста с каждой стороны. */
+    private val window = 300
+    private val reExtra = Regex("[^a-zA-Zа-яА-ЯёЁ0-9\\s\\p{Z}.!?,\\-]")
+    private val reSpaces = Regex("[\\s\\p{Z}]+")
+    private val reDoubleDash = Regex("-{2,}")
+    private val reRepeatPunct = Regex("([.!?])\\1+")
+    private val reRepeatComma = Regex(",{2,}")
+    private val reSpaceBeforePunct = Regex("[\\s\\p{Z}]+([.,!?])")
+    private val rePunctAddSpace = Regex("([.,!?])(?=[^\\s\\p{Z}])")
+
+    /** HomoSolver._clean_text: контекст без лишних символов, с одной заглавной в начале и точкой в конце. */
+    private fun cleanText(text: String, isStart: Boolean): String {
+        if (text.isEmpty()) return ""
+        var t = reExtra.replace(text, "")
+        t = reSpaces.replace(t, " ")
+        t = reDoubleDash.replace(t, " - ")
+        t = reRepeatPunct.replace(t, "$1"); t = reRepeatComma.replace(t, ",")
+        t = reSpaceBeforePunct.replace(t, "$1")
+        t = reRepeatPunct.replace(t, "$1"); t = reRepeatComma.replace(t, ",")
+        t = rePunctAddSpace.replace(t, "$1 ")
+        t = reSpaces.replace(t, " ").trim()
+        if (isStart) {
+            t = t.trimStart(' ', '.', ',', '!', '?', '-')
+            if (t.isNotEmpty()) t = t[0].uppercase() + t.substring(1).lowercase()
+        } else {
+            if (t.isNotEmpty()) t = t[0] + t.substring(1).lowercase()
+            if (t.isNotEmpty() && t.last() !in ".!?") t += "."
+        }
+        return t
+    }
+
+    /** Regex фраз слова, как в HomoSolver._load_phrases_dict: группа на вариант, внутри фразы через «|»,
+     * слово в них обёрнуто в [HOMO] … [/HOMO]. Группы нумерованные (Java не даёт кириллицу в именах),
+     * номер группы → вариант. Компилируется при первом омографе этого слова. */
+    private class Phrases(val re: Regex, val variants: List<String>)
+    private val phrasesCache = HashMap<String, Phrases>()
+    private fun phrases(word: String): Phrases? {
+        val list = d.phrases[word] ?: return null
+        return phrasesCache.getOrPut(word) {
+            val variants = ArrayList<String>()
+            val byVariant = LinkedHashMap<String, ArrayList<String>>()
+            for ((phrase, v) in list) byVariant.getOrPut(v) { ArrayList() } += phrase
+            val body = byVariant.entries.joinToString("|") { (v, ps) ->
+                variants += v
+                val alts = ps.joinToString("|") { Regex.escape(it.replace(word, "[HOMO] $word [/HOMO]").trim()) }
+                "((?<![а-яА-ЯёЁ\\-])(?:$alts)(?![а-яА-ЯёЁ\\-]))"
+            }
+            Phrases(Regex(body, RegexOption.IGNORE_CASE), variants)
+        }
+    }
+
+    /** Омограф в предложении: marked — контекст с [HOMO]-маркерами для BERT, pred — вариант по фразам
+     * (null — решает BERT). */
+    class Hit(val start: Int, val end: Int, val word: String, var pred: String?, val marked: String)
+
+    /** HomoSolver._find_and_tag_homos + фразы: слова из homodict или из списка фраз; слово только из
+     * фраз без совпадения фразы пропускается. */
+    internal fun tagHomos(sentence: String): List<Hit> {
+        val hits = ArrayList<Hit>()
+        for (m in homoWordRe.findAll(sentence)) {
             val w = m.value.lowercase()
-            if (w !in d.homodict) null
-            else Hit(m.range.first, m.range.last + 1, m.value,
-                sentence.substring(0, m.range.first) + " [HOMO] " + m.value + " [/HOMO] " + sentence.substring(m.range.last + 1))
-        }.toList()
+            val inDict = w in d.homodict; val ph = phrases(w)
+            if (!inDict && ph == null) continue
+            val startText = cleanText(sentence.substring(0, m.range.first), true).takeLast(window / 2)
+            val endText = cleanText(sentence.substring(m.range.last + 1), false).take(window / 2)
+            val marked = "$startText [HOMO] $w [/HOMO] $endText".trim()
+            // сначала фразы, при промахе — BERT (только для слов из homodict)
+            var pred: String? = null
+            if (ph != null) ph.re.find(marked)?.let { mm -> pred = ph.variants[mm.groups.indices.drop(1).first { mm.groups[it] != null } - 1] }
+            if (pred == null && !inDict) continue
+            hits += Hit(m.range.first, m.range.last + 1, m.value, pred, marked)
+        }
+        return hits
+    }
+
+    private fun homographPass(sentence: String): String {
+        val hits = tagHomos(sentence)
         if (hits.isEmpty()) return sentence
-        val ids = hits.map { tok.encode(it.marked) }
-        val starts = LongArray(hits.size) { ids[it].indexOf(d.bertHomoStart.toLong()).toLong() }
-        val ends = LongArray(hits.size) { ids[it].indexOf(d.bertHomoEnd.toLong()).toLong() }
-        val probs = models.homo(ids, starts, ends)
+        val neural = hits.filter { it.pred == null }
+        if (neural.isNotEmpty()) {
+            val ids = neural.map { tok.encode(it.marked) }
+            val starts = LongArray(neural.size) { ids[it].indexOf(d.bertHomoStart.toLong()).toLong() }
+            val ends = LongArray(neural.size) { ids[it].indexOf(d.bertHomoEnd.toLong()).toLong() }
+            val probs = models.homo(ids, starts, ends)
+            // torch.round: half-to-even, ровно 0.5 округляется в 0.
+            for ((i, h) in neural.withIndex()) h.pred = d.homodict.getValue(h.word.lowercase()).sorted()[if (probs[i] > 0.5f) 1 else 0]
+        }
         val sb = StringBuilder(sentence)
         var offset = 0
-        for ((i, h) in hits.withIndex()) {
-            // torch.round: half-to-even, ровно 0.5 округляется в 0.
-            val pred = if (probs[i] > 0.5f) 1 else 0
-            var variant = d.homodict.getValue(h.word.lowercase()).sorted()[pred]
+        for (h in hits) {
+            var variant = h.pred!!
             val stressIdx = variant.indexOf('+')
             variant = variant.replace("+", "")
             variant = variant.mapIndexed { k, c -> if (k < h.word.length && h.word[k].isLowerCase()) c.lowercaseChar() else if (k < h.word.length) c.uppercaseChar() else c }.joinToString("")

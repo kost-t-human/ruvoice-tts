@@ -1,4 +1,5 @@
-"""Экспорт Silero v5_5_ru в .ptl + json для Android. Запуск: python3 tools/export_silero.py"""
+"""Экспорт Silero v5_5_ru в .ptl + json для Android. Запуск: python3 tools/export_silero.py
+После него — tools/export_silero_stress.py: он перекрывает accentor.ptl, homo.ptl и стрессовую часть json."""
 import json, os, re, sys
 from typing import List
 import torch

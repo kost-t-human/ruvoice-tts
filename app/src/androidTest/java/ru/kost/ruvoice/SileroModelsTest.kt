@@ -33,11 +33,18 @@ class SileroModelsTest {
         val golden = JSONArray(testCtx.assets.open("golden.json").bufferedReader().readText())
         val stress = Stress(m.data, m)
         val bad = ArrayList<String>()
+        stress.apply(golden.getJSONObject(0).getString("prepared")) // прогрев
+        var total = 0L; var chars = 0; var slowest = ""; var slowestMs = 0L
         for (i in 0 until golden.length()) {
             val o = golden.getJSONObject(i)
+            val t = System.nanoTime()
             val got = stress.apply(o.getString("prepared"))
+            val ms = (System.nanoTime() - t) / 1_000_000
+            total += ms; chars += o.getString("prepared").length
+            if (ms > slowestMs) { slowestMs = ms; slowest = o.getString("prepared").take(40) }
             if (got != o.getString("accented")) bad += "${o.getString("prepared")}\n  ожидалось: ${o.getString("accented")}\n  получено:  $got"
         }
+        android.util.Log.i("RuVoiceTest", "stress: ${golden.length()} фраз, $chars симв., ${total} мс, самая долгая ${slowestMs} мс «$slowest»")
         assertTrue(bad.joinToString("\n"), bad.isEmpty())
     }
 }
