@@ -28,7 +28,8 @@ def main():
         for w, items in sorted(phrases_extra.load_extra().items()):
             for phrase, var in items:
                 merged[phrase] = re.sub(r'(?<![а-яё])' + re.escape(w) + r'(?![а-яё])', var, merged.get(phrase, phrase), count=1)
-        for phrase, out in merged.items(): o.write(f'{phrase} = {out}\n'); n += 1
+        # «$Толстого» — регистровый ключ Демагога: «$» только в ключе, в замене его быть не должно
+        for phrase, out in merged.items(): o.write(f'{phrase} = {out[1:] if phrase.startswith("$") and not phrase.startswith("$$") else out}\n'); n += 1
     print(f'системный словарь: ударений {len(fixes)}, фраз {n} → {ASSETS}')
 
 
