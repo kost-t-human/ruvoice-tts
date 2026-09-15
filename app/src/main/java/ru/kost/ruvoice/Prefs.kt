@@ -96,9 +96,15 @@ class Prefs(private val context: Context) {
             "rules_off" to rulesOff.joinToString(","),
             "max_len" to maxLen,
             "focus_level" to focusLevel,
+            "audit_names" to auditNames,
+            "audit_unsure" to auditUnsure,
+            "audit_min" to auditMin.toDouble(),
+            "audit_dict_names" to auditDict(Audit.Kind.NAMES),
+            "audit_dict_unsure" to auditDict(Audit.Kind.UNSURE),
         )
         fun all(kind: Dicts.Kind) = dictFiles(kind).associate { Dicts.name(it) to it.readText() }
-        return SettingsJson.build(prefsMap, all(Dicts.Kind.STRESS), all(Dicts.Kind.REPLACE), off(Dicts.Kind.STRESS), off(Dicts.Kind.REPLACE))
+        val auditLists = Audit.Kind.values().associate { it.name.lowercase() to audit.text(it) }.filterValues { it.isNotEmpty() }
+        return SettingsJson.build(prefsMap, all(Dicts.Kind.STRESS), all(Dicts.Kind.REPLACE), off(Dicts.Kind.STRESS), off(Dicts.Kind.REPLACE), auditLists)
     }
 
     /**
@@ -127,6 +133,12 @@ class Prefs(private val context: Context) {
         (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
+        (prefsMap["audit_names"] as? Boolean)?.let { auditNames = it }
+        (prefsMap["audit_unsure"] as? Boolean)?.let { auditUnsure = it }
+        (prefsMap["audit_min"] as? Number)?.let { auditMin = it.toFloat().coerceIn(0.3f, 0.99f) }
+        (prefsMap["audit_dict_names"] as? String)?.let { setAuditDict(Audit.Kind.NAMES, it) }
+        (prefsMap["audit_dict_unsure"] as? String)?.let { setAuditDict(Audit.Kind.UNSURE, it) }
+        parsed.audit?.forEach { (k, text) -> Audit.Kind.values().firstOrNull { it.name.equals(k, ignoreCase = true) }?.let { audit.load(it, text) } }
         fun write(kind: Dicts.Kind, dicts: Map<String, String>?) = dicts?.forEach { (name, body) ->
             if (Dicts.validName(name)) Dicts.file(context.filesDir, kind, name.trim()).also { it.parentFile!!.mkdirs() }.writeText(body)
         }

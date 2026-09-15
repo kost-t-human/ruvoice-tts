@@ -7,7 +7,8 @@ import org.json.JSONObject
 /**
  * Чистая (без Context) сборка и разбор JSON-файла экспорта настроек RuVoice TTS.
  * Формат v2: {"app":"ruvoice","version":2,"prefs":{...},"stress":{"имя":"текст",…},
- * "replace":{"имя":"текст",…},"stress_off":["имя",…],"replace_off":[…]}.
+ * "replace":{"имя":"текст",…},"stress_off":["имя",…],"replace_off":[…],
+ * "audit":{"names":"текст файла","unsure":"…"}} — списки вкладки «Проверка» вместе со скрытыми (см. Audit).
  * В v1 stress/replace были строками одного файла — при разборе они становятся списком «Основной».
  * Prefs.exportJson/importJson — тонкие обёртки поверх этого объекта, здесь же вся логика,
  * которую удобно тестировать без Android Context.
@@ -18,10 +19,10 @@ object SettingsJson {
 
     /** Разобранный файл: prefs как есть (типы JSON); словари и выключенные — null, если ключа не было. */
     data class Parsed(val prefs: Map<String, Any>, val stress: Map<String, String>?, val replace: Map<String, String>?,
-                      val stressOff: Set<String>?, val replaceOff: Set<String>?)
+                      val stressOff: Set<String>?, val replaceOff: Set<String>?, val audit: Map<String, String>? = null)
 
     fun build(prefsMap: Map<String, Any>, stress: Map<String, String>, replace: Map<String, String>,
-              stressOff: Set<String>, replaceOff: Set<String>): String {
+              stressOff: Set<String>, replaceOff: Set<String>, audit: Map<String, String> = emptyMap()): String {
         val prefsJson = JSONObject()
         for ((key, value) in prefsMap) prefsJson.put(key, value)
         val root = JSONObject()
@@ -32,6 +33,7 @@ object SettingsJson {
         root.put("replace", JSONObject(replace))
         root.put("stress_off", JSONArray(stressOff))
         root.put("replace_off", JSONArray(replaceOff))
+        if (audit.isNotEmpty()) root.put("audit", JSONObject(audit))
         return root.toString(2)
     }
 
@@ -49,7 +51,7 @@ object SettingsJson {
         if (prefsJson != null) {
             for (key in prefsJson.keys()) prefs[key] = prefsJson.get(key)
         }
-        return Parsed(prefs, dicts(root, "stress"), dicts(root, "replace"), names(root, "stress_off"), names(root, "replace_off"))
+        return Parsed(prefs, dicts(root, "stress"), dicts(root, "replace"), names(root, "stress_off"), names(root, "replace_off"), dicts(root, "audit"))
     }
 
     /** v2 — объект имя→текст; v1 — строка, она же список «Основной». */

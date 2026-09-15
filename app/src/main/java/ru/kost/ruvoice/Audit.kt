@@ -45,6 +45,11 @@ class Audit(private val dir: File) {
     /** Убирает видимые или скрытые записи списка. */
     @Synchronized fun clear(kind: Kind, hidden: Boolean = false) { list(kind).values.removeAll { it.hidden == hidden }; dirty += kind; flush() }
 
+    /** Файл списка как есть — для экспорта настроек. */
+    @Synchronized fun text(kind: Kind): String { flush(); return File(dir, kind.file).takeIf { it.exists() }?.readText().orEmpty() }
+    /** Список из экспорта целиком вместо нынешнего. */
+    @Synchronized fun load(kind: Kind, text: String) { flush(); File(dir, kind.file).writeText(text); lists.remove(kind) }
+
     /** Пишет изменённые списки; сервис зовёт в конце запроса. */
     @Synchronized fun flush() {
         for (kind in dirty) File(dir, kind.file).writeText(list(kind).values.joinToString("") { "${it.word}\t${it.variant}\t${it.count}\t${it.context}${if (it.hidden) "\th" else ""}\n" })

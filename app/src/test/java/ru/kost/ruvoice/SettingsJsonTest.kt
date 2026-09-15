@@ -12,8 +12,9 @@ class SettingsJsonTest {
 
     @Test fun roundTripBuildAndParse() {
         val json = SettingsJson.build(samplePrefs, mapOf("Основной" to "творог твор+ог", "Книга" to ""), mapOf("Основной" to "т.е. = то есть"),
-            setOf("Книга"), emptySet())
+            setOf("Книга"), emptySet(), mapOf("names" to "гарри\tг+арри\t1\tфраза\th\n"))
         val parsed = SettingsJson.parse(json)
+        assertEquals(mapOf("names" to "гарри\tг+арри\t1\tфраза\th\n"), parsed.audit)
         assertEquals("xenia", parsed.prefs["voice"])
         assertEquals(48000, (parsed.prefs["sr"] as Number).toInt())
         assertEquals(0, (parsed.prefs["pause_sentence"] as Number).toInt())
@@ -23,6 +24,7 @@ class SettingsJsonTest {
         assertEquals(mapOf("Основной" to "т.е. = то есть"), parsed.replace)
         assertEquals(setOf("Книга"), parsed.stressOff)
         assertEquals(emptySet<String>(), parsed.replaceOff)
+        assertNull(SettingsJson.parse("""{"app":"ruvoice","prefs":{}}""").audit)
     }
 
     @Test fun v1FlatStringsBecomeMainList() {

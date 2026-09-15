@@ -53,4 +53,14 @@ class AuditTest {
         b.clear(Audit.Kind.NAMES, hidden = true)
         assertEquals(Audit.MAX + 1, Audit(tmp.root).entries(Audit.Kind.NAMES).size)
     }
+
+    @Test fun textAndLoadRoundTrip() {
+        val a = Audit(tmp.root)
+        a.add(Audit.Kind.UNSURE, "творог", "тв+орог", "ел творог"); a.hide(Audit.Kind.UNSURE, "творог", true)
+        val text = a.text(Audit.Kind.UNSURE)
+        assertEquals("творог\tтв+орог\t1\tел творог\th\n", text)
+        val b = Audit(tmp.root); b.clear(Audit.Kind.UNSURE, hidden = true)
+        b.load(Audit.Kind.UNSURE, text)
+        assertEquals(listOf("творог"), b.entries(Audit.Kind.UNSURE, hidden = true).map { it.word })
+    }
 }

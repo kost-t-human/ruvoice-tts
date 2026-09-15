@@ -49,4 +49,22 @@ class AuditServiceTest {
             assertTrue(names.none { it.word == "пойдём" || it.word == "она" })
         } finally { prefs.auditNames = oldNames; prefs.auditUnsure = oldUnsure }
     }
+
+    /** Списки «Проверки» вместе со скрытыми уезжают в экспорт настроек и возвращаются импортом. */
+    @Test fun auditListsSurviveExportImport() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = Prefs(ctx)
+        val backup = prefs.exportJson()
+        try {
+            prefs.audit.clear(Audit.Kind.NAMES); prefs.audit.clear(Audit.Kind.NAMES, hidden = true)
+            prefs.audit.add(Audit.Kind.NAMES, "хагрид", "хагр+ид", "сказал Хагрид")
+            prefs.audit.add(Audit.Kind.NAMES, "гарри", "г+арри", "сказал Гарри"); prefs.audit.hide(Audit.Kind.NAMES, "гарри", true)
+            val json = prefs.exportJson()
+            prefs.audit.clear(Audit.Kind.NAMES); prefs.audit.clear(Audit.Kind.NAMES, hidden = true)
+            assertTrue(prefs.audit.entries(Audit.Kind.NAMES).isEmpty())
+            prefs.importJson(json)
+            assertEquals(listOf("хагрид"), prefs.audit.entries(Audit.Kind.NAMES).map { it.word })
+            assertEquals(listOf("гарри"), prefs.audit.entries(Audit.Kind.NAMES, hidden = true).map { it.word })
+        } finally { prefs.importJson(backup) }
+    }
 }
