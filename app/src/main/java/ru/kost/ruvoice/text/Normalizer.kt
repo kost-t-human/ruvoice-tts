@@ -1104,6 +1104,11 @@ object Normalizer {
     private val rubleForms = Triple("рубль", "рубля", "рублей")
     private val kopeckForms = Triple("копейка", "копейки", "копеек")
     private val moneyNumRe = """\d+(?:[.,]\d+)?"""
+    /** Сокращение с точкой закрыло предложение («100 руб. Дорого», «и т. д. Потом») — точку вернуть,
+     * иначе предложения склеятся. Конец текста не считается: нормализатор получает и куски без точки. */
+    private val sentenceEndRe = Regex("""^\s*(?:[»"]\s*)?[А-ЯЁA-Z]""")
+    private fun dotAfter(s: String, m: MatchResult) =
+        if (m.value.endsWith('.') && sentenceEndRe.containsMatchIn(s.substring(m.range.last + 1))) "." else ""
     private val dollarPrefixRe = Regex("""\$\s?($moneyNumRe)""")
     private val dollarSuffixRe = Regex("""($moneyNumRe)\s?(?:\$|долл\.)""", RegexOption.IGNORE_CASE)
     private val euroPrefixRe = Regex("""€($moneyNumRe)""")
@@ -1121,11 +1126,11 @@ object Normalizer {
     private fun currency(text: String): String {
         var s = text
         s = dollarPrefixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], dollarForms)}" }
-        s = dollarSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], dollarForms)}" }
+        s = dollarSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], dollarForms)}" + dotAfter(s, m) }
         s = euroPrefixRe.replace(s) { m -> "${m.groupValues[1]} евро" }
         s = euroSuffixRe.replace(s) { m -> "${m.groupValues[1]} евро" }
-        s = rubleSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], rubleForms)}" }
-        s = kopeckSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], kopeckForms)}" }
+        s = rubleSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], rubleForms)}" + dotAfter(s, m) }
+        s = kopeckSuffixRe.replace(s) { m -> "${m.groupValues[1]} ${currencyWord(m.groupValues[1], kopeckForms)}" + dotAfter(s, m) }
         return s
     }
 
@@ -1150,10 +1155,10 @@ object Normalizer {
         val abbr = abbrRaw.lowercase()
         val forms = scaleAbbrevForms.getValue(abbr)
         // «2,5 млн» — дробь согласуется как 2-4: «миллиона».
-        if (numStr.contains(',') || numStr.contains('.')) return@replace numStr + " " + forms.second
+        if (numStr.contains(',') || numStr.contains('.')) return@replace numStr + " " + forms.second + dotAfter(text, m)
         val n = numStr.toLongOrNull() ?: return@replace m.value
-        if (abbr == "тыс") cardinal(n, feminine = true) + " " + plural(n, forms)
-        else numStr + " " + plural(n, forms)
+        (if (abbr == "тыс") cardinal(n, feminine = true) + " " + plural(n, forms)
+        else numStr + " " + plural(n, forms)) + dotAfter(text, m)
     }
     // Фолбэки без числа рядом («5 тыс. руб.» — число уже словами) — после scaleAbbrev.
     private val scaleFallback = listOf(
@@ -1166,7 +1171,7 @@ object Normalizer {
     // Порядок: после cases() — «от 60 до 80 тыс.» сначала склоняет оба числа, потом «тысяч».
     private fun scales(text: String): String {
         var s = scaleAbbrev(text)
-        for ((re, rp) in scaleFallback) s = re.replace(s, rp)
+        for ((re, rp) in scaleFallback) s = expandAbbrev(s, re, rp)
         return s
     }
 
@@ -1230,7 +1235,7 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])ок\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "около ",
         Regex("""(?<![\p{L}\d])кв\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "квартира ",
         Regex("""(?<![\p{L}\d])тел\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "телефон",
-        Regex("""(?<![\p{L}\d])макс\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "максимум",
+        Regex("""(?<![\p{L}\d])макс\.(?![\p{L}])""") to "максимум",  // без IGNORE_CASE: «Его звали Макс.»
     )
 
     // «Св. Георгия» → «Святого Георгия», «Св. Анны» → «Святой Анны»: род и падеж по имени (nameGenderCase).
@@ -1301,8 +1306,18 @@ object Normalizer {
             val word = saintForms.getValue(if (female) 'f' else 'm')[case.ordinal]
             (if (abbr[0].isUpperCase()) word else word.lowercase()) + " " + name
         }
-        for ((re, rep) in abbrevSimple) s = re.replace(s, rep)
+        for ((re, rep) in abbrevSimple) s = expandAbbrev(s, re, rep)
         return s
+    }
+
+    /** Сокращение в конце предложения («и т. д. Потом», «100 руб. Дорого») — точка остаётся, иначе предложения
+     * склеиваются. Кроме тех, за которыми обычно имя с заглавной: «ул. Ленина», «проф. Иванов», «см. Иванов». */
+    private val abbrevBeforeName = setOf("ул", "проф", "акад", "св", "ср", "см", "напр", "им", "mr", "mrs", "dr", "г", "н")
+    private fun expandAbbrev(s: String, re: Regex, rep: String): String {
+        if ('$' in rep) return re.replace(s, rep)
+        return re.replace(s) { m ->
+            if (m.value.dropLast(1).substringAfterLast(' ').lowercase() in abbrevBeforeName) rep else rep + dotAfter(s, m)
+        }
     }
 
     // 11b. Номер главы/части/книги/раздела — порядковое в падеже и роде существительного (корпус
