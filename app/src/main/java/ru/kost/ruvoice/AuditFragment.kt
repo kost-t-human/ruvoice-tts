@@ -117,12 +117,12 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         val names = prefs.dictFiles(Dicts.Kind.STRESS).map { Dicts.name(it) }.filter { it != Dicts.SYSTEM }
         val target = view.findViewById<MaterialAutoCompleteTextView>(R.id.target)
         target.setSimpleItems(names.toTypedArray())
-        target.setText(prefs.auditDict.takeIf { it in names } ?: names.firstOrNull() ?: Dicts.MAIN, false)
+        target.setText(prefs.auditDict(kind).takeIf { it in names } ?: names.firstOrNull() ?: Dicts.MAIN, false)
         MaterialAlertDialogBuilder(ctx).setTitle(DictLines.accentDisplay(e.variant)).setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
                 val pos = chips.checkedChipId.takeIf { it != View.NO_ID }?.let { chips.findViewById<Chip>(it)?.tag as? Int } ?: return@setPositiveButton
                 val name = target.text.toString().ifBlank { Dicts.MAIN }
-                prefs.auditDict = name
+                prefs.setAuditDict(kind, name)
                 val f = Dicts.file(ctx.filesDir, Dicts.Kind.STRESS, name)
                 f.parentFile!!.mkdirs()
                 val line = DictLines.formatStress(e.word, pos)

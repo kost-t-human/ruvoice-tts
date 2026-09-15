@@ -172,7 +172,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             // torch.round: half-to-even, ровно 0.5 округляется в 0.
             for ((i, h) in neural.withIndex()) {
                 h.pred = d.homodict.getValue(h.word.lowercase()).sorted()[if (probs[i] > 0.5f) 1 else 0]
-                if (probs[i] in HOMO_UNSURE) unsure?.invoke(h.word.lowercase(), h.pred!!, sentence)
+                if (probs[i] in HOMO_UNSURE && !known(h.word.lowercase())) unsure?.invoke(h.word.lowercase(), h.pred!!, sentence)
             }
         }
         val sb = StringBuilder(sentence)
@@ -275,7 +275,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             if (pos.numVowels == 1) { stressPositions = listOf(pos.firstVowel); setStress = true }
             if (!haveStress && setStress) for ((k, p) in stressPositions.withIndex())
                 rawWord = rawWord.substring(0, p + k) + "+" + rawWord.substring(p + k)
-            if (!haveStress && pos.numVowels >= 2 && sp[stressPred] < unsureMin && cleanWord !in userDict) unsure?.invoke(cleanWord, rawWord.lowercase(), sentence)
+            if (!haveStress && pos.numVowels >= 2 && sp[stressPred] < unsureMin && !known(cleanWord)) unsure?.invoke(cleanWord, rawWord.lowercase(), sentence)
             out.append(rawWord)
         }
         return out.toString()
@@ -286,6 +286,9 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         /** BERT около половины — омограф под вопросом. */
         val HOMO_UNSURE = 0.35f..0.65f
     }
+
+    /** Слово уже решают списки пользователя или грамматическая таблица — в «неуверенные» не идёт. */
+    private fun known(w: String) = w in userDict || w in d.gram
 
     private fun userDictPass(sentence: String): String {
         if (userDict.isEmpty()) return sentence

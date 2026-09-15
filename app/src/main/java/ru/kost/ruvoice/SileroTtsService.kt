@@ -260,7 +260,7 @@ class SileroTtsService : TextToSpeechService() {
                     try {
                         models.ensureLoaded()
                         val accented = stress.apply(prepared)
-                        if (auditNames) audit.names(seg.text, accented) { w -> w in d.exceptions || w in d.homodict || w in userDict }
+                        if (auditNames) audit.names(seg.text, accented) { w -> w in d.exceptions || w in d.homodict || w in d.gram || w in userDict }
                         val seq = d.sequence(accented)
                         val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
                         val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId

@@ -32,10 +32,12 @@ class Prefs(private val context: Context) {
         set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()
     var maxLen: Int get() = p.getInt("max_len", Rules.MAX_LEN_DEFAULT); set(v) = p.edit().putInt("max_len", v).apply()
     /** Вкладка «Проверка»: копить имена / неуверенные слова; порог уверенности акцентора; список, куда добавлять. */
-    var auditNames: Boolean get() = p.getBoolean("audit_names", false); set(v) = p.edit().putBoolean("audit_names", v).apply()
+    var auditNames: Boolean get() = p.getBoolean("audit_names", true); set(v) = p.edit().putBoolean("audit_names", v).apply()
     var auditUnsure: Boolean get() = p.getBoolean("audit_unsure", false); set(v) = p.edit().putBoolean("audit_unsure", v).apply()
     var auditMin: Float get() = p.getFloat("audit_min", Audit.MIN_DEFAULT); set(v) = p.edit().putFloat("audit_min", v).apply()
-    var auditDict: String get() = p.getString("audit_dict", Dicts.MAIN)!!; set(v) = p.edit().putString("audit_dict", v).apply()
+    /** Список, куда в прошлый раз добавляли слово с вкладки «Проверка», отдельно для имён и неуверенных. */
+    fun auditDict(kind: Audit.Kind): String = p.getString("audit_dict_${kind.name}", if (kind == Audit.Kind.NAMES) Dicts.NAMES else Dicts.MAIN)!!
+    fun setAuditDict(kind: Audit.Kind, name: String) = p.edit().putString("audit_dict_${kind.name}", name).apply()
     val audit: Audit get() = AUDIT ?: synchronized(Audit::class.java) { AUDIT ?: Audit(context.filesDir).also { AUDIT = it } }
     var focusLevel: Int get() = p.getInt("focus_level", Rules.FOCUS_DEFAULT); set(v) = p.edit().putInt("focus_level", v).apply()
 
@@ -63,6 +65,11 @@ class Prefs(private val context: Context) {
     init {
         Dicts.migrate(context.filesDir, DEFAULT_REPLACE)
         Dicts.installSystem(context.filesDir) { path -> runCatching { context.assets.open(path).bufferedReader().readText() }.getOrNull() }
+        // пустой список «Имена» один раз: удалённый пользователем не воскрешаем
+        if (!p.getBoolean("names_dict_made", false)) {
+            Dicts.file(context.filesDir, Dicts.Kind.STRESS, Dicts.NAMES).takeIf { !it.exists() }?.let { it.parentFile!!.mkdirs(); it.writeText("") }
+            p.edit().putBoolean("names_dict_made", true).apply()
+        }
     }
 
     /** Слитые включённые списки ударений, из кэша процесса. */

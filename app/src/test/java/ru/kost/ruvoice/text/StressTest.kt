@@ -121,9 +121,9 @@ class StressTest {
             override fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray) = FloatArray(ids.size) { 0.5f }
         }
         val got = ArrayList<String>()
-        val s = Stress(d, shaky, mapOf("папа" to "п+апа")).apply { unsure = { w, v, _ -> got += "$w=$v" } }
-        s.apply("мама папа его замок")
-        // «его» — из исключений, «папа» — из словаря пользователя: их не проверяем
+        val s = Stress(d, shaky, mapOf("папа" to "п+апа", "белки" to "б+елки")).apply { unsure = { w, v, _ -> got += "$w=$v" } }
+        s.apply("мама папа его замок белки стены")
+        // «его» — из исключений, «папа» и омограф «белки» — из словаря пользователя, «стены» — из грамматической таблицы: их не проверяем
         assertEquals(listOf("замок=з+амок", "мама=м+ама"), got)
         got.clear(); s.unsureMin = 0.5f; s.apply("мама"); assertTrue(got.isEmpty())
     }

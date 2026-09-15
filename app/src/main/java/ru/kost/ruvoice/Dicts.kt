@@ -20,6 +20,8 @@ object Dicts {
     const val MAIN = "Основной"
     /** Встроенный список из assets/dicts/<вид>/Системный.txt: не удаляется и не правится, но выключается как остальные. */
     const val SYSTEM = "Системный"
+    /** Пустой список ударений под имена с вкладки «Проверка»; создаётся при первом запуске, удалять можно. */
+    const val NAMES = "Имена"
     private const val MAX_NAME = 60
     val COLLATOR: Collator = Collator.getInstance(Locale("ru"))
     private val CP1251: Charset = Charset.forName("windows-1251")
