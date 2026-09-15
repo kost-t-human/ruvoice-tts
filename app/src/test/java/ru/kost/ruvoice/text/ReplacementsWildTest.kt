@@ -65,6 +65,14 @@ class ReplacementsWildTest {
         assertEquals("у из \"РПГ-7\" вор+от", r.apply("у из \"РПГ-7\" ворот"))
     }
 
+    @Test fun hyphenPrefixMaskDoesNotTouchOtherWords() {
+        val r = Replacements.parse(listOf("черно-* = чёрно-*"))
+        assertEquals("чёрно-белый чёрного черно", r.apply("черно-белый чёрного черно"))
+        assertEquals("черного", r.apply("черного"))
+        assertEquals("записи «черного ящика».", r.apply("записи «черного ящика»."))
+        assertEquals("чёрно-белый чёрного", Replacements.parse(listOf("черно-* = чёрно-*", "темно-* = тёмно-*", "желто-* = жёлто-*")).apply("черно-белый чёрного"))
+    }
+
     @Test fun stressOnlyRuleKeepsCaseOfMatchedText() {
         val r = Replacements.parse(listOf("старый замок = старый з+амок", "дорого = д+орого"))
         assertEquals("Старый з+амок. СТАРЫЙ З+АМОК, д+орого", r.apply("Старый замок. СТАРЫЙ ЗАМОК, дорого"))

@@ -48,8 +48,9 @@ class DictsTest {
         val r = Replacements.parse(replace)
         val pairs = replace.mapNotNull { Replacements.split(it) }
         assertTrue(pairs.size > 5000)
-        assertTrue(pairs.all { (k, v) -> v.replace("+", "") == k && v.count { it == '+' } == 1 })
+        assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "") == k && v.count { it == '+' } == 1 })
         assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
+        assertEquals("тёмно-зеленый и темно", r.apply("темно-зеленый и темно"))
     }
 
     @Test fun filesAreSortedByRussianCollation() {

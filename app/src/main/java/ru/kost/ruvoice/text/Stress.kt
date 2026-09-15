@@ -14,7 +14,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
     // JVM \s матчит только ASCII-пробелы; Python \s матчит любой Unicode-пробел (NBSP и т.п.),
     // поэтому класс явно расширен \p{Zs} и прочими Unicode-разделителями.
-    private val splitRe = Regex("([\\s\\p{Zs}\\u0085\\u2028\\u2029\\u001C-\\u001F.,!?;:<>=()/\\\\]+)")
+    // кавычки тоже разделители: у Silero «слово с кавычкой — один токен, и «ё» встаёт не на ту букву («+ёерного»)
+    private val splitRe = Regex("([\\s\\p{Zs}\\u0085\\u2028\\u2029\\u001C-\\u001F.,!?;:<>=()/\\\\«»„“”\"'‘’‹›]+)")
     private val nonCyr = Regex("[^А-Яа-яёЁ]")
     private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
 
@@ -41,7 +42,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого")
     private val gramWordRe = Regex("[а-яё+-]+", RegexOption.IGNORE_CASE)
 
-    /** «вдоль стены» → «стен+ы», «за село» → «сел+о», «я ношу» → «нош+у», «вечного города» → «г+орода»: слово из
+    /** «вдоль стены» → «стен+ы», «за село» → «сел+о», «я ношу» → «нош+у», «вечного города» → «г+орода», «в озера» → «оз+ёра»: слово из
      * таблицы d.gram получает ударение по слову перед ним (между ними только пробелы). Дальше омографы и акцентор
      * его не трогают. Проверено на фразах чужих словарей: по каждой ветке правило право в 85–95 % расхождений с
      * моделью; согласование с прилагательным на «-ые», «-ой» и через числительное пробовали — не лучше BERT. */
@@ -67,8 +68,11 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     else -> null
                 }
                 if (pick != null) {
-                    val i = pick.indexOf('+')
-                    sb.insert(m.range.first + offset + i, '+'); offset++
+                    // вариант может быть с «ё» (озера → оз+ёра): переписываем слово, сохраняя регистр букв
+                    val raw = m.value; var k = 0
+                    val out = StringBuilder(pick.length)
+                    for (c in pick) if (c == '+') out.append('+') else { out.append(if (raw[k].isUpperCase()) c.uppercaseChar() else c); k++ }
+                    sb.replace(m.range.first + offset, m.range.last + 1 + offset, out.toString()); offset += out.length - raw.length
                 }
             }
             prev2 = prev; prev = w; prevEnd = m.range.last + 1

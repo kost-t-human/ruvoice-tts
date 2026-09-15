@@ -172,7 +172,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:connectedDebugAndroidTest  # на устройстве: модели против эталона, сервис через TextToSpeech API
 ```
 
-Инструментальные тесты сверяют выход конвертированных моделей с эталоном `golden.json` (он снят с оригинальной модели тем же `tools/export_silero.py`), гоняют сервис через платформенный `TextToSpeech`, как это делает читалка, и считают точность омографов на настоящих предложениях (`HomographEvalTest`, набор [HomographResolutionEval](https://huggingface.co/datasets/inkoziev/HomographResolutionEval) Ильи Козиева, CC BY 4.0, 1741 предложение; копия в `app/src/test/resources/homograph_eval/`): сейчас 82 %, трещотка на 80 %. Тот же набор без телефона — `tools/homo_eval.py`. `GramPassCorpusTest` проверяет грамматический проход на фразах чужих словарей (локальный `local/ss_rows.tsv`, без него пропускается): правило не должно спорить со словарём чаще, чем в 2,5 % сработок.
+Инструментальные тесты сверяют выход конвертированных моделей с эталоном `golden.json` (он снят с оригинальной модели тем же `tools/export_silero.py`), гоняют сервис через платформенный `TextToSpeech`, как это делает читалка, и считают точность омографов на настоящих предложениях (`HomographEvalTest`, набор [HomographResolutionEval](https://huggingface.co/datasets/inkoziev/HomographResolutionEval) Ильи Козиева, CC BY 4.0, 1741 предложение; копия в `app/src/test/resources/homograph_eval/`): сейчас 82 %, трещотка на 80 %. Тот же набор без телефона — `tools/homo_eval.py`. Букву «ё» проверяет `YoEvalTest`: 2000 предложений русской Википедии с «ё» (`app/src/test/resources/yo_eval/`, выборка `tools/wiki_yo_corpus.py` из дампа), «ё» стирается и ставится заново: восстанавливается 96 %, трещотка на 92 %; полный корпус в 30 тысяч предложений гоняет `tools/yo_eval.py` (однозначные слова по словарю eyo — 96 %, омографы вроде все/всё — 90 %). `GramPassCorpusTest` проверяет грамматический проход на фразах чужих словарей (локальный `local/ss_rows.tsv`, без него пропускается): правило не должно спорить со словарём чаще, чем в 2,5 % сработок.
 
 ```
 app/src/main/java/ru/kost/ruvoice/
@@ -193,6 +193,8 @@ tools/aot_survey.py                        Silero Stress по всем одно�
 tools/gram_table.py                        таблица падежных омографов из AOT → «gram» в silero_ru.json
 tools/stress_fixes.py, phrases_extra.py    поправки ударений и фразы-подсказки (см. комментарии)
 tools/system_dicts.py                      из них — assets/dicts/*/Системный.txt, системный словарь приложения
+tools/homo_eval.py, yo_eval.py             омографы на HomographResolutionEval и «ё» на корпусе Википедии без телефона
+tools/wiki_yo_corpus.py                    ёфицированный корпус из дампа Википедии → app/build/yo_corpus.txt
 tools/nicolai_to_plus.py                  словарь под Николая («<» после гласной) → наш формат
 ```
 
@@ -202,6 +204,7 @@ tools/nicolai_to_plus.py                  словарь под Николая (
 - **[Silero Stress](https://github.com/snakers4/silero-stress)** (MIT) — акцентор, словарь исключений, фразы и BERT-классификатор омографов (`accentor.ptl`, `homo.ptl`, стрессовая часть `silero_ru.json`). На словарях замен из живых книг совпадает с ними в 87 % ударений против 81 % у акцентора из `v5_5_ru`.
 - **[AOT — морфологический словарь](https://github.com/sokirko74/morph_dict)** (LGPL, по грамматическому словарю Зализняка) — источник таблицы падежных омографов (`gram` в `silero_ru.json`, около тысячи форм) и арбитр при отборе поправок ударений `tools/stress_fixes.txt` (1,3 тысячи слов). Второй арбитр — русские статьи английского [Викисловаря](https://en.wiktionary.org) в выгрузке [kaikki.org](https://kaikki.org/dictionary/Russian/) (CC BY-SA), в аппку из него ничего не попадает; частотность форм — [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (CC BY-SA). Поправка попадает в список, только если оба словаря согласны между собой и расходятся с моделью.
 - **[HomographResolutionEval](https://huggingface.co/datasets/inkoziev/HomographResolutionEval)** (Илья Козиев, CC BY 4.0) — 1741 предложение с размеченным омографом, единственная у нас проверка ударений на живом тексте, а не на коротких ключах словарей.
+- **[Русская Википедия](https://ru.wikipedia.org)** (CC BY-SA 4.0) — 2000 предложений с буквой «ё» для теста её восстановления (`app/src/test/resources/yo_eval/wiki_yo.txt`); **[eyo](https://github.com/e2yo/eyo-kernel)** (Денис Селезнёв, MIT) — словарь однозначных и неоднозначных «ё»-слов, только для разбора результатов в `tools/yo_eval.py`.
 - **[Sonic](https://github.com/waywardgeek/sonic)** (Bill Cox) — растяжение темпа без изменения высоты, Apache-2.0. Java-порт лежит в `app/src/main/java/sonic/Sonic.java`.
 - **PyTorch Android Lite** — рантайм для TorchScript-моделей на устройстве.
 - **[ru-normalizr](https://github.com/NickZaitsev/ru-normalizr)** (Nick Zaitsev, MIT) — корпус из 563 пар «вход → выход» для тестов нормализатора (`app/src/test/resources/ru_normalizr.json`) и несколько идей оттуда: чтение ссылок по частям, буква после цифры названием, согласование числа с родом существительного. Код не заимствован.

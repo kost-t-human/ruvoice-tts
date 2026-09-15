@@ -52,6 +52,10 @@ class StressTest {
         assertEquals("в\u00A0д+оме", Stress(d, firstVowel).apply("в\u00A0доме"))
     }
 
+    @Test fun quotesAreSeparators() {
+        assertEquals("з+аписи «м+ама» \"п+апа\"", Stress(d, firstVowel).apply("записи «мама» \"папа\""))
+    }
+
     @Test fun punctuationAndHyphenPreserved() {
         assertEquals("кт+о-то, +а т+ы?", Stress(d, firstVowel).apply("кто-то, а ты?"))
     }
@@ -97,6 +101,7 @@ class StressTest {
         assertEquals("вечного г+орода", s.gramPass("вечного города"))
         assertEquals("его руки", s.gramPass("его руки"))
         assertEquals("Вдоль Стен+ы", s.gramPass("Вдоль Стены"))
+        assertEquals("в Оз+ёра, у +озера", s.gramPass("в Озера, у озера"))
         // одушевлённые: после «за» — вин. ед., после «в» — не решаем («выйти в учителя»); запятая рвёт связь
         assertEquals("за уч+ителя", s.gramPass("за учителя"))
         assertEquals("в учителя", s.gramPass("в учителя"))

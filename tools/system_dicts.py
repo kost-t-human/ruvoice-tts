@@ -8,6 +8,8 @@ import os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 ASSETS = os.path.join(ROOT, 'app/src/main/assets/dicts')
 sys.path.insert(0, HERE)
+# по корпусу Википедии (tools/yo_eval.py): тёмно-зелёный, чёрно-белый, жёлто-, зелёно-, взлётно-посадочная, ликёро-водочный
+COMPOUNDS = [('темно', 'тёмно'), ('черно', 'чёрно'), ('желто', 'жёлто'), ('зелено', 'зелёно'), ('взлетно', 'взлётно'), ('ликеро', 'ликёро')]
 
 
 def main():
@@ -19,6 +21,8 @@ def main():
         for w, v in sorted(fixes.items()): o.write(f'{w} {v}\n')
     n = 0
     with open(os.path.join(ASSETS, 'replace', 'Системный.txt'), 'w', encoding='utf-8') as o:
+        o.write('# Первые части сложных слов с «ё»: отдельно «темно» — наречие темн+о, и модель теряет «ё»\n')
+        for a, b in COMPOUNDS: o.write(f'{a}-* = {b}-*\n')
         o.write('# Фразы-подсказки для омографов: слово в этой фразе читается так (tools/phrases_extra.txt)\n')
         for w, items in sorted(phrases_extra.load_extra().items()):
             for phrase, var in items:
