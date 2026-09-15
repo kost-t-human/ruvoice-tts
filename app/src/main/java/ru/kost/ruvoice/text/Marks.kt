@@ -1,6 +1,6 @@
 package ru.kost.ruvoice.text
 
-import ru.kost.ruvoice.SileroData
+import ru.kost.ruvoice.Symbols
 
 /**
  * Пометки слов, которые модель умеет поверх текста: логическое ударение `*слово*` (focus_mask),
@@ -78,7 +78,7 @@ object Marks {
      * punctSeq — индекс в seq последнего знака препинания слова, -1 если слово им не кончается. */
     class Token(val key: String, val seqStart: Int, val seqEnd: Int, val punctSeq: Int)
 
-    fun tokens(accented: String, d: SileroData): List<Token> {
+    fun tokens(accented: String, d: Symbols): List<Token> {
         // индекс символа accented → индекс в seq; символы не из алфавита модели sequence() выкидывает
         val seqIdx = IntArray(accented.length + 1)
         var idx = 1
@@ -106,7 +106,7 @@ object Marks {
     class Aligned(val rates: FloatArray, val pitches: FloatArray, val focus: LongArray, val symbDurs: Map<Long, Long>)
 
     /** Раскладывает пометки [words] по символам [accented]; пробелы наследуют пометку слова слева. */
-    fun align(words: List<Pair<String, Mark>>, accented: String, seqLen: Int, d: SileroData): Aligned {
+    fun align(words: List<Pair<String, Mark>>, accented: String, seqLen: Int, d: Symbols): Aligned {
         val rates = FloatArray(seqLen) { 1f }; val pitches = FloatArray(seqLen) { 1f }; val focus = LongArray(seqLen)
         val symbDurs = HashMap<Long, Long>()
         if (words.isEmpty()) return Aligned(rates, pitches, focus, symbDurs)

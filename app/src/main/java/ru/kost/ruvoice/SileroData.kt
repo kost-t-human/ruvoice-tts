@@ -3,11 +3,12 @@ package ru.kost.ruvoice
 import org.json.JSONObject
 
 class SileroData(json: String) {
-    val symbols: String
-    val symbolToId: Map<Char, Int>
-    val sos: Char
-    val eos: Char
-    val alphabet: Set<Char>
+    val sym: Symbols
+    val symbols: String get() = sym.symbols
+    val symbolToId: Map<Char, Int> get() = sym.symbolToId
+    val sos: Char get() = sym.sos
+    val eos: Char get() = sym.eos
+    val alphabet: Set<Char> get() = sym.alphabet
     val speakers: Map<String, Int>
     val exceptions: Map<String, IntArray>
     val homodict: Map<String, List<String>>
@@ -26,11 +27,7 @@ class SileroData(json: String) {
     init {
         // Локальные, не сохраняются полями — разобранное дерево (2.5 МБ) не остаётся в памяти.
         val o = JSONObject(json)
-        symbols = o.getString("symbols")
-        symbolToId = o.getJSONObject("symbol_to_id").let { j -> j.keys().asSequence().associate { it[0] to j.getInt(it) } }
-        sos = o.getString("sos")[0]
-        eos = o.getString("eos")[0]
-        alphabet = o.getString("alphabet").toSet()
+        sym = Symbols.fromJson(o)
         speakers = o.getJSONObject("speakers").let { j -> j.keys().asSequence().associateWith { j.getInt(it) } }
         exceptions = o.getJSONObject("exceptions").let { j ->
             j.keys().asSequence().associateWith { k -> val a = j.getJSONArray(k); intArrayOf(a.getInt(0), a.getInt(1)) }
@@ -50,14 +47,6 @@ class SileroData(json: String) {
         }
     }
 
-    /** Символы, допустимые во входе модели: без служебных `_~|`. */
-    val allowed: String get() = symbols.substring(3)
-
-    fun sequence(accented: String): LongArray {
-        val ids = ArrayList<Long>(accented.length + 2)
-        ids += symbolToId.getValue(sos).toLong()
-        for (c in accented) symbolToId[c]?.let { ids += it.toLong() }
-        ids += symbolToId.getValue(eos).toLong()
-        return ids.toLongArray()
-    }
+    val allowed: String get() = sym.allowed
+    fun sequence(accented: String): LongArray = sym.sequence(accented)
 }

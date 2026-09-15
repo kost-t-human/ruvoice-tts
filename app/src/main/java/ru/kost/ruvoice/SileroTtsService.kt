@@ -244,11 +244,11 @@ class SileroTtsService : TextToSpeechService() {
                             val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
                             val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
                             val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
-                            val al = Marks.align(marks.words, accented, seq.size, d)
+                            val al = Marks.align(marks.words, accented, seq.size, d.sym)
                             for (i in al.pitches.indices) al.pitches[i] *= curPitch
                             // seq = sos + accented + eos, индексы совпадают с durs напрямую.
                             val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
-                            Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs), Marks.tokens(accented, d))
+                            Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs), Marks.tokens(accented, d.sym))
                         } catch (e: Throwable) {
                             // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
                             Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
