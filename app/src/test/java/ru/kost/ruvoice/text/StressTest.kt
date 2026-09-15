@@ -1,6 +1,7 @@
 package ru.kost.ruvoice.text
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.kost.ruvoice.TestData
 
@@ -110,5 +111,20 @@ class StressTest {
         assertEquals("стены", s.gramPass("стены"))
         // дальше омографы и акцентор слово не трогают
         assertEquals("з+а сел+о", s.apply("за село"))
+    }
+
+    @Test fun unsureWordsReported() {
+        // акцентор: первая гласная с вероятностью 0.6 — ниже порога 0.9; BERT ровно 0.5 — омограф под вопросом
+        val shaky = object : StressModels {
+            override fun accentor(words: List<String>) = Pair(
+                Array(words.size) { FloatArray(10).also { it[0] = 0.6f } }, Array(words.size) { FloatArray(7) })
+            override fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray) = FloatArray(ids.size) { 0.5f }
+        }
+        val got = ArrayList<String>()
+        val s = Stress(d, shaky, mapOf("папа" to "п+апа")).apply { unsure = { w, v, _ -> got += "$w=$v" } }
+        s.apply("мама папа его замок")
+        // «его» — из исключений, «папа» — из словаря пользователя: их не проверяем
+        assertEquals(listOf("замок=з+амок", "мама=м+ама"), got)
+        got.clear(); s.unsureMin = 0.5f; s.apply("мама"); assertTrue(got.isEmpty())
     }
 }

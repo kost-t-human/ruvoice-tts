@@ -31,6 +31,12 @@ class Prefs(private val context: Context) {
         get() = p.getString("rules_off", "")!!.split(',').filter { it in Rules.KEYS }.toSet()
         set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()
     var maxLen: Int get() = p.getInt("max_len", Rules.MAX_LEN_DEFAULT); set(v) = p.edit().putInt("max_len", v).apply()
+    /** Вкладка «Проверка»: копить имена / неуверенные слова; порог уверенности акцентора; список, куда добавлять. */
+    var auditNames: Boolean get() = p.getBoolean("audit_names", false); set(v) = p.edit().putBoolean("audit_names", v).apply()
+    var auditUnsure: Boolean get() = p.getBoolean("audit_unsure", false); set(v) = p.edit().putBoolean("audit_unsure", v).apply()
+    var auditMin: Float get() = p.getFloat("audit_min", Audit.MIN_DEFAULT); set(v) = p.edit().putFloat("audit_min", v).apply()
+    var auditDict: String get() = p.getString("audit_dict", Dicts.MAIN)!!; set(v) = p.edit().putString("audit_dict", v).apply()
+    val audit: Audit get() = AUDIT ?: synchronized(Audit::class.java) { AUDIT ?: Audit(context.filesDir).also { AUDIT = it } }
     var focusLevel: Int get() = p.getInt("focus_level", Rules.FOCUS_DEFAULT); set(v) = p.edit().putInt("focus_level", v).apply()
 
     /** Правила для пайплайна: выключенные тумблеры плюс «прямая речь» с вкладки «Голос». */
@@ -123,6 +129,8 @@ class Prefs(private val context: Context) {
     }
 
     companion object {
+        /** Один на процесс: сервис пишет, настройки читают. */
+        @Volatile private var AUDIT: Audit? = null
         /** Примеры для вкладки «Замены»: ударение во фразе перебивает и словарь, и BERT;
          * «ё» там, где в тексте её не пишут, а модель без неё читает не то. */
         const val DEFAULT_REPLACE = "старый замок = старый з+амок\nмалек = малёк\n"

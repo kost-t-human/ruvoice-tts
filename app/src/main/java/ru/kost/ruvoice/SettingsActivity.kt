@@ -41,6 +41,7 @@ class SettingsActivity : AppCompatActivity() {
         R.string.tab_stress to { StressFragment() },
         R.string.tab_replace to { ReplaceFragment() },
         R.string.tab_rules to { RulesFragment() },
+        R.string.tab_audit to { AuditFragment() },
     )
     private val prefs by lazy { Prefs(this) }
     private var tts: TextToSpeech? = null

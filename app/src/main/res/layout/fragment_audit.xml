@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Вкладка «Проверка»: два тумблера (имена, неуверенные) с порогом уверенности, переключатель
+     показываемого списка, список слов; тап по строке — добавить в словарь ударений, свайп — убрать. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp">
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/namesOn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingVertical="8dp"
+            android:text="@string/audit_names"
+            android:textAppearance="?attr/textAppearanceBodyLarge" />
+        <TextView
+            style="@style/SectionHint"
+            android:text="@string/audit_names_hint" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/unsureOn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingVertical="8dp"
+            android:text="@string/audit_unsure"
+            android:textAppearance="?attr/textAppearanceBodyLarge" />
+        <TextView
+            style="@style/SectionHint"
+            android:text="@string/audit_unsure_hint" />
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/audit_min"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+            <com.google.android.material.slider.Slider
+                android:id="@+id/minSlider"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:valueFrom="0.5"
+                android:valueTo="0.99"
+                android:stepSize="0.01" />
+            <TextView
+                android:id="@+id/minValue"
+                android:layout_width="40dp"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:textAppearance="?attr/textAppearanceBodyMedium" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp">
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/which"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                app:singleSelection="true"
+                app:selectionRequired="true">
+                <Button
+                    android:id="@+id/showNames"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/audit_tab_names" />
+                <Button
+                    android:id="@+id/showUnsure"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/audit_tab_unsure" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+            <Button
+                android:id="@+id/clear"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/audit_clear" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+        <TextView
+            android:id="@+id/empty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_margin="32dp"
+            android:gravity="center"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:text="@string/audit_empty" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="24dp" />
+    </FrameLayout>
+</LinearLayout>

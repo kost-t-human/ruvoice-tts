@@ -7,6 +7,20 @@
     <string name="tab_stress">Ударения</string>
     <string name="tab_replace">Замены</string>
     <string name="tab_rules">Правила</string>
+    <string name="tab_audit">Проверка</string>
+    <string name="audit_names">Собирать имена</string>
+    <string name="audit_names_hint">Слова с заглавной буквы не в начале предложения, которых нет в словарях: имена героев, фамилии, названия. Ударение в них модель угадывает — проверьте на слух и поправьте.</string>
+    <string name="audit_unsure">Собирать неуверенные слова</string>
+    <string name="audit_unsure_hint">Модель ставит ударение с вероятностью по каждой гласной. Слово попадает в список, если лучшая гласная набрала меньше порога, или если нейросеть омографов выбирала почти наугад. Чем ниже порог, тем короче список и тем больше в нём настоящих ошибок; при 0,9 в списке меньше процента слов, ошибка примерно в каждом третьем.</string>
+    <string name="audit_min">Порог</string>
+    <string name="audit_tab_names">Имена</string>
+    <string name="audit_tab_unsure">Неуверенные</string>
+    <string name="audit_clear">Очистить</string>
+    <string name="audit_empty">Пока пусто. Включите сбор сверху и почитайте что-нибудь: слова появятся здесь. Тап по слову — в словарь с нужным ударением, свайп — убрать из списка.</string>
+    <string name="audit_target">В какой список</string>
+    <string name="audit_count">%1$s · %2$d раз</string>
+    <string name="audit_clear_confirm">Очистить список «%s»?</string>
+    <string name="audit_added">«%1$s» добавлено в «%2$s»</string>
 
     <!-- Голос -->
     <string name="voice">Голос</string>

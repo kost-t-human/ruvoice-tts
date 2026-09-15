@@ -224,6 +224,9 @@ class SileroTtsService : TextToSpeechService() {
             val noDict = request.params?.getString("ruvoice.nodict") == "1"
             val rules = prefs.rules()
             val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict(), rules)
+            // вкладка «Проверка»: неуверенные слова — из Stress, имена — по исходному тексту сегмента
+            val audit = prefs.audit; val auditNames = prefs.auditNames && !noDict; val userDict = if (noDict) emptyMap() else prefs.userDict()
+            if (prefs.auditUnsure && !noDict) { stress.unsureMin = prefs.auditMin; stress.unsure = { w, v, ctx -> audit.add(Audit.Kind.UNSURE, w, v, ctx) } }
             val replacements = prefs.replacements()
             // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
             val quoteSpeakerId = prefs.quoteVoice.takeIf { it in d.speakers }?.let { d.speakers.getValue(it) }
@@ -257,6 +260,7 @@ class SileroTtsService : TextToSpeechService() {
                     try {
                         models.ensureLoaded()
                         val accented = stress.apply(prepared)
+                        if (auditNames) audit.names(seg.text, accented) { w -> w in d.exceptions || w in d.homodict || w in userDict }
                         val seq = d.sequence(accented)
                         val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
                         val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
@@ -303,6 +307,7 @@ class SileroTtsService : TextToSpeechService() {
                 if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
             }
             callback.done()
+            audit.flush()
             Log.i(SileroModels.TAG, "запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., ${System.currentTimeMillis() - t0} мс")
         } catch (e: Exception) {
             Log.e(SileroModels.TAG, "onSynthesizeText", e)

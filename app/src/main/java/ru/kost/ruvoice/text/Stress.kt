@@ -9,6 +9,10 @@ interface StressModels {
 
 class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
              private val rules: Rules = Rules()) {
+    /** Сборщик «неуверенных» слов (вкладка «Проверка»): слово, вариант с «+», фраза. Зовётся, когда акцентор
+     * ставит ударение с вероятностью ниже unsureMin или BERT выбирает омограф с вероятностью около половины. */
+    var unsure: ((word: String, variant: String, sentence: String) -> Unit)? = null
+    var unsureMin = 0.9f
     private val vowels = "аоуыэиеяёю"
     private val tok = BertTokenizer(d)
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
@@ -166,7 +170,10 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             val ends = LongArray(neural.size) { ids[it].indexOf(d.bertHomoEnd.toLong()).toLong() }
             val probs = models.homo(ids, starts, ends)
             // torch.round: half-to-even, ровно 0.5 округляется в 0.
-            for ((i, h) in neural.withIndex()) h.pred = d.homodict.getValue(h.word.lowercase()).sorted()[if (probs[i] > 0.5f) 1 else 0]
+            for ((i, h) in neural.withIndex()) {
+                h.pred = d.homodict.getValue(h.word.lowercase()).sorted()[if (probs[i] > 0.5f) 1 else 0]
+                if (probs[i] in HOMO_UNSURE) unsure?.invoke(h.word.lowercase(), h.pred!!, sentence)
+            }
         }
         val sb = StringBuilder(sentence)
         var offset = 0
@@ -268,12 +275,18 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             if (pos.numVowels == 1) { stressPositions = listOf(pos.firstVowel); setStress = true }
             if (!haveStress && setStress) for ((k, p) in stressPositions.withIndex())
                 rawWord = rawWord.substring(0, p + k) + "+" + rawWord.substring(p + k)
+            if (!haveStress && pos.numVowels >= 2 && sp[stressPred] < unsureMin && cleanWord !in userDict) unsure?.invoke(cleanWord, rawWord.lowercase(), sentence)
             out.append(rawWord)
         }
         return out.toString()
     }
 
     // ---- user dictionary ----
+    companion object {
+        /** BERT около половины — омограф под вопросом. */
+        val HOMO_UNSURE = 0.35f..0.65f
+    }
+
     private fun userDictPass(sentence: String): String {
         if (userDict.isEmpty()) return sentence
         return wordRe.replace(sentence) { m ->
