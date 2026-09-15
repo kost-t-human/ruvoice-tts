@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Диалог «Языковые паки»: список установленных (item_pack.xml на каждый) и кнопка установки. -->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <LinearLayout
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="8dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            android:id="@+id/packsEmpty"
+            style="@style/SectionHint"
+            android:visibility="gone"
+            android:text="@string/packs_empty" />
+        <LinearLayout
+            android:id="@+id/packsList"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        <Button
+            android:id="@+id/packsInstall"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_marginTop="12dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/packs_install" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

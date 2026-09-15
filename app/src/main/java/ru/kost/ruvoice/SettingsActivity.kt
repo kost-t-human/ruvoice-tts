@@ -10,10 +10,13 @@ import android.speech.tts.UtteranceProgressListener
 import android.text.method.LinkMovementMethod
 import android.text.util.Linkify
 import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -53,6 +56,8 @@ class SettingsActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) importFrom(uri)
         }
+    private val packLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) installPack(uri) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
@@ -76,6 +81,8 @@ class SettingsActivity : AppCompatActivity() {
             intent.removeExtra(EXTRA_IMPORT_DONE)
             root.post { showSnackbar(getString(R.string.import_done)) }
         }
+        intent.getStringExtra(EXTRA_SNACK)?.let { msg -> intent.removeExtra(EXTRA_SNACK); root.post { showSnackbar(msg) } }
+        if (intent.getBooleanExtra(EXTRA_SHOW_PACKS, false)) { intent.removeExtra(EXTRA_SHOW_PACKS); root.post { showPacks() } }
 
         if (!prefs.setupShown) { prefs.setupShown = true; root.post { showSetupHelp() } }
 
@@ -86,7 +93,8 @@ class SettingsActivity : AppCompatActivity() {
                 R.id.about -> {
                     val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.about_title)
-                        .setMessage(getString(R.string.about, packageManager.getPackageInfo(packageName, 0).versionName))
+                        .setMessage(getString(R.string.about, packageManager.getPackageInfo(packageName, 0).versionName) +
+                            Packs.installed(filesDir).joinToString("") { getString(R.string.about_pack, it.title, it.source, it.license) })
                         .setPositiveButton(R.string.close, null)
                         .show()
                     // ссылка на GitHub в тексте — кликабельная
@@ -103,6 +111,7 @@ class SettingsActivity : AppCompatActivity() {
                     importLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
                     true
                 }
+                R.id.language_packs -> { showPacks(); true }
                 else -> false
             }
         }
@@ -171,6 +180,67 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    private var packsDialog: AlertDialog? = null
+
+    /** Диалог со списком установленных паков; пересобирается после установки и удаления. */
+    private fun showPacks() {
+        packsDialog?.dismiss()
+        val v = layoutInflater.inflate(R.layout.dialog_packs, null)
+        val list = v.findViewById<LinearLayout>(R.id.packsList)
+        val packs = Packs.installed(filesDir)
+        v.findViewById<View>(R.id.packsEmpty).visibility = if (packs.isEmpty()) View.VISIBLE else View.GONE
+        for (p in packs) {
+            val row = layoutInflater.inflate(R.layout.item_pack, list, false)
+            row.findViewById<TextView>(R.id.title).text = p.title
+            val mb = (p.ttsFile.length() / 1048576).toInt()
+            row.findViewById<TextView>(R.id.info).text = getString(R.string.pack_info, p.languages.values.joinToString(", ") { it.name }, mb, p.license)
+            row.findViewById<Button>(R.id.delete).setOnClickListener {
+                MaterialAlertDialogBuilder(this).setMessage(getString(R.string.pack_delete_confirm, p.title))
+                    .setPositiveButton(R.string.pack_delete) { _, _ ->
+                        Packs.delete(filesDir, p.id)
+                        refreshPages(getString(R.string.pack_deleted))
+                    }
+                    .setNegativeButton(R.string.cancel, null).show()
+            }
+            list.addView(row)
+        }
+        v.findViewById<Button>(R.id.packsInstall).setOnClickListener { packLauncher.launch(arrayOf("application/zip", "*/*")) }
+        packsDialog = MaterialAlertDialogBuilder(this).setTitle(R.string.packs_title).setView(v)
+            .setPositiveButton(R.string.close, null).show()
+    }
+
+    /** Копирование 92 МБ идёт в фоне под неотменяемым индикатором. */
+    private fun installPack(uri: Uri) {
+        val progress = MaterialAlertDialogBuilder(this).setMessage(R.string.packs_installing).setCancelable(false).show()
+        Thread {
+            val result = runCatching {
+                contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException("Не удалось открыть файл")
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                progress.dismiss()
+                result.onSuccess { refreshPages(getString(R.string.pack_installed, it.title)) }
+                    .onFailure { showSnackbar(it.message ?: it.toString()) }
+            }
+        }.start()
+    }
+
+    /** Список языков на «Голосе» и заметки на других вкладках зависят от установленных паков —
+     * пересоздаём окно, как после импорта настроек; новое окно показывает Snackbar и снова
+     * открывает диалог паков (диалог старого окна закрывается вместе с ним). */
+    private fun refreshPages(message: String) {
+        saveAllVisiblePages()
+        // Сброс языка после save: VoiceFragment.save() пишет prefs.lang = curLang и затёр бы его.
+        if (prefs.lang !in Packs.langs(Packs.installed(filesDir))) prefs.lang = "rus"
+        // Флаг на текущем intent — как при импорте: старые фрагменты не должны снова
+        // сохраниться в onPause после finish() и вернуть устаревший язык.
+        intent.putExtra(EXTRA_IMPORT_DONE, true)
+        packsDialog?.dismiss()
+        finish()
+        startActivity(Intent(this, SettingsActivity::class.java).putExtra(EXTRA_SNACK, message).putExtra(EXTRA_SHOW_PACKS, true))
+        overridePendingTransition(0, 0)
+    }
+
     private fun showSnackbar(text: String) =
         Snackbar.make(findViewById(R.id.root), text, Snackbar.LENGTH_LONG).show()
 
@@ -220,6 +290,8 @@ class SettingsActivity : AppCompatActivity() {
         // internal: PageFragment.onPause читает его, чтобы не затирать только что
         // импортированные файлы устаревшими полями старых фрагментов при recreate().
         internal const val EXTRA_IMPORT_DONE = "import_done"
+        internal const val EXTRA_SNACK = "snack"
+        internal const val EXTRA_SHOW_PACKS = "show_packs"
     }
 }
 

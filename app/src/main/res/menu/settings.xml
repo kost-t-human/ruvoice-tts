@@ -10,6 +10,10 @@
         android:title="@string/import_settings"
         app:showAsAction="never" />
     <item
+        android:id="@+id/language_packs"
+        android:title="@string/language_packs"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/setup_help"
         android:title="@string/setup_title"
         app:showAsAction="never" />
