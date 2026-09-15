@@ -2,14 +2,18 @@
 """Буква «ё»: сколько Silero Stress восстанавливает на ёфицированном тексте. Корпус — app/build/yo_corpus.txt
 (tools/wiki_yo_corpus.py, Википедия); из предложения «ё» стирается, модель ставит её заново.
 Слова делятся по словарю eyo (github.com/e2yo/eyo-kernel, MIT; safe.txt и not_safe.txt рядом с корпусом):
-однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Промахи — app/build/yo_eval_miss.txt.
+однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Поверх модели — наши фразы системного словаря
+(tools/phrases_extra.txt), как замены в аппке. Промахи — app/build/yo_eval_miss.txt.
 Запуск: <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений]"""
 import os, re, sys, collections, itertools
 from silero_stress import load_accentor
 
 HERE = os.path.dirname(os.path.abspath(__file__)); BUILD = os.path.join(os.path.dirname(HERE), 'app/build')
+sys.path.insert(0, HERE); import phrases_extra as pe
 LIMIT = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 word_re = re.compile(r'[а-яё]+')
+phrases = {w: [(re.compile(r'(?<![а-яё-])' + re.escape(p) + r'(?![а-яё-])'), v.replace('+', '')) for p, v in sorted(items, key=lambda x: -len(x[0]))]
+           for w, items in pe.load_extra().items()}  # длинные фразы раньше, как в homo_eval.py
 
 
 def expand(line):
@@ -44,6 +48,10 @@ for n, sent in enumerate(lines):
     deyo = sent.replace('ё', 'е').replace('Ё', 'Е')
     got = [w.replace('+', '') for w in re.findall(r'[а-яё+]+', ss(deyo, put_yo=True, put_yo_homo=True).lower())]
     if len(got) != len(orig): st['всего']['предложений не сравнить'] += 1; continue
+    low = deyo.lower()
+    for i, w in enumerate(orig):
+        for p, v in phrases.get(w.replace('ё', 'е'), ()):
+            if p.search(low): got[i] = v; break
     st['всего']['предложений'] += 1
     for o, g in zip(orig, got):
         if 'ё' in o:

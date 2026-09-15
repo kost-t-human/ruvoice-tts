@@ -24,10 +24,11 @@ def main():
         o.write('# Первые части сложных слов с «ё»: отдельно «темно» — наречие темн+о, и модель теряет «ё»\n')
         for a, b in COMPOUNDS: o.write(f'{a}-* = {b}-*\n')
         o.write('# Фразы-подсказки для омографов: слово в этой фразе читается так (tools/phrases_extra.txt)\n')
+        merged = {}  # одна фраза на два слова («все равно» → «вс+ё равн+о»): ключ в словаре один, замены складываются
         for w, items in sorted(phrases_extra.load_extra().items()):
             for phrase, var in items:
-                out = re.sub(r'(?<![а-яё])' + re.escape(w) + r'(?![а-яё])', var, phrase, count=1)
-                o.write(f'{phrase} = {out}\n'); n += 1
+                merged[phrase] = re.sub(r'(?<![а-яё])' + re.escape(w) + r'(?![а-яё])', var, merged.get(phrase, phrase), count=1)
+        for phrase, out in merged.items(): o.write(f'{phrase} = {out}\n'); n += 1
     print(f'системный словарь: ударений {len(fixes)}, фраз {n} → {ASSETS}')
 
 

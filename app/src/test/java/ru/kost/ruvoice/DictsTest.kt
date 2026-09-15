@@ -39,7 +39,7 @@ class DictsTest {
     }
 
     @Test fun systemDictsFromAssetsParse() {
-        // ударения: «слово сл+ово»; замены: «фраза = фраза с ударением», слово с «+» входит в ключ
+        // ударения: «слово сл+ово»; замены: «фраза = фраза с ударением», слово с «+» входит в ключ (ё-вариант — «все же = вс+ё же»)
         val stress = TestData.root().resolve("app/src/main/assets/dicts/stress/Системный.txt").readLines()
         val parsed = stress.mapNotNull { DictLines.parseStress(it) }
         assertTrue(parsed.size > 1000)
@@ -48,7 +48,7 @@ class DictsTest {
         val r = Replacements.parse(replace)
         val pairs = replace.mapNotNull { Replacements.split(it) }
         assertTrue(pairs.size > 5000)
-        assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "") == k && v.count { it == '+' } == 1 })
+        assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "").replace('ё', 'е') == k.replace('ё', 'е') && v.count { it == '+' } in 1..2 })
         assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
         assertEquals("тёмно-зеленый и темно", r.apply("темно-зеленый и темно"))
     }

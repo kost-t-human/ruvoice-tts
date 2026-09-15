@@ -42,23 +42,28 @@ def sentences(text):
             if 40 <= len(sent) <= 200 and 'ё' in sent and re_ok.match(sent) and '  ' not in sent: yield sent
 
 
+def pages(path, log=lambda n: None):
+    """Викитекст статей основного пространства (не перенаправлений) из дампа; log(n) — каждые 20000 страниц."""
+    n = 0
+    with bz2.open(path, 'rb') as f:
+        for ev, el in ET.iterparse(f):
+            if el.tag != NS + 'page': continue
+            ns = el.find(NS + 'ns').text
+            rev = el.find(NS + 'revision'); txt = rev.find(NS + 'text').text if rev is not None else None
+            if ns == '0' and txt and not txt.startswith('#'): yield txt
+            el.clear(); n += 1
+            if n % 20000 == 0: log(n)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     limit = int(sys.argv[sys.argv.index('--max') + 1]) if '--max' in sys.argv else MAX
     random.seed(1); out = []
     for path in args:
-        n = 0
-        with bz2.open(path, 'rb') as f:
-            for ev, el in ET.iterparse(f):
-                if el.tag != NS + 'page': continue
-                ns = el.find(NS + 'ns').text
-                rev = el.find(NS + 'revision'); txt = rev.find(NS + 'text').text if rev is not None else None
-                if ns == '0' and txt and not txt.startswith('#'):
-                    got = list(sentences(txt))
-                    if got: out.extend(random.sample(got, min(2, len(got))))
-                el.clear(); n += 1
-                if n % 20000 == 0: print(path, n, 'страниц,', len(out), 'предложений', flush=True)
-                if len(out) >= limit: break
+        for txt in pages(path, lambda n: print(path, n, 'страниц,', len(out), 'предложений', flush=True)):
+            got = list(sentences(txt))
+            if got: out.extend(random.sample(got, min(2, len(got))))
+            if len(out) >= limit: break
         if len(out) >= limit: break
     random.shuffle(out); out = out[:limit]
     with open(OUT, 'w', encoding='utf-8') as o:

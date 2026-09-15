@@ -50,7 +50,7 @@ def load_extra():
         s = line.split('#', 1)[0].strip()
         if '=' not in s: continue
         phrase, var = (x.strip() for x in s.split('=', 1))
-        w = var.replace('+', '')
+        w = var.replace('+', '').replace('ё', 'е')  # ё-вариант («все же = вс+ё же») ищется в фразе по «е»
         if re.search(r'(?<![а-яё])' + re.escape(w) + r'(?![а-яё])', phrase): out[w].append((phrase, var))
     return out
 
@@ -66,13 +66,30 @@ def apply(data):
     return n
 
 
+def dict_phrases():
+    """Фразы словарей замен (app/build/ss_rows.tsv): слово → [(фраза, вариант)]; слово с «ё» без «+» — тоже вариант."""
+    by_word = collections.defaultdict(list)
+    for line in open(os.path.join(BUILD, 'ss_rows.tsv'), encoding='utf-8'):
+        key, val, _ = line.rstrip('\n').split('\t')
+        for x in word_re.findall(val):
+            if '+' in x or 'ё' in x: by_word[x.replace('+', '').replace('ё', 'е')].append((norm(key), x))
+    return by_word
+
+
+def conflicts(by_word, w, phrase, dv):
+    """Фраза спорит с фразой словаря, где встречается целиком («а глаза» внутри «…а глаза его…»), а слово там читается иначе."""
+    pat = re.compile(r'(?<![а-яё])' + re.escape(phrase).replace('ё', '[её]') + r'(?![а-яё])')
+    plain = dv.replace('+', '')
+    return any((v.replace('+', '') != plain or '+' in v and v != dv) for k, v in by_word[w] if k != phrase and pat.search(k))
+
+
 def build():
     with open(JSON, encoding='utf-8') as f: d = json.load(f)
     homo, gram = d['homodict'], d['gram']
     mine = {(w, p) for w, l in load_extra().items() for p, _ in l}  # уже наложенные наши фразы не считаем чужими
     have = {(w, p) for w, l in d['phrases'].items() for p, _ in l} - mine
     seen = set(); rows = []
-    by_word = collections.defaultdict(list)  # слово → [(фраза словаря, вариант)] — все фразы, не только промахи
+    by_word = dict_phrases()  # все фразы словарей, не только промахи
     for line in open(os.path.join(BUILD, 'ss_rows.tsv'), encoding='utf-8'):
         key, val, got = line.rstrip('\n').split('\t')
         dw = [(x.replace('+', ''), x) for x in word_re.findall(val)]
@@ -80,7 +97,6 @@ def build():
         if len(dw) < 2 or len(dw) != len(gw) or [w for w, _ in dw] != [w for w, _ in gw]: continue
         toks = [w for w, _ in dw]
         for i, (w, dv) in enumerate(dw):
-            if '+' in dv and (w in homo or w in gram): by_word[w].append((norm(key), dv))
             if '+' not in dv or dv == gw[i][1]: continue
             ok = w in homo and dv in homo[w] or w in gram and dv in gram[w].values()
             if not ok: continue
@@ -88,13 +104,8 @@ def build():
             phrase = norm(key)
             if (w, phrase) in have or (w, phrase) in seen or w not in phrase.split(' ') and w not in re.split(r'[ ,-]+', phrase): continue
             seen.add((w, phrase)); rows.append((w, phrase, dv, w in homo))
-    # фраза не должна спорить с другими фразами словарей, где она встречается целиком («а глаза» внутри «…а глаза его…»)
-    kept = []; dropped = 0
-    for w, phrase, dv, in_homo in rows:
-        pat = re.compile(r'(?<![а-яё])' + re.escape(phrase) + r'(?![а-яё])')
-        if any(v != dv for k, v in by_word[w] if k != phrase and pat.search(k)): dropped += 1; continue
-        kept.append((w, phrase, dv, in_homo))
-    rows = kept
+    dropped = sum(conflicts(by_word, w, phrase, dv) for w, phrase, dv, _ in rows)
+    rows = [r for r in rows if not conflicts(by_word, r[0], r[1], r[2])]
     rows.sort(key=lambda r: (not r[3], r[0], r[1]))
     with open(EXTRA, 'w', encoding='utf-8') as o:
         o.write('# Фразы-подсказки поверх Silero Stress, собраны из чужих словарей замен (tools/phrases_extra.py build),\n'
