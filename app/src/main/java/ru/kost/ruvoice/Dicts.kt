@@ -30,10 +30,11 @@ object Dicts {
     fun file(root: File, kind: Kind, name: String): File = File(dir(root, kind), "$name.txt")
     fun name(file: File): String = file.name.removeSuffix(".txt")
 
-    /** Все списки вида по алфавиту (ё на своём месте, см. COLLATOR). */
+    /** Все списки вида: системный первым, остальные по алфавиту (ё на своём месте, см. COLLATOR). Порядок —
+     * это и приоритет при слиянии (поздний побеждает), так что свои списки всегда перебивают системный. */
     fun files(root: File, kind: Kind): List<File> =
         dir(root, kind).listFiles { f -> f.isFile && f.name.endsWith(".txt") }.orEmpty()
-            .sortedWith(compareBy(COLLATOR) { name(it) })
+            .sortedWith(compareBy<File> { name(it) != SYSTEM }.thenBy(COLLATOR) { name(it) })
 
     /** Однократный переезд со старых user_stress.txt / user_replace.txt в списки «Основной».
      * Если замен не было вовсе — «Основной» с предустановками, как раньше при первом запуске. */

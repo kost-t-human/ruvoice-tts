@@ -50,11 +50,11 @@ class Prefs(private val context: Context) {
         p.getString("${kind.dir}_off", "")!!.split('\n').filter { it.isNotEmpty() }.toSet()
     fun setOff(kind: Dicts.Kind, names: Set<String>) = p.edit().putString("${kind.dir}_off", names.joinToString("\n")).apply()
 
-    /** Список, открытый на вкладке; если такого файла уже нет — первый по алфавиту. */
+    /** Список, открытый на вкладке; если такого файла уже нет — первый не системный. */
     fun current(kind: Dicts.Kind): File {
         val files = dictFiles(kind)
         val name = p.getString("dict_cur_${kind.dir}", Dicts.MAIN)!!
-        return files.firstOrNull { Dicts.name(it) == name } ?: files.firstOrNull()
+        return files.firstOrNull { Dicts.name(it) == name } ?: files.firstOrNull { Dicts.name(it) != Dicts.SYSTEM }
             ?: Dicts.file(context.filesDir, kind, Dicts.MAIN).also { it.parentFile!!.mkdirs(); it.writeText("") }
     }
     fun setCurrent(kind: Dicts.Kind, name: String) = p.edit().putString("dict_cur_${kind.dir}", name).apply()

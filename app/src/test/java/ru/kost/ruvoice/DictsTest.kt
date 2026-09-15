@@ -38,6 +38,20 @@ class DictsTest {
         assertEquals(asset, f.readText())
     }
 
+    /** Свои списки перебивают системный: он первый в порядке слияния, а при совпадении побеждает поздний. */
+    @Test fun userListsOverrideSystem() {
+        val root = tmp.root
+        for (kind in Dicts.Kind.values()) Dicts.dir(root, kind).mkdirs()
+        Dicts.file(root, Dicts.Kind.STRESS, Dicts.SYSTEM).writeText("творог твор+ог\n")
+        Dicts.file(root, Dicts.Kind.STRESS, Dicts.NAMES).writeText("")
+        Dicts.file(root, Dicts.Kind.STRESS, Dicts.MAIN).writeText("творог тв+орог\n")
+        Dicts.file(root, Dicts.Kind.REPLACE, Dicts.SYSTEM).writeText("амбарный замок = амбарный зам+ок\n")
+        Dicts.file(root, Dicts.Kind.REPLACE, Dicts.MAIN).writeText("амбарный замок = амбарный з+амок\n")
+        assertEquals(listOf(Dicts.SYSTEM, Dicts.NAMES, Dicts.MAIN), Dicts.files(root, Dicts.Kind.STRESS).map { Dicts.name(it) })
+        assertEquals("тв+орог", DictCache.stress(Dicts.files(root, Dicts.Kind.STRESS))["творог"])
+        assertEquals("амбарный з+амок", DictCache.replacements(Dicts.files(root, Dicts.Kind.REPLACE)).apply("амбарный замок"))
+    }
+
     @Test fun systemDictsFromAssetsParse() {
         // ударения: «слово сл+ово»; замены: «фраза = фраза с ударением», слово с «+» входит в ключ (ё-вариант — «все же = вс+ё же»)
         val stress = TestData.root().resolve("app/src/main/assets/dicts/stress/Системный.txt").readLines()
