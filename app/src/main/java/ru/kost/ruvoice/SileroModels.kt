@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import org.pytorch.IValue
 import org.pytorch.LiteModuleLoader
+import org.pytorch.LitePyTorchAndroid
 import org.pytorch.Module
 import org.pytorch.Tensor
 import ru.kost.ruvoice.text.StressModels
@@ -19,6 +20,9 @@ class SileroModels(private val context: Context) : StressModels {
     @Synchronized fun ensureLoaded() {
         if (isLoaded) return
         val t = System.currentTimeMillis()
+        // Два потока: на Galaxy A32 (2×A75 + 6×A55) forward 1009 мс против 776 мс на всех ядрах, но
+        // процессорного времени 1,9 с вместо 4,7 с. RTF при этом ~0,2, запас есть, батарея дороже.
+        LitePyTorchAndroid.setNumThreads(2)
         try {
             tts = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts.ptl")
             acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
@@ -76,6 +80,7 @@ class SileroModels(private val context: Context) : StressModels {
                    focus: LongArray, symbDurs: Map<Long, Long>): Synth {
         ensureLoaded()
         val n = seq.size.toLong()
+        val t = System.nanoTime()
         val out = tts!!.forward(
             IValue.from(Tensor.fromBlob(seq, longArrayOf(1, n))),
             IValue.from(Tensor.fromBlob(longArrayOf(speakerId.toLong()), longArrayOf(1))),
@@ -91,7 +96,9 @@ class SileroModels(private val context: Context) : StressModels {
             IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n))),
             if (focus.all { it == 0L }) IValue.optionalNull() else IValue.from(Tensor.fromBlob(focus, longArrayOf(1, n)))
         ).toTuple()
-        return Synth(out[0].toTensor().dataAsFloatArray, out[1].toTensor().dataAsFloatArray)
+        val audio = out[0].toTensor().dataAsFloatArray
+        Log.i(TAG, "forward ${(System.nanoTime() - t) / 1_000_000} мс, звук ${audio.size * 1000L / sampleRate} мс, $n симв.")
+        return Synth(audio, out[1].toTensor().dataAsFloatArray)
     }
 
     companion object {
