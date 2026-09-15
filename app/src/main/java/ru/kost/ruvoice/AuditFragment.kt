@@ -8,6 +8,8 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.TextView
+import com.google.android.material.textfield.TextInputEditText
+import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -27,6 +29,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private lateinit var emptyView: TextView
     private var kind = Audit.Kind.NAMES
     private var hidden = false
+    private lateinit var filterField: TextInputEditText
     private var items: List<Audit.Entry> = emptyList()
 
     override fun load(v: View) {
@@ -55,6 +58,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind, hidden); refresh() }
                 .setNegativeButton(R.string.cancel, null).show()
         }
+        filterField = v.findViewById(R.id.filter)
+        filterField.doAfterTextChanged { refresh() }
         emptyView = v.findViewById(R.id.empty)
         recycler = v.findViewById(R.id.list)
         recycler.layoutManager = LinearLayoutManager(requireContext())
@@ -81,7 +86,9 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     override fun onResume() { super.onResume(); if (view != null) refresh() }
 
     private fun refresh() {
-        items = prefs.audit.entries(kind, hidden).sortedWith(compareByDescending<Audit.Entry> { it.count }.thenBy(Dicts.COLLATOR) { it.word })
+        val query = filterField.text?.toString()?.trim().orEmpty()
+        items = prefs.audit.entries(kind, hidden).filter { query.isEmpty() || it.word.contains(query, ignoreCase = true) }
+            .sortedWith(compareByDescending<Audit.Entry> { it.count }.thenBy(Dicts.COLLATOR) { it.word })
         emptyView.setText(if (hidden) R.string.audit_empty_hidden else R.string.audit_empty)
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         recycler.adapter?.notifyDataSetChanged()
