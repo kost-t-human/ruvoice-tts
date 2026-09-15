@@ -36,4 +36,21 @@ class AuditTest {
         b.remove(Audit.Kind.UNSURE, "слово${Audit.MAX + 4}")
         assertEquals(Audit.MAX - 1, Audit(tmp.root).entries(Audit.Kind.UNSURE).size)
     }
+
+    @Test fun hiddenWordsStayHiddenAndSurviveCap() {
+        val a = Audit(tmp.root)
+        a.add(Audit.Kind.NAMES, "хагрид", "хагр+ид", "")
+        a.hide(Audit.Kind.NAMES, "хагрид", true)
+        a.add(Audit.Kind.NAMES, "хагрид", "х+агрид", "снова") // при чтении не всплывает
+        assertTrue(a.entries(Audit.Kind.NAMES).isEmpty())
+        for (i in 0 until Audit.MAX + 5) a.add(Audit.Kind.NAMES, "слово$i", "сл+ово$i", "")
+        a.flush()
+        val b = Audit(tmp.root)
+        assertEquals(Audit.MAX, b.entries(Audit.Kind.NAMES).size)
+        assertEquals(listOf("хагрид"), b.entries(Audit.Kind.NAMES, hidden = true).map { it.word }) // старое, но скрытое — не вытеснено
+        b.hide(Audit.Kind.NAMES, "хагрид", false)
+        assertEquals(2, b.entries(Audit.Kind.NAMES).first { it.word == "хагрид" }.count)
+        b.clear(Audit.Kind.NAMES, hidden = true)
+        assertEquals(Audit.MAX + 1, Audit(tmp.root).entries(Audit.Kind.NAMES).size)
+    }
 }

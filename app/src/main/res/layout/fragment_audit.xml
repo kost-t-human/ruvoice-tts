@@ -82,22 +82,30 @@
                 <Button
                     android:id="@+id/showNames"
                     style="?attr/materialButtonOutlinedStyle"
+                    android:paddingHorizontal="12dp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/audit_tab_names" />
                 <Button
                     android:id="@+id/showUnsure"
                     style="?attr/materialButtonOutlinedStyle"
+                    android:paddingHorizontal="12dp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/audit_tab_unsure" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
-            <Button
-                android:id="@+id/clear"
-                style="?attr/borderlessButtonStyle"
+            <CheckBox
+                android:id="@+id/showHidden"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/audit_clear" />
+                android:text="@string/audit_show_hidden" />
+            <ImageButton
+                android:id="@+id/clear"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/audit_clear"
+                android:src="@drawable/ic_delete_sweep" />
         </LinearLayout>
     </LinearLayout>
 

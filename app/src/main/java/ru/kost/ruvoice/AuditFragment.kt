@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -25,6 +26,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private lateinit var recycler: RecyclerView
     private lateinit var emptyView: TextView
     private var kind = Audit.Kind.NAMES
+    private var hidden = false
     private var items: List<Audit.Entry> = emptyList()
 
     override fun load(v: View) {
@@ -46,10 +48,11 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         which.addOnButtonCheckedListener { _, id, checked ->
             if (checked) { kind = if (id == R.id.showNames) Audit.Kind.NAMES else Audit.Kind.UNSURE; refresh() }
         }
+        v.findViewById<CheckBox>(R.id.showHidden).setOnCheckedChangeListener { _, c -> hidden = c; refresh() }
         v.findViewById<View>(R.id.clear).setOnClickListener {
-            val name = getString(if (kind == Audit.Kind.NAMES) R.string.audit_tab_names else R.string.audit_tab_unsure)
+            val name = getString(if (kind == Audit.Kind.NAMES) R.string.audit_tab_names else R.string.audit_tab_unsure) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
             MaterialAlertDialogBuilder(requireContext()).setMessage(getString(R.string.audit_clear_confirm, name))
-                .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind); refresh() }
+                .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind, hidden); refresh() }
                 .setNegativeButton(R.string.cancel, null).show()
         }
         emptyView = v.findViewById(R.id.empty)
@@ -66,7 +69,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
-                items.getOrNull(vh.bindingAdapterPosition)?.let { prefs.audit.remove(kind, it.word) }
+                // смахнутое прячем, а не удаляем — чтобы не всплывало при следующем чтении; из скрытых свайп возвращает
+                items.getOrNull(vh.bindingAdapterPosition)?.let { prefs.audit.hide(kind, it.word, !hidden) }
                 refresh()
             }
         }).attachToRecyclerView(recycler)
@@ -77,7 +81,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     override fun onResume() { super.onResume(); if (view != null) refresh() }
 
     private fun refresh() {
-        items = prefs.audit.entries(kind).sortedWith(compareByDescending<Audit.Entry> { it.count }.thenBy(Dicts.COLLATOR) { it.word })
+        items = prefs.audit.entries(kind, hidden).sortedWith(compareByDescending<Audit.Entry> { it.count }.thenBy(Dicts.COLLATOR) { it.word })
+        emptyView.setText(if (hidden) R.string.audit_empty_hidden else R.string.audit_empty)
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         recycler.adapter?.notifyDataSetChanged()
     }
