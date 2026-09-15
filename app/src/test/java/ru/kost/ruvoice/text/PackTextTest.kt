@@ -42,4 +42,33 @@ class PackTextTest {
         // тире выпадает (в символах нет «–»), цифры и латиница без таблицы выпадают, пробелы схлопываются
         assertEquals("мин сине", PackText.prepare("Мин — 12 сине  abc", cis(), "tat"))
     }
+
+    @Test fun translitKeyMatchesKeyFromPreparedText() {
+        // ключ источника (Marks.key на исходном грузинском слове) после таблицы должен совпасть
+        // с ключом того же слова в prepared-тексте (апостроф из "к'" Marks.key уже вычищает)
+        val pack = cis()
+        val prepared = PackText.prepare("საქართველო", pack, "kat")
+        val srcKey = Marks.key("საქართველო")
+        assertEquals(Marks.key(prepared), PackText.translitKey(srcKey, pack, "kat"))
+    }
+
+    @Test fun translitKeyIsIdentityWithoutTable() {
+        // язык без таблицы транслитерации (не в pack.translit) — ключ не меняется
+        assertEquals("сюйем", PackText.translitKey("сюйем", cis(), "tat"))
+    }
+
+    @Test fun alignFindsSecondTransliteratedWordForItsOwnMark() {
+        // без сопоставления по транслитерированному ключу Matcher никогда не продвигается (все
+        // токены ловят пометку первого слова) — {prosody} второго слова терялся
+        val pack = cis()
+        val p = Marks.parse("საქართველო {prosody:150:100}საქართველო{prosody}")
+        val prepared = PackText.prepare(p.text, pack, "kat")
+        val words = p.words.map { (w, m) -> PackText.translitKey(w, pack, "kat") to m }
+        val seq = pack.sym.sequence(prepared)
+        val a = Marks.align(words, prepared, seq.size, pack.sym)
+        val t = Marks.tokens(prepared, pack.sym)
+        assertEquals(2, t.size)
+        assertEquals(1.0f, a.rates[t[0].seqStart], 0f)
+        assertEquals(1.5f, a.rates[t[1].seqStart], 0f)
+    }
 }

@@ -371,7 +371,12 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
             val index = shown[position]
             val (_, variant) = parsed(index)!!
             holder.word.text = DictLines.accentDisplay(variant)
+            // как FAB на onResume: для языка пака редактор (со слушалками) и прослушивание неактивны —
+            // disabled clickable View события клика не шлёт, отдельно снимать слушатели не нужно.
+            val editable = prefs.lang == "rus"
+            holder.itemView.isEnabled = editable
             holder.itemView.setOnClickListener { showDialog(index) }
+            holder.play.isEnabled = editable
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, variant) }
         }
     }

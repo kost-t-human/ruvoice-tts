@@ -9,8 +9,11 @@ import ru.kost.ruvoice.text.Rules
 class Prefs(private val context: Context) {
     private val p = context.getSharedPreferences("ruvoice", Context.MODE_PRIVATE)
     var voice: String get() = p.getString("voice", "xenia")!!; set(v) = p.edit().putString("voice", v).apply()
-    /** Язык чтения: "rus" — русская модель, иначе код языка установленного пака (Pack.languages). */
-    var lang: String get() = p.getString("lang", "rus")!!; set(v) = p.edit().putString("lang", v).apply()
+    /** Язык чтения: "rus" — русская модель, иначе код языка установленного пака (Pack.languages);
+     * невалидное значение или язык уже удалённого пака читается как "rus". */
+    var lang: String
+        get() = validLang(p.getString("lang", "rus")!!, Packs.installed(context.filesDir))
+        set(v) = p.edit().putString("lang", v).apply()
     fun voice(lang: String): String = if (lang == "rus") voice else p.getString("voice_$lang", "")!!
     fun setVoice(lang: String, v: String) { if (lang == "rus") voice = v else p.edit().putString("voice_$lang", v).apply() }
     fun quoteVoice(lang: String): String = if (lang == "rus") quoteVoice else p.getString("quote_voice_$lang", "")!!
@@ -140,5 +143,8 @@ class Prefs(private val context: Context) {
         /** Примеры для вкладки «Замены»: ударение во фразе перебивает и словарь, и BERT;
          * «ё» там, где в тексте её не пишут, а модель без неё читает не то. */
         const val DEFAULT_REPLACE = "старый замок = старый з+амок\nмалек = малёк\n"
+
+        /** [raw], если это "rus" или язык одного из [packs], иначе "rus". */
+        fun validLang(raw: String, packs: List<Pack>) = raw.takeIf { it == "rus" || it in Packs.langs(packs) } ?: "rus"
     }
 }

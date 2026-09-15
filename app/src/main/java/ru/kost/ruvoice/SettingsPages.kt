@@ -82,7 +82,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     }
 
     override fun load(v: View) {
-        curLang = prefs.lang.takeIf { it in langs } ?: "rus"
+        curLang = prefs.lang
         v.dropdown(R.id.lang, langs.values.toList(), langs.getValue(curLang))
         v.findViewById<MaterialAutoCompleteTextView>(R.id.lang).setOnItemClickListener { _, _, pos, _ ->
             saveVoices(v, curLang)

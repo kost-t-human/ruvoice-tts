@@ -16,6 +16,8 @@ class SileroModels(private val context: Context) : StressModels {
     private var homo: Module? = null
     private var packTts: Module? = null
     @Volatile var loadedPackId: String? = null; private set
+    // mtime tts.ptl на момент загрузки — переустановка пака с тем же id меняет файл, но не id.
+    private var loadedPackMtime = 0L
     val isLoaded get() = tts != null && acc != null && homo != null
 
     @Synchronized fun ensureLoaded() {
@@ -35,17 +37,19 @@ class SileroModels(private val context: Context) : StressModels {
 
     /** В памяти один движок: русская тройка либо tts.ptl одного пака. */
     @Synchronized fun ensurePack(pack: Pack) {
-        if (packTts != null && loadedPackId == pack.id) return
+        val mtime = pack.ttsFile.lastModified()
+        if (packTts != null && loadedPackId == pack.id && loadedPackMtime == mtime) return
         releaseRu(); releasePack()
         val t = System.currentTimeMillis()
         packTts = LiteModuleLoader.load(pack.ttsFile.path)
         loadedPackId = pack.id
+        loadedPackMtime = mtime
         Log.i(TAG, "пак ${pack.id} загружен за ${System.currentTimeMillis() - t} мс")
     }
 
     @Synchronized fun release() { releaseRu(); releasePack() }
     private fun releaseRu() { tts?.destroy(); acc?.destroy(); homo?.destroy(); tts = null; acc = null; homo = null }
-    private fun releasePack() { packTts?.destroy(); packTts = null; loadedPackId = null }
+    private fun releasePack() { packTts?.destroy(); packTts = null; loadedPackId = null; loadedPackMtime = 0L }
 
     private fun softmaxRows(t: Tensor): Array<FloatArray> {
         val rows = t.shape()[0].toInt(); val cols = t.shape()[1].toInt(); val d = t.dataAsFloatArray

@@ -133,4 +133,12 @@ class PipelineTest {
         assertEquals("в 1917 году.", first("в 1917 году."))
         assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
     }
+
+    // SileroTtsService.synthesizePack добавляет "letter_name" к off поверх настроек пользователя —
+    // модель пака не знает русских имён букв (Abbrev.letterName).
+    @Test fun packRulesForceLetterNameOff() {
+        val base = Rules()
+        val packRules = Rules(base.off + "letter_name", base.maxLen, base.focus)
+        assertEquals("б", Pipeline.plan("б", d, 0, 0, rules = packRules).single().text)
+    }
 }
