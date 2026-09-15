@@ -19,6 +19,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import ru.kost.ruvoice.text.Marks
 import ru.kost.ruvoice.text.Normalizer
+import ru.kost.ruvoice.text.PackText
 import ru.kost.ruvoice.text.Rules
 
 /**
@@ -51,14 +52,46 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     private val rates = listOf(48000, 24000)
     // Список голосов берём из модели (SileroModels.data — общий на процесс), а не из
     // вручную вписанного списка, чтобы он не разошёлся с ней.
-    private val voices by lazy { SileroModels.data(requireContext()).speakers.keys.sorted() }
-    private val quoteVoices by lazy { listOf(getString(R.string.quote_voice_default)) + voices }
+    private val ruVoices by lazy { SileroModels.data(requireContext()).speakers.keys.sorted() }
+    private val packs by lazy { Packs.installed(requireContext().filesDir) }
+    // код → название; "rus" первым
+    private val langs by lazy { linkedMapOf("rus" to getString(R.string.lang_ru)).apply { putAll(Packs.langs(packs).toList().sortedBy { it.second }) } }
+    private var curLang = "rus"
     private val rateItems by lazy { rates.map { getString(R.string.sample_rate_item, it) } }
 
+    /** Голоса языка: русские как есть; из паков — «speaker (packId)», если у языка больше одного пака. */
+    private fun voicesOf(lang: String): List<String> {
+        if (lang == "rus") return ruVoices
+        val ps = Packs.byLang(packs, lang)
+        return ps.flatMap { p -> p.languages.getValue(lang).speakers.keys.sorted().map { if (ps.size > 1) "$it (${p.id})" else it } }
+    }
+    private fun speakerOf(item: String) = item.substringBefore(" (")
+    private fun itemOf(lang: String, speaker: String) = voicesOf(lang).firstOrNull { speakerOf(it) == speaker }
+
+    private fun loadVoices(v: View, lang: String) {
+        val voices = voicesOf(lang)
+        val quoteVoices = listOf(getString(R.string.quote_voice_default)) + voices
+        v.dropdown(R.id.voice, voices, itemOf(lang, prefs.voice(lang)) ?: voices.first())
+        v.dropdown(R.id.quoteVoice, quoteVoices, itemOf(lang, prefs.quoteVoice(lang)) ?: quoteVoices.first())
+        v.findViewById<View>(R.id.langHint).visibility = if (lang == "rus") View.GONE else View.VISIBLE
+    }
+    private fun saveVoices(v: View, lang: String) {
+        val voices = voicesOf(lang)
+        v.findViewById<TextView>(R.id.voice).str().let { if (it in voices) prefs.setVoice(lang, speakerOf(it)) }
+        v.findViewById<TextView>(R.id.quoteVoice).str().let { prefs.setQuoteVoice(lang, if (it in voices) speakerOf(it) else "") }
+    }
+
     override fun load(v: View) {
-        v.dropdown(R.id.voice, voices, prefs.voice.takeIf { it in voices } ?: voices.first())
+        curLang = prefs.lang.takeIf { it in langs } ?: "rus"
+        v.dropdown(R.id.lang, langs.values.toList(), langs.getValue(curLang))
+        v.findViewById<MaterialAutoCompleteTextView>(R.id.lang).setOnItemClickListener { _, _, pos, _ ->
+            saveVoices(v, curLang)
+            curLang = langs.keys.elementAt(pos)
+            prefs.lang = curLang
+            loadVoices(v, curLang)
+        }
+        loadVoices(v, curLang)
         v.dropdown(R.id.sampleRate, rateItems, rateItems[rates.indexOf(prefs.sampleRate).coerceAtLeast(0)])
-        v.dropdown(R.id.quoteVoice, quoteVoices, prefs.quoteVoice.takeIf { it in voices } ?: quoteVoices.first())
         v.slider(R.id.rate, R.id.rateValue, prefs.rate)
         v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
         v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
@@ -80,7 +113,8 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
 
         v.findViewById<Button>(R.id.preview).setOnClickListener { btn ->
             save(v)
-            (activity as SettingsActivity).preview(btn, previewText.str().ifBlank { getString(R.string.preview_text) })
+            (activity as SettingsActivity).preview(btn, previewText.str().ifBlank { getString(R.string.preview_text) },
+                locale = if (curLang == "rus") Locale("ru", "RU") else Locale(curLang))
         }
         v.findViewById<Button>(R.id.analyze).setOnClickListener {
             save(v)
@@ -89,8 +123,8 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     }
 
     override fun save(v: View) {
-        v.findViewById<TextView>(R.id.voice).str().let { if (it in voices) prefs.voice = it }
-        v.findViewById<TextView>(R.id.quoteVoice).str().let { prefs.quoteVoice = if (it in voices) it else "" }
+        prefs.lang = curLang
+        saveVoices(v, curLang)
         rateItems.indexOf(v.findViewById<TextView>(R.id.sampleRate).str()).let { if (it >= 0) prefs.sampleRate = rates[it] }
         prefs.rate = v.findViewById<Slider>(R.id.rate).value
         prefs.pitch = v.findViewById<Slider>(R.id.pitch).value
@@ -151,7 +185,9 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
                         if (seg.speech) marks += " [речь]"
                         if (seg.paragraph) marks += " [¶]"
                         appendLine(seg.text + marks)
-                        appendLine("→ " + Normalizer.prepare(Marks.parse(seg.text).text, d.allowed, rules))
+                        val pack = if (curLang == "rus") null else Packs.byLang(packs, curLang).firstOrNull()
+                        appendLine("→ " + if (pack == null) Normalizer.prepare(Marks.parse(seg.text).text, d.allowed, rules)
+                                          else PackText.prepare(Marks.parse(seg.text).text, pack, curLang, rules))
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()
                     }

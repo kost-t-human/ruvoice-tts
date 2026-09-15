@@ -9,6 +9,9 @@
     <string name="tab_rules">Правила</string>
 
     <!-- Голос -->
+    <string name="lang">Язык чтения</string>
+    <string name="lang_ru">Русский</string>
+    <string name="lang_hint">Для языков из паков работают паузы, замены, SSML, прямая речь и темп. Числа, ударения и сокращения — только для русского.</string>
     <string name="voice">Голос</string>
     <string name="sample_rate">Частота дискретизации</string>
     <string name="sample_rate_item">%1$d Гц</string>

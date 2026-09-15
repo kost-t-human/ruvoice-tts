@@ -182,7 +182,7 @@ class SettingsActivity : AppCompatActivity() {
     // иначе на экранах с несколькими ▶ вторая кнопка навсегда «съедала» разблокировку первой.
     private var busyButton: View? = null
 
-    fun preview(button: View, text: String, params: Bundle? = null) {
+    fun preview(button: View, text: String, params: Bundle? = null, locale: Locale = Locale("ru", "RU")) {
         val ctx = applicationContext
         busyButton?.isEnabled = true
         busyButton = button
@@ -190,7 +190,7 @@ class SettingsActivity : AppCompatActivity() {
         tts?.shutdown()
         tts = TextToSpeech(ctx, { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("ru", "RU")
+                tts?.language = locale
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) { button.post { release(button) } }
