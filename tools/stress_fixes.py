@@ -5,7 +5,8 @@
       tools/aot_survey.py), подтверждённые Викисловарём (app/build/wikt_forms.tsv, tools/wikt_forms.py);
       имена, слова с «ё» (и те, что модель читает через «ё») и слова, уже лежащие в exceptions, не берутся. Частота для сортировки — ru_full.txt
       (github.com/hermitdave/FrequencyWords, OpenSubtitles) рядом с aot_survey.txt, если есть.
-  python3 tools/stress_fixes.py apply   — записать список в exceptions (export_silero_stress.py делает это сам).
+  python3 tools/stress_fixes.py apply   — записать список в exceptions json (сейчас не используется: список идёт
+      в системный словарь, tools/system_dicts.py).
 Формат строки: «слово = сл+ово  # комментарий». Список можно править руками, build его перезаписывает."""
 import json, os, sys
 

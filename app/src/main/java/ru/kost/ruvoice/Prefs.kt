@@ -56,6 +56,7 @@ class Prefs(private val context: Context) {
 
     init {
         Dicts.migrate(context.filesDir, DEFAULT_REPLACE)
+        Dicts.installSystem(context.filesDir) { path -> runCatching { context.assets.open(path).bufferedReader().readText() }.getOrNull() }
     }
 
     /** Слитые включённые списки ударений, из кэша процесса. */

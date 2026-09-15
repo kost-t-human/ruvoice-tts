@@ -18,6 +18,8 @@ object Dicts {
     enum class Kind(val dir: String) { STRESS("stress"), REPLACE("replace") }
 
     const val MAIN = "Основной"
+    /** Встроенный список из assets/dicts/<вид>/Системный.txt: не удаляется и не правится, но выключается как остальные. */
+    const val SYSTEM = "Системный"
     private const val MAX_NAME = 60
     val COLLATOR: Collator = Collator.getInstance(Locale("ru"))
     private val CP1251: Charset = Charset.forName("windows-1251")
@@ -41,6 +43,15 @@ object Dicts {
             File(root, old).takeIf { it.exists() }?.renameTo(file(root, kind, MAIN))
         }
         if (files(root, Kind.REPLACE).isEmpty()) file(root, Kind.REPLACE, MAIN).writeText(defaultReplace)
+    }
+
+    /** Кладёт (или обновляет после апдейта приложения) системный список; читает assets через [read]. */
+    fun installSystem(root: File, read: (String) -> String?) {
+        for (kind in Kind.values()) {
+            val text = read("dicts/${kind.dir}/$SYSTEM.txt") ?: continue
+            val f = file(root, kind, SYSTEM)
+            if (!f.exists() || f.length() != text.toByteArray().size.toLong() || f.readText() != text) { f.parentFile!!.mkdirs(); f.writeText(text) }
+        }
     }
 
     fun validName(name: String): Boolean {

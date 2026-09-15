@@ -65,9 +65,14 @@ class ReplacementsWildTest {
         assertEquals("у из \"РПГ-7\" вор+от", r.apply("у из \"РПГ-7\" ворот"))
     }
 
+    @Test fun stressOnlyRuleKeepsCaseOfMatchedText() {
+        val r = Replacements.parse(listOf("старый замок = старый з+амок", "дорого = д+орого"))
+        assertEquals("Старый з+амок. СТАРЫЙ З+АМОК, д+орого", r.apply("Старый замок. СТАРЫЙ ЗАМОК, дорого"))
+    }
+
     @Test fun literalMatchIsCaseInsensitiveAndKeepsTextAroundIt() {
-        val r = Replacements.parse(listOf("дорого не надо = д+орого не надо"))
-        assertEquals("Тут д+орого не надо Было", r.apply("Тут ДОРОГО не надо Было"))
+        val r = Replacements.parse(listOf("дорого не надо = дорого не н+адо-то"))
+        assertEquals("Тут дорого не н+адо-то Было", r.apply("Тут ДОРОГО не надо Было"))
     }
 
     @Test fun dollarPrefixMakesKeyCaseSensitive() {

@@ -11,7 +11,7 @@ class ReplacementsTest {
 
     @Test fun phraseWithStressOnNeighbourWord() {
         val r = Replacements.parse(listOf("старый замок = старый з+амок"))
-        assertEquals("старый з+амок стоял.", r.apply("Старый замок стоял."))
+        assertEquals("Старый з+амок стоял.", r.apply("Старый замок стоял."))
     }
 
     @Test fun emptyReplacementDeletesKeyAndCollapsesSpaces() {

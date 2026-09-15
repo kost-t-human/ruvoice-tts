@@ -21,7 +21,9 @@ class HomographEvalTest {
 
     @Test fun homographAccuracy() {
         val m = SileroModels(ctx); m.ensureLoaded()
-        val stress = Stress(m.data, m)
+        val prefs = Prefs(ctx) // системный словарь и списки пользователя, как при чтении
+        val repl = prefs.replacements()
+        val stress = Stress(m.data, m, prefs.userDict())
         val items = JSONArray(testCtx.assets.open("HomographResolutionEval.json").bufferedReader().readText())
         var total = 0; var ok = 0; val miss = StringBuilder()
         val t0 = System.currentTimeMillis()
@@ -30,7 +32,7 @@ class HomographEvalTest {
             val h = it.getString("homograph").lowercase(); val k = h.indexOf('́')
             val target = if (k > 0) (h.substring(0, k - 1) + "+" + h.substring(k - 1)).replace("́", "") else h
             val w = target.replace("+", "")
-            val got = stress.apply(it.getString("context").lowercase())
+            val got = stress.apply(repl.apply(it.getString("context").lowercase()))
             val toks = wordRe.findAll(got).map { it.value }.toList()
             val hit = toks.firstOrNull { it.replace("+", "") == w } ?: continue
             total++

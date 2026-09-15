@@ -39,7 +39,7 @@ class DemagogCorpusTest {
                 val star = if (mask(key)) "ъ" else "*"
                 val expected = spaces.replace(if (value.equals("{skip}", true)) "" else Replacements.implicitStars(text, value).replace("*", star), " ").trim()
                 val got = r.apply(text.replace("*", star))
-                if (got == expected) matched++ else diff.append("$line\n  ждём: $expected\n  есть: $got\n\n")
+                if (got.equals(expected, ignoreCase = true)) matched++ else diff.append("$line\n  ждём: $expected\n  есть: $got\n\n")
             }
             val summary = "${f.name}: $matched/$total"
             File(TestData.root(), "app/build/demagog_diff_${f.nameWithoutExtension}.txt").apply { parentFile.mkdirs() }.writeText("$summary\n\n$diff")

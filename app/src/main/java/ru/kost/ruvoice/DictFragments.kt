@@ -59,6 +59,8 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
 
     /** Файл текущего списка. */
     protected val file: File get() = prefs.current(kind)
+    /** Системный список: смотреть и выключать можно, править и удалять — нет. */
+    protected val readOnly: Boolean get() = Dicts.name(file) == Dicts.SYSTEM
     private val lines = mutableListOf<String>()
     private val parsedLines = ArrayList<Any?>()
     /** Индексы записей (не комментариев) в порядке показа до фильтра; null — пересчитать. */
@@ -80,6 +82,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     private lateinit var emptyView: TextView
     private lateinit var nameField: MaterialAutoCompleteTextView
     private lateinit var onSwitch: MaterialSwitch
+    private lateinit var addButton: FloatingActionButton
 
     // Экспорт: байты готовятся до выбора файла, после записи — необязательное продолжение
     // (для Демагога — предложить сохранить пропущенные regex-строки).
@@ -124,7 +127,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
         filterField.doAfterTextChanged { refresh() }
-        v.findViewById<FloatingActionButton>(R.id.add).setOnClickListener { showAddDialog() }
+        addButton = v.findViewById<FloatingActionButton>(R.id.add).apply { setOnClickListener { showAddDialog() } }
         attachSwipeToDelete()
         // Файл могли поменять извне (импорт настроек + recreate, Task 25) — читаем заново,
         // не кэшируем между пересозданиями.
@@ -147,6 +150,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         nameField.setText(if (name in off) getString(R.string.dict_off_suffix, name) else name, false)
         onSwitch.isChecked = name !in off
         onSwitch.setText(if (name in off) R.string.dict_off else R.string.dict_on)
+        addButton.visibility = if (readOnly) View.GONE else View.VISIBLE
         refresh()
     }
 
@@ -211,7 +215,8 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         val name = Dicts.name(file)
         val popup = PopupMenu(requireContext(), anchor)
         popup.inflate(R.menu.dict_list)
-        popup.menu.findItem(R.id.dict_delete).isEnabled = prefs.dictFiles(kind).size > 1
+        popup.menu.findItem(R.id.dict_delete).isEnabled = prefs.dictFiles(kind).size > 1 && !readOnly
+        popup.menu.findItem(R.id.dict_rename).isEnabled = !readOnly
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.dict_new -> nameDialog(R.string.dict_new, "") { newName ->
@@ -318,6 +323,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         })
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
+            override fun getSwipeDirs(rv: RecyclerView, vh: RecyclerView.ViewHolder) = if (readOnly) 0 else super.getSwipeDirs(rv, vh)
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
                 val pos = vh.bindingAdapterPosition
                 if (pos !in shown.indices) { refresh(); return }
@@ -359,7 +365,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
             val index = shown[position]
             val (_, variant) = parsed(index)!!
             holder.word.text = DictLines.accentDisplay(variant)
-            holder.itemView.setOnClickListener { showDialog(index) }
+            holder.itemView.setOnClickListener { if (!readOnly) showDialog(index) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, variant) }
         }
     }
@@ -520,7 +526,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             val skip = isSkip(value)
             holder.value.text = if (skip) getString(R.string.replace_skip) else getString(R.string.replace_arrow, value)
             holder.play.visibility = if (skip) View.GONE else View.VISIBLE
-            holder.itemView.setOnClickListener { showDialog(index) }
+            holder.itemView.setOnClickListener { if (!readOnly) showDialog(index) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, value) }
         }
     }

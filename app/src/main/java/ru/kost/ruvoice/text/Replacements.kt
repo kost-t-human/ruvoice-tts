@@ -38,6 +38,8 @@ class Replacements private constructor(private val rules: List<Rule>, private va
     private class Rule(val key: String, val value: String, val kind: Int, val isWord: Boolean, val tokens: Array<String>,
                        var re: Regex? = null, val caseSensitive: Boolean = false) {
         var anchor: String? = null
+        /** Замена — тот же ключ с ударениями («старый замок = старый з+амок»): «+» ставится в текст как есть, регистр не трогаем. */
+        val stressOnly = kind == LITERAL && '+' in value && value.replace("+", "") == key
     }
 
     fun apply(text: String): String {
@@ -90,7 +92,9 @@ class Replacements private constructor(private val rules: List<Rule>, private va
             val end = i + key.length
             val ok = !rule.isWord || ((i == 0 || !wordChar(lower[i - 1])) && (end == lower.length || !wordChar(lower[end])))
             if (ok) {
-                (sb ?: StringBuilder(text.length).also { sb = it }).append(text, last, i).append(rule.value)
+                val out = sb ?: StringBuilder(text.length).also { sb = it }
+                out.append(text, last, i)
+                if (rule.stressOnly) { var k = i; for (c in rule.value) if (c == '+') out.append('+') else out.append(text[k++]) } else out.append(rule.value)
                 last = end; i = hay.indexOf(key, end)
             } else i = hay.indexOf(key, i + 1)
         }

@@ -4,6 +4,7 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import ru.kost.ruvoice.text.Replacements
 
 class DictsTest {
     @get:Rule val tmp = TemporaryFolder()
@@ -20,6 +21,35 @@ class DictsTest {
         root.resolve("dicts/replace/Основной.txt").writeText("")
         Dicts.migrate(root, "старый замок = старый з+амок\n")
         assertEquals("", root.resolve("dicts/replace/Основной.txt").readText())
+    }
+
+    @Test fun installSystemWritesAssetAndRefreshesItAfterUpdate() {
+        val root = tmp.root
+        var asset = "# v1\nтворог твор+ог\n"
+        Dicts.installSystem(root) { path -> if (path == "dicts/stress/Системный.txt") asset else null }
+        val f = root.resolve("dicts/stress/Системный.txt")
+        assertEquals(asset, f.readText())
+        assertFalse(root.resolve("dicts/replace/Системный.txt").exists())
+        f.writeText("правка пользователя\n")
+        Dicts.installSystem(root) { path -> if (path == "dicts/stress/Системный.txt") asset else null }
+        assertEquals(asset, f.readText()) // системный список всегда как в assets
+        asset = "# v2\nтворог твор+ог\n"
+        Dicts.installSystem(root) { path -> if (path == "dicts/stress/Системный.txt") asset else null }
+        assertEquals(asset, f.readText())
+    }
+
+    @Test fun systemDictsFromAssetsParse() {
+        // ударения: «слово сл+ово»; замены: «фраза = фраза с ударением», слово с «+» входит в ключ
+        val stress = TestData.root().resolve("app/src/main/assets/dicts/stress/Системный.txt").readLines()
+        val parsed = stress.mapNotNull { DictLines.parseStress(it) }
+        assertTrue(parsed.size > 1000)
+        assertTrue(parsed.all { (w, v) -> v.replace("+", "") == w && v.count { it == '+' } == 1 })
+        val replace = TestData.root().resolve("app/src/main/assets/dicts/replace/Системный.txt").readLines()
+        val r = Replacements.parse(replace)
+        val pairs = replace.mapNotNull { Replacements.split(it) }
+        assertTrue(pairs.size > 5000)
+        assertTrue(pairs.all { (k, v) -> v.replace("+", "") == k && v.count { it == '+' } == 1 })
+        assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
     }
 
     @Test fun filesAreSortedByRussianCollation() {

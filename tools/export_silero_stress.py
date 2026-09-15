@@ -58,8 +58,6 @@ def export_json():
                  'homo_start': t.homo_start_id, 'homo_end': t.homo_end_id, 'max_len': t.model_max_length},
         'phrases': phrases(),
     })
-    sys.path.insert(0, HERE); import stress_fixes, phrases_extra
-    stress_fixes.apply(data); phrases_extra.apply(data)  # tools/stress_fixes.txt и phrases_extra.txt поверх пакета
     with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False)
 
 
@@ -112,6 +110,7 @@ def verify():
 
 if __name__ == '__main__':
     export_models(); export_json(); golden = update_golden(); verify()
+    sys.path.insert(0, HERE); import system_dicts; system_dicts.main()  # stress_fixes.txt и phrases_extra.txt → assets/dicts
     for n in ('accentor.ptl', 'homo.ptl', 'silero_ru.json'):
         print(n, round(os.path.getsize(os.path.join(ASSETS, n)) / 1048576, 1), 'MB')
     print('golden:', len(golden), 'items;', sum('bert' in g for g in golden), 'с омографами')

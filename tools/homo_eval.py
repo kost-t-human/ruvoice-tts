@@ -9,10 +9,12 @@ import json, os, re, sys, collections
 from silero_stress import load_accentor
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
-sys.path.insert(0, HERE); import phrases_extra as pe
+sys.path.insert(0, HERE); import phrases_extra as pe, stress_fixes as sf
 DATA = os.path.join(ROOT, 'app/src/test/resources/homograph_eval/HomographResolutionEval.json')
 d = json.load(open(os.path.join(ROOT, 'app/src/main/assets/silero/silero_ru.json'), encoding='utf-8'))
 gram, homo, phrases = d['gram'], d['homodict'], d['phrases']
+fixes = sf.load_fixes()
+for w, items in pe.load_extra().items(): phrases[w] = sorted(items + [tuple(x) for x in phrases.get(w, [])], key=lambda x: -len(x[0]))  # системный словарь
 ss = load_accentor()
 word_re = re.compile(r'[а-яё+-]+', re.I)
 
@@ -43,6 +45,7 @@ for it in items:
     ours = None
     if w in gram and i > 0: ours = pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo)
     if ours is None: ours = phrase_pick(w, text) or base
+    if w in fixes: ours = fixes[w]
     stat['всего'] += 1
     stat['silero верно'] += base == target
     stat['аппка верно'] += ours == target
