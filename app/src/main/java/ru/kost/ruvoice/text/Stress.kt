@@ -10,9 +10,9 @@ interface StressModels {
 class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
              private val rules: Rules = Rules()) {
     /** Сборщик «неуверенных» слов (вкладка «Проверка»): слово, вариант с «+», фраза. Зовётся, когда акцентор
-     * ставит ударение с вероятностью ниже unsureMin или BERT выбирает омограф с вероятностью около половины. */
+     * ставит ударение с вероятностью ниже unsureMin (по живому тексту: при 0,7 это около процента слов, верных среди них половина; при 0,9 — 3,5 % слов) или BERT выбирает омограф с вероятностью около половины. */
     var unsure: ((word: String, variant: String, sentence: String) -> Unit)? = null
-    var unsureMin = 0.9f
+    var unsureMin = 0.7f
     private val vowels = "аоуыэиеяёю"
     private val tok = BertTokenizer(d)
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)

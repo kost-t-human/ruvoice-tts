@@ -70,7 +70,7 @@ class Audit(private val dir: File) {
         const val MAX = 2000
         const val CONTEXT = 120
         /** Порог уверенности акцентора по умолчанию: ниже него слово попадает в «неуверенные». */
-        const val MIN_DEFAULT = 0.9f
+        const val MIN_DEFAULT = 0.7f
         private const val VOWELS = "аеёиоуыэюя"
         private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
         private val tokenRe = Regex("\\S+")

@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import android.text.Html
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -34,6 +35,11 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             value = prefs.auditMin.coerceIn(valueFrom, valueTo)
             minValue.text = String.format(Locale.ROOT, "%.2f", value)
             addOnChangeListener { _, value, _ -> prefs.auditMin = value; minValue.text = String.format(Locale.ROOT, "%.2f", value) }
+        }
+        v.findViewById<TextView>(R.id.help).setOnClickListener {
+            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_help_title)
+                .setMessage(Html.fromHtml(getString(R.string.audit_help).replace("\n", "<br>"), Html.FROM_HTML_MODE_LEGACY))
+                .setPositiveButton(android.R.string.ok, null).show()
         }
         val which = v.findViewById<MaterialButtonToggleGroup>(R.id.which)
         which.check(R.id.showNames)

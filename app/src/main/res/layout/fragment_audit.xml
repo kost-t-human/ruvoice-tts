@@ -18,23 +18,17 @@
             android:id="@+id/namesOn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingVertical="8dp"
+            android:paddingVertical="4dp"
             android:text="@string/audit_names"
             android:textAppearance="?attr/textAppearanceBodyLarge" />
-        <TextView
-            style="@style/SectionHint"
-            android:text="@string/audit_names_hint" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/unsureOn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingVertical="8dp"
+            android:paddingVertical="4dp"
             android:text="@string/audit_unsure"
             android:textAppearance="?attr/textAppearanceBodyLarge" />
-        <TextView
-            style="@style/SectionHint"
-            android:text="@string/audit_unsure_hint" />
 
         <LinearLayout
             android:orientation="horizontal"
@@ -62,12 +56,22 @@
                 android:textAppearance="?attr/textAppearanceBodyMedium" />
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/help"
+            style="@style/SectionHint"
+            android:layout_width="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="0dp"
+            android:paddingVertical="4dp"
+            android:textColor="?attr/colorPrimary"
+            android:text="@string/help_link" />
+
         <LinearLayout
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
+            android:layout_marginTop="4dp">
             <com.google.android.material.button.MaterialButtonToggleGroup
                 android:id="@+id/which"
                 android:layout_width="0dp"
