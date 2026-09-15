@@ -13,6 +13,8 @@ class SileroData(json: String) {
     val homodict: Map<String, List<String>>
     /** Фразы Silero Stress: слово → [(фраза, вариант с «+»)], порядок важен — длинные фразы раньше. */
     val phrases: Map<String, List<Pair<String, String>>>
+    /** Грамматические омографы (AOT): форма → {g: род. ед., p: им./вин. мн., n: сущ., v: глагол} с «+». */
+    val gram: Map<String, Map<String, String>>
     val bertVocab: Map<String, Int>
     val bertCls: Int
     val bertSep: Int
@@ -42,6 +44,9 @@ class SileroData(json: String) {
         }
         phrases = o.getJSONObject("phrases").let { j ->
             j.keys().asSequence().associateWith { k -> val a = j.getJSONArray(k); List(a.length()) { a.getJSONArray(it).let { p -> p.getString(0) to p.getString(1) } } }
+        }
+        gram = o.getJSONObject("gram").let { j ->
+            j.keys().asSequence().associateWith { k -> val e = j.getJSONObject(k); e.keys().asSequence().associateWith { e.getString(it) } }
         }
         val bert = o.getJSONObject("bert")
         bertVocab = bert.getJSONObject("vocab").let { j -> j.keys().asSequence().associateWith { j.getInt(it) } }

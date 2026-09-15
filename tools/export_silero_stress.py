@@ -2,7 +2,7 @@
 accentor.ptl, homo.ptl, стрессовая часть silero_ru.json (exceptions, homodict, bert, phrases) и
 golden.json (accented, bert). tts.ptl и остальной json — из tools/export_silero.py, не трогаем.
 Запуск из venv с silero-stress: python3 tools/export_silero_stress.py"""
-import json, os
+import json, os, sys
 from typing import List
 import torch
 from torch.jit.mobile import _load_for_lite_interpreter
@@ -58,6 +58,8 @@ def export_json():
                  'homo_start': t.homo_start_id, 'homo_end': t.homo_end_id, 'max_len': t.model_max_length},
         'phrases': phrases(),
     })
+    sys.path.insert(0, HERE); import stress_fixes, phrases_extra
+    stress_fixes.apply(data); phrases_extra.apply(data)  # tools/stress_fixes.txt и phrases_extra.txt поверх пакета
     with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False)
 
 

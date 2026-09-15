@@ -8,3 +8,4 @@ tools/*.pt
 .kotlin/
 ruvoice-listen/
 app/src/test/resources/local/
+__pycache__/

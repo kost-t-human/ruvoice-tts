@@ -20,9 +20,55 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
 
     fun apply(sentence: String): String {
         var s = sentence
+        if (rules.on("gram")) s = gramPass(s)
         if (rules.on("homo")) s = homographPass(s)
         if (rules.on("accentor")) s = accentorPass(s)
         return userDictPass(s)
+    }
+
+    // ---- грамматика: падеж или часть речи по предыдущему слову ----
+    private val genGov = setOf("с", "со", "из", "изо", "от", "ото", "у", "до", "без", "безо", "для", "около", "вдоль", "возле",
+        "мимо", "после", "кроме", "вокруг", "против", "среди", "из-за", "из-под", "ради", "вместо", "подле", "близ", "накануне",
+        "вне", "насчёт", "ввиду", "вследствие", "позади", "впереди", "посреди", "сверх", "свыше", "внутри", "внутрь", "вроде",
+        "два", "две", "три", "четыре", "полтора", "полторы", "нет")
+    private val prepOther = setOf("в", "во", "на", "за", "под", "подо", "через", "про", "сквозь", "о", "об", "обо", "по", "при",
+        "к", "ко", "над", "надо", "перед", "передо", "между", "меж")
+    private val pronouns = setOf("я", "ты", "он", "она", "оно", "мы", "вы", "они")
+    /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
+    private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого")
+    private val gramWordRe = Regex("[а-яё+-]+", RegexOption.IGNORE_CASE)
+
+    /** «вдоль стены» → «стен+ы», «за село» → «сел+о», «я ношу» → «нош+у», «вечного города» → «г+орода»: слово из
+     * таблицы d.gram получает ударение по слову перед ним (между ними только пробелы). Дальше омографы и акцентор
+     * его не трогают. Проверено на фразах чужих словарей: по каждой ветке правило право в 85–95 % расхождений с
+     * моделью; согласование с прилагательным на «-ые», «-ой» и через числительное пробовали — не лучше BERT. */
+    internal fun gramPass(sentence: String): String {
+        if (d.gram.isEmpty()) return sentence
+        val sb = StringBuilder(sentence)
+        var prev = ""; var prev2 = ""; var prevEnd = -1; var offset = 0
+        for (m in gramWordRe.findAll(sentence)) {
+            val w = m.value.lowercase()
+            val e = d.gram[w]
+            if (e != null && prevEnd >= 0 && sentence.subSequence(prevEnd, m.range.first).all { it.isWhitespace() }) {
+                val pick = when {
+                    (prev == "под" || prev == "за") && prev2 == "из" -> e["g"] ?: e["n"]   // «из под», «из за» без дефиса
+                    prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
+                    prev in genGov -> e["g"] ?: e["n"]
+                    (prev == "в" || prev == "во") && "g" in e && "p" !in e -> null         // «выйти в учителя» — им. мн.
+                    prev in prepOther -> e["p"] ?: e["g"] ?: e["n"]
+                    prev in pronouns -> e["v"]
+                    // прилагательное в род. ед. («вечного города», «тёплой стены» не берём: «-ой» и у творительного — «вытер рукой глаза»)
+                    prev.endsWith("ого") || prev.endsWith("его") -> if (prev in notAdjective || prev.startsWith("сам") || prev.startsWith("котор")) null else e["g"] ?: e["n"]
+                    else -> null
+                }
+                if (pick != null) {
+                    val i = pick.indexOf('+')
+                    sb.insert(m.range.first + offset + i, '+'); offset++
+                }
+            }
+            prev2 = prev; prev = w; prevEnd = m.range.last + 1
+        }
+        return sb.toString()
     }
 
     // ---- homosolver (Silero Stress) ----

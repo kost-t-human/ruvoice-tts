@@ -202,6 +202,8 @@
     <string name="rule_punct_hint">«!!!» → «!», «. . .» → «…», дефис в пробелах → тире. Выключено: «Всё. . . Дальше» режется на предложения по каждой точке.</string>
     <string name="rule_ssml">Разбор SSML</string>
     <string name="rule_ssml_hint">Теги &lt;speak&gt;, &lt;break&gt;, &lt;p&gt;, &lt;s&gt;, &lt;emphasis&gt; и &lt;prosody rate pitch&gt; (в том числе внутри предложения, не разрывая его; pitch=\"robot\" — плоская высота, голос робота), если читалка их присылает. Выключено: текст с тегами читается как есть.</string>
+    <string name="rule_gram">Падеж по предлогу</string>
+    <string name="rule_gram_hint">Слово после предлога или числительного получает ударение своего падежа: «вдоль стен+ы», «в ст+ены», «за сел+о», «две рук+и». Выключено: решает нейросеть.</string>
     <string name="rule_homo">Омографы по контексту</string>
     <string name="rule_homo_hint">Нейросеть выбирает ударение по смыслу: «старый з+амок», «дверной зам+ок». Выключено: как обычное слово.</string>
     <string name="rule_accentor">Ударения нейросетью</string>

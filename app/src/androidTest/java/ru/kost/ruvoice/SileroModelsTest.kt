@@ -31,7 +31,7 @@ class SileroModelsTest {
     @Test fun goldenStressMatches() {
         val m = SileroModels(ctx); m.ensureLoaded()
         val golden = JSONArray(testCtx.assets.open("golden.json").bufferedReader().readText())
-        val stress = Stress(m.data, m)
+        val stress = Stress(m.data, m, rules = ru.kost.ruvoice.text.Rules(off = setOf("gram"))) // эталон — чистый Silero Stress
         val bad = ArrayList<String>()
         stress.apply(golden.getJSONObject(0).getString("prepared")) // прогрев
         var total = 0L; var chars = 0; var slowest = ""; var slowestMs = 0L

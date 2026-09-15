@@ -82,4 +82,27 @@ class StressTest {
         assertEquals("т+олстая", Stress(d, firstVowel).apply("толстая"))
         assertEquals("л+юдмила толст+ая", Stress(d, firstVowel).apply("людмила толстая"))
     }
+
+    @Test fun gramPassPicksCaseByPrecedingWord() {
+        val s = Stress(d, firstVowel)
+        // род. ед. после предлога родительного и числительного; вин. мн. после «в»; сущ. после предлога; глагол после местоимения
+        assertEquals("вдоль стен+ы", s.gramPass("вдоль стены"))
+        assertEquals("из-за стен+ы", s.gramPass("из-за стены"))
+        assertEquals("из за стен+ы", s.gramPass("из за стены"))
+        assertEquals("две рук+и", s.gramPass("две руки"))
+        assertEquals("в ст+ены", s.gramPass("в стены"))
+        assertEquals("за сел+о", s.gramPass("за село"))
+        assertEquals("я нош+у", s.gramPass("я ношу"))
+        assertEquals("вечного г+орода", s.gramPass("вечного города"))
+        assertEquals("его руки", s.gramPass("его руки"))
+        assertEquals("Вдоль Стен+ы", s.gramPass("Вдоль Стены"))
+        // одушевлённые: после «за» — вин. ед., после «в» — не решаем («выйти в учителя»); запятая рвёт связь
+        assertEquals("за уч+ителя", s.gramPass("за учителя"))
+        assertEquals("в учителя", s.gramPass("в учителя"))
+        assertEquals("что за свиньи", s.gramPass("что за свиньи"))
+        assertEquals("вдоль, стены", s.gramPass("вдоль, стены"))
+        assertEquals("стены", s.gramPass("стены"))
+        // дальше омографы и акцентор слово не трогают
+        assertEquals("з+а сел+о", s.apply("за село"))
+    }
 }
