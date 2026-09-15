@@ -2,12 +2,21 @@ package ru.kost.ruvoice
 
 import android.content.Context
 import java.io.File
+import org.json.JSONObject
 import ru.kost.ruvoice.text.Replacements
 import ru.kost.ruvoice.text.Rules
 
 class Prefs(private val context: Context) {
     private val p = context.getSharedPreferences("ruvoice", Context.MODE_PRIVATE)
     var voice: String get() = p.getString("voice", "xenia")!!; set(v) = p.edit().putString("voice", v).apply()
+    /** Язык чтения: "rus" — русская модель, иначе код языка установленного пака (Pack.languages). */
+    var lang: String get() = p.getString("lang", "rus")!!; set(v) = p.edit().putString("lang", v).apply()
+    fun voice(lang: String): String = if (lang == "rus") voice else p.getString("voice_$lang", "")!!
+    fun setVoice(lang: String, v: String) { if (lang == "rus") voice = v else p.edit().putString("voice_$lang", v).apply() }
+    fun quoteVoice(lang: String): String = if (lang == "rus") quoteVoice else p.getString("quote_voice_$lang", "")!!
+    fun setQuoteVoice(lang: String, v: String) { if (lang == "rus") quoteVoice = v else p.edit().putString("quote_voice_$lang", v).apply() }
+    private fun perLang(prefix: String): Map<String, String> =
+        p.all.entries.filter { it.key.startsWith(prefix) && it.value is String }.associate { it.key.removePrefix(prefix) to it.value as String }
     var sampleRate: Int get() = p.getInt("sr", 48000); set(v) = p.edit().putInt("sr", v).apply()
     var sentencePauseMs: Int get() = p.getInt("pause_sentence", 0); set(v) = p.edit().putInt("pause_sentence", v).apply()
     var paragraphPauseMs: Int get() = p.getInt("pause_paragraph", 300); set(v) = p.edit().putInt("pause_paragraph", v).apply()
@@ -82,6 +91,9 @@ class Prefs(private val context: Context) {
             "rules_off" to rulesOff.joinToString(","),
             "max_len" to maxLen,
             "focus_level" to focusLevel,
+            "lang" to lang,
+            "voices" to JSONObject(perLang("voice_")),
+            "quote_voices" to JSONObject(perLang("quote_voice_")),
         )
         fun all(kind: Dicts.Kind) = dictFiles(kind).associate { Dicts.name(it) to it.readText() }
         return SettingsJson.build(prefsMap, all(Dicts.Kind.STRESS), all(Dicts.Kind.REPLACE), off(Dicts.Kind.STRESS), off(Dicts.Kind.REPLACE))
@@ -110,6 +122,9 @@ class Prefs(private val context: Context) {
         (prefsMap["quote_rate"] as? Number)?.let { quoteRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_on"] as? Boolean)?.let { quoteOn = it }
+        (prefsMap["lang"] as? String)?.let { lang = it }
+        (prefsMap["voices"] as? JSONObject)?.let { j -> for (k in j.keys()) setVoice(k, j.optString(k)) }
+        (prefsMap["quote_voices"] as? JSONObject)?.let { j -> for (k in j.keys()) setQuoteVoice(k, j.optString(k)) }
         (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }

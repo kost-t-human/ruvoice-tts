@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -57,5 +58,14 @@ class SettingsJsonTest {
     @Test fun unknownPrefKeyDoesNotBreakParsing() {
         val parsed = SettingsJson.parse("""{"app":"ruvoice","prefs":{"unknown_key":123}}""")
         assertEquals(123, (parsed.prefs["unknown_key"] as Number).toInt())
+    }
+
+    @Test fun nestedVoiceMapsSurviveRoundTrip() {
+        val json = SettingsJson.build(mapOf("lang" to "tat", "voices" to JSONObject(mapOf("tat" to "tat_albina")),
+            "quote_voices" to JSONObject(mapOf("tat" to "tat_marat"))), emptyMap(), emptyMap(), emptySet(), emptySet())
+        val p = SettingsJson.parse(json)
+        assertEquals("tat", p.prefs["lang"])
+        assertEquals("tat_albina", (p.prefs["voices"] as JSONObject).getString("tat"))
+        assertEquals("tat_marat", (p.prefs["quote_voices"] as JSONObject).getString("tat"))
     }
 }
