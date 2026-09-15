@@ -175,7 +175,13 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ```sh
 ./gradlew :app:testDebugUnitTest          # JVM-тесты: нормализация, ударения, замены, паузы, SSML
-./gradlew :app:connectedDebugAndroidTest  # на устройстве: модели против эталона, сервис через TextToSpeech API
+# На устройстве (модели против эталона, сервис через TextToSpeech API, точность омографов и «ё»):
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -e class ru.kost.ruvoice.SileroModelsTest ru.kost.ruvoice.test/androidx.test.runner.AndroidJUnitRunner
+adb uninstall ru.kost.ruvoice.test
+# Не `connectedAndroidTest`: он переустанавливает приложение и сносит словари и настройки пользователя.
 ```
 
 Инструментальные тесты сверяют выход конвертированных моделей с эталоном `golden.json` (он снят с оригинальной модели тем же `tools/export_silero.py`), гоняют сервис через платформенный `TextToSpeech`, как это делает читалка, и считают точность омографов на настоящих предложениях (`HomographEvalTest`, набор [HomographResolutionEval](https://huggingface.co/datasets/inkoziev/HomographResolutionEval) Ильи Козиева, CC BY 4.0, 1741 предложение; копия в `app/src/test/resources/homograph_eval/`): сейчас 85 %, трещотка на 84 %. Тот же набор без телефона — `tools/homo_eval.py`. Букву «ё» проверяет `YoEvalTest`: 2000 предложений русской Википедии с «ё» (`app/src/test/resources/yo_eval/`, выборка `tools/wiki_yo_corpus.py` из дампа), «ё» стирается и ставится заново: восстанавливается 96 %, трещотка на 92 %; полный корпус в 30 тысяч предложений гоняет `tools/yo_eval.py` (однозначные слова по словарю eyo — 96 %, омографы вроде все/всё — 90 %, лишних «ё» 179 на 30 тысяч предложений). `GramPassCorpusTest` проверяет грамматический проход на фразах чужих словарей (локальный `local/ss_rows.tsv`, без него пропускается): правило не должно спорить со словарём чаще, чем в 2,5 % сработок (сейчас 10 тысяч сработок, споров 1,2 %).
