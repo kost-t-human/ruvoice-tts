@@ -12,8 +12,10 @@ class Prefs(private val context: Context) {
     /** Язык чтения: "rus" — русская модель, иначе код языка установленного пака (Pack.languages);
      * невалидное значение или язык уже удалённого пака читается как "rus". */
     var lang: String
-        get() = validLang(p.getString("lang", "rus")!!, Packs.installed(context.filesDir))
+        get() = lang(Packs.installed(context.filesDir))
         set(v) = p.edit().putString("lang", v).apply()
+    /** То же, но по уже прочитанному списку паков — сервис читает его на каждый запрос. */
+    fun lang(packs: List<Pack>): String = validLang(p.getString("lang", "rus")!!, packs)
     fun voice(lang: String): String = if (lang == "rus") voice else p.getString("voice_$lang", "")!!
     fun setVoice(lang: String, v: String) { if (lang == "rus") voice = v else p.edit().putString("voice_$lang", v).apply() }
     fun quoteVoice(lang: String): String = if (lang == "rus") quoteVoice else p.getString("quote_voice_$lang", "")!!

@@ -438,7 +438,7 @@ class RulesTest {
 
     @Test fun ruOnlyCoversNumbersAbbrevStressAndLetterName() {
         assertTrue(Rules.RU_ONLY.all { it in Rules.KEYS })
-        for (k in listOf("numbers", "footnotes", "abbrev", "homoglyphs", "homo", "focus", "letter_name")) assertTrue(k, k in Rules.RU_ONLY)
-        for (k in listOf("lead_in", "drop_links", "dehyphen", "ssml", "pause_semicolon")) assertFalse(k, k in Rules.RU_ONLY)
+        for (k in listOf("drop_links", "drop_emails", "read_links", "numbers", "footnotes", "abbrev", "homoglyphs", "homo", "focus", "letter_name")) assertTrue(k, k in Rules.RU_ONLY)
+        for (k in listOf("lead_in", "dehyphen", "ssml", "pause_semicolon")) assertFalse(k, k in Rules.RU_ONLY)
     }
 }

@@ -38,8 +38,9 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "homo" to "stress", "pause_semicolon" to "audio")
 
         /** Правила, которые знают русскую грамматику или русскую модель; для языковых паков не действуют
-         * и на вкладке показываются неактивными: секции «Числа», «Сокращения», «Ударения» и имя буквы. */
-        val RU_ONLY: Set<String> = (KEYS.subList(KEYS.indexOf("numbers"), KEYS.indexOf("dehyphen")) +
+         * и на вкладке показываются неактивными: ссылки и почта (живут внутри numbers, читаются по-русски),
+         * секции «Числа», «Сокращения», «Ударения» и имя буквы. */
+        val RU_ONLY: Set<String> = (KEYS.subList(KEYS.indexOf("drop_links"), KEYS.indexOf("dehyphen")) +
             KEYS.subList(KEYS.indexOf("homo"), KEYS.indexOf("pause_semicolon")) + "letter_name").toSet()
     }
 }

@@ -181,6 +181,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private var packsDialog: AlertDialog? = null
+    private var packProgress: AlertDialog? = null
 
     /** Диалог со списком установленных паков; пересобирается после установки и удаления. */
     private fun showPacks() {
@@ -212,6 +213,7 @@ class SettingsActivity : AppCompatActivity() {
     /** Копирование 92 МБ идёт в фоне под неотменяемым индикатором. */
     private fun installPack(uri: Uri) {
         val progress = MaterialAlertDialogBuilder(this).setMessage(R.string.packs_installing).setCancelable(false).show()
+        packProgress = progress
         Thread {
             val result = runCatching {
                 contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException("Не удалось открыть файл")
@@ -230,8 +232,7 @@ class SettingsActivity : AppCompatActivity() {
      * открывает диалог паков (диалог старого окна закрывается вместе с ним). */
     private fun refreshPages(message: String) {
         saveAllVisiblePages()
-        // Сброс языка после save: VoiceFragment.save() пишет prefs.lang = curLang и затёр бы его.
-        if (prefs.lang !in Packs.langs(Packs.installed(filesDir))) prefs.lang = "rus"
+        // Язык удалённого пака сбрасывать не нужно: getter Prefs.lang отдаёт «rus», пока пака нет.
         // Флаг на текущем intent — как при импорте: старые фрагменты не должны снова
         // сохраниться в onPause после finish() и вернуть устаревший язык.
         intent.putExtra(EXTRA_IMPORT_DONE, true)
@@ -283,6 +284,8 @@ class SettingsActivity : AppCompatActivity() {
     override fun onDestroy() {
         busyButton?.isEnabled = true
         tts?.shutdown()
+        // диалоги не DialogFragment: без dismiss при гибели окна Android ругается на утечку окна
+        packsDialog?.dismiss(); packProgress?.dismiss()
         super.onDestroy()
     }
 

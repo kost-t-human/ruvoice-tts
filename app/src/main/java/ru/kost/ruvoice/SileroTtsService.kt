@@ -175,9 +175,9 @@ class SileroTtsService : TextToSpeechService() {
     /** Язык чтения: Locale читалки — только если это язык установленного пака; иначе настройка;
      * если её пак удалён — русский. Читалки, шлющие «ru» или мусор, выбор не перебивают. */
     private fun readingLang(requested: String?): String {
-        val langs = packLangs()
-        if (requested != null && requested != "rus" && requested in langs) return requested
-        return prefs.lang
+        val packs = packs()
+        if (requested != null && requested != "rus" && requested in Packs.langs(packs)) return requested
+        return prefs.lang(packs)
     }
 
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int = when {
