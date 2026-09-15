@@ -44,5 +44,5 @@ class HomographEvalTest {
         assertTrue("омографы: $ok из $total", ok >= (total * MIN).toInt())
     }
 
-    companion object { const val MIN = 0.80 }
+    companion object { const val MIN = 0.84 }
 }
