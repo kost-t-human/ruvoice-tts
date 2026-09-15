@@ -14,10 +14,13 @@ class SileroModels(private val context: Context) : StressModels {
     private var tts: Module? = null
     private var acc: Module? = null
     private var homo: Module? = null
+    private var packTts: Module? = null
+    @Volatile var loadedPackId: String? = null; private set
     val isLoaded get() = tts != null && acc != null && homo != null
 
     @Synchronized fun ensureLoaded() {
         if (isLoaded) return
+        releasePack()
         val t = System.currentTimeMillis()
         try {
             tts = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts.ptl")
@@ -30,10 +33,19 @@ class SileroModels(private val context: Context) : StressModels {
         Log.i(TAG, "модели загружены за ${System.currentTimeMillis() - t} мс")
     }
 
-    @Synchronized fun release() {
-        tts?.destroy(); acc?.destroy(); homo?.destroy()
-        tts = null; acc = null; homo = null
+    /** В памяти один движок: русская тройка либо tts.ptl одного пака. */
+    @Synchronized fun ensurePack(pack: Pack) {
+        if (packTts != null && loadedPackId == pack.id) return
+        releaseRu(); releasePack()
+        val t = System.currentTimeMillis()
+        packTts = LiteModuleLoader.load(pack.ttsFile.path)
+        loadedPackId = pack.id
+        Log.i(TAG, "пак ${pack.id} загружен за ${System.currentTimeMillis() - t} мс")
     }
+
+    @Synchronized fun release() { releaseRu(); releasePack() }
+    private fun releaseRu() { tts?.destroy(); acc?.destroy(); homo?.destroy(); tts = null; acc = null; homo = null }
+    private fun releasePack() { packTts?.destroy(); packTts = null; loadedPackId = null }
 
     private fun softmaxRows(t: Tensor): Array<FloatArray> {
         val rows = t.shape()[0].toInt(); val cols = t.shape()[1].toInt(); val d = t.dataAsFloatArray
@@ -90,6 +102,26 @@ class SileroModels(private val context: Context) : StressModels {
             IValue.from(false),
             IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n))),
             if (focus.all { it == 0L }) IValue.optionalNull() else IValue.from(Tensor.fromBlob(focus, longArrayOf(1, n)))
+        ).toTuple()
+        return Synth(out[0].toTensor().dataAsFloatArray, out[1].toTensor().dataAsFloatArray)
+    }
+
+    /** forward пака — как у v5_ru: 11 аргументов, без type_ids и focus_mask. */
+    fun synthesizePack(seq: LongArray, speakerId: Int, sampleRate: Int, rates: FloatArray, pitches: FloatArray, symbDurs: Map<Long, Long>): Synth {
+        val m = packTts ?: throw IllegalStateException("пак не загружен")
+        val n = seq.size.toLong()
+        val out = m.forward(
+            IValue.from(Tensor.fromBlob(seq, longArrayOf(1, n))),
+            IValue.from(Tensor.fromBlob(longArrayOf(speakerId.toLong()), longArrayOf(1))),
+            IValue.from(sampleRate.toLong()),
+            if (symbDurs.isEmpty()) IValue.optionalNull() else IValue.dictLongKeyFrom(symbDurs.mapValues { IValue.from(it.value) }),
+            IValue.from(Tensor.fromBlob(rates, longArrayOf(1, n))),
+            IValue.from(Tensor.fromBlob(pitches, longArrayOf(1, n))),
+            IValue.optionalNull(),
+            IValue.optionalNull(),
+            IValue.from("cpu"),
+            IValue.from(-1L),
+            IValue.from(false)
         ).toTuple()
         return Synth(out[0].toTensor().dataAsFloatArray, out[1].toTensor().dataAsFloatArray)
     }
