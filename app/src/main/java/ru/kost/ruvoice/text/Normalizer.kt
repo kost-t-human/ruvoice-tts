@@ -1205,7 +1205,8 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])(от|с|из)\s+лат\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "$1 латинского",
         Regex("""(?<![\p{L}\d])(от|с|из)\s+греч\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "$1 греческого",
         Regex("""(?<![\p{L}\d])стр\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "страница",
-        Regex("""(?<![\p{L}\d])рис\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "рисунок",
+        // «рис» — ещё и крупа: «На ужин был рис.» — сокращение только с номером следом («рис. 3», «рис. № 2»)
+        Regex("""(?<![\p{L}\d])рис\.(?=\s*(?:№\s*)?\d)""", RegexOption.IGNORE_CASE) to "рисунок",
         Regex("""(?<![\p{L}\d])табл\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "таблица",
         Regex("""(?<![\p{L}\d])гл\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "глава",
         Regex("""(?<![\p{L}\d])ср\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "сравни",
