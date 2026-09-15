@@ -116,7 +116,19 @@ object Pipeline {
                 }
             }
         }
+        if (rules.on("fast_start")) fastStart(out)
         return carryProsody(out)
+    }
+
+    /** Первый сегмент запроса короче остальных: звук уходит читалке только после счёта всего
+     * сегмента, и max_len символов на слабом телефоне — секунды тишины перед началом. Хвост
+     * считается, пока играет голова. Режется как limit, по запятой, но один раз. */
+    private fun fastStart(out: ArrayList<Segment>) {
+        val i = out.indexOfFirst { it.text.isNotBlank() }
+        if (i < 0 || out[i].text.length <= Rules.FAST_START_LEN) return
+        val seg = out[i]; val c = Splitter.cut(seg.text, Rules.FAST_START_LEN)
+        out[i] = seg.copy(text = seg.text.substring(c + 1).trim())
+        out.add(i, Segment(seg.text.substring(0, c + 1).trim().trimEnd(','), speech = seg.speech))
     }
 }
 

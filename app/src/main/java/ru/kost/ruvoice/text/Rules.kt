@@ -15,17 +15,19 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         const val MAX_LEN_DEFAULT = 400
         const val MAX_LEN_MIN = 100
         const val MAX_LEN_MAX = 900
+        /** Длина первого куска запроса при fast_start, ~5 с звука. */
+        const val FAST_START_LEN = 100
         // focus_embedding модели — 4 строки (0..3), как intensity в apply_tts
         const val FOCUS_DEFAULT = 3
         const val FOCUS_MIN = 1
         const val FOCUS_MAX = 3
 
         /** Правила, выключенные по умолчанию. */
-        val DEFAULT_OFF = setOf("drop_links", "drop_emails")
+        val DEFAULT_OFF = setOf("fast_start", "drop_links", "drop_emails")
 
         /** Порядок списка = порядок на экране. Секция «Разное» вверху — для настроек без своего раздела. */
         val KEYS = listOf(
-            "letter_name", "lead_in", "drop_links", "drop_emails", "read_links",
+            "letter_name", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
             "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",

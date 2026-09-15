@@ -133,4 +133,21 @@ class PipelineTest {
         assertEquals("в 1917 году.", first("в 1917 году."))
         assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
     }
+    @Test fun fastStartCutsOnlyFirstSegment() {
+        val long = "Поздним вечером старый смотритель запер тяжёлые ворота, пошёл вдоль стены, а потом долго стоял у окна и смотрел, как гаснут огни в деревне за рекой, где его никто не ждал."
+        val text = "$long\n$long"
+        val off = Pipeline.plan(text, d, 100, 300)
+        assertEquals(2, off.size)
+        val on = Pipeline.plan(text, d, 100, 300, rules = Rules(off = setOf("fast_start")))
+        assertEquals(3, on.size)
+        assertEquals(Segment("Поздним вечером старый смотритель запер тяжёлые ворота, пошёл вдоль стены"), on[0])
+        assertEquals(Segment(long.substring(on[0].text.length + 2), breakMs = 400, paragraph = true), on[1])
+        assertEquals(off[1], on[2])
+    }
+
+    @Test fun fastStartLeavesShortFirstSegment() {
+        val on = Pipeline.plan("Раз. Два!", d, 100, 0, rules = Rules(off = setOf("fast_start")))
+        assertEquals(listOf(Segment("Раз.", breakMs = 100), Segment("Два!", breakMs = 100)), on)
+    }
+
 }

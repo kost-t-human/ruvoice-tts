@@ -61,9 +61,12 @@ object Splitter {
         return merged.filter { it.isNotBlank() }.flatMap { limit(it.trim(), maxLen) }
     }
 
+    /** Индекс разреза строки длиннее maxLen: последняя запятая, иначе пробел, иначе ровно maxLen. */
+    fun cut(s: String, maxLen: Int) = s.lastIndexOf(',', maxLen).takeIf { it > 0 } ?: s.lastIndexOf(' ', maxLen).takeIf { it > 0 } ?: maxLen
+
     private fun limit(s: String, maxLen: Int): List<String> {
         if (s.length <= maxLen) return listOf(s)
-        val cut = s.lastIndexOf(',', maxLen).takeIf { it > 0 } ?: s.lastIndexOf(' ', maxLen).takeIf { it > 0 } ?: maxLen
+        val cut = cut(s, maxLen)
         val head = s.substring(0, cut + 1).trim().trimEnd(',')
         return listOf(head) + limit(s.substring(cut + 1).trim(), maxLen)
     }
