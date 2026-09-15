@@ -154,6 +154,26 @@ object Normalizer {
     // окончание слова следом; «-е»: «2-е место» (ср. р.) и «2-е ножницы» (мн. ч.). Корпус ru-normalizr.
     private val femTailRe = Regex("""^\s+(?!год)\p{L}{2,}(?:ой|ей|ии|ы|и|е)(?![а-яё])""")
     private val pluralTailRe = Regex("""^\s+\p{L}{2,}[ыиа](?![а-яё])""")
+    // То же по таблице морфологии, когда она есть и слово следом — существительное: «-й» → «-ей» у женского
+    // рода («3-й дивизии»), «-е» → «-ые», если у слова есть только мн. ч. («2-е ножницы», «2000-е годы»).
+    // null — слова нет в таблице или род общий, тогда решают регулярки выше.
+    private val tailWordRe = Regex("""^\s+(\p{L}{2,})(?![а-яё])""")
+    private fun tailNoun(tail: String): Int? {
+        val word = tailWordRe.find(tail)?.groupValues?.get(1) ?: return null
+        return morph?.tags(word)?.takeIf { Morph.isNoun(it) }
+    }
+    private fun ordFem(tail: String): Boolean? {
+        val t = tailNoun(tail) ?: return null
+        return when (Morph.gender(t)) { Gender.F -> true; Gender.M, Gender.N -> false; null -> null }
+    }
+    private fun ordPlural(tail: String): Boolean? {
+        val t = tailNoun(tail) ?: return null
+        return when {
+            Case.NOM in Morph.nounCases(t, plural = false) -> false
+            Case.NOM in Morph.nounCases(t, plural = true) -> true
+            else -> null
+        }
+    }
     private fun isDecadeTail(tail: String): Boolean {
         if (decadeYearWordRe.containsMatchIn(tail)) return true
         val t = tail.trimStart(' ', '\t')
@@ -1361,7 +1381,7 @@ object Normalizer {
     // «по 1000 рублей» — дательный: «по одной тысяче».
     // Число на 1 (не 11) + слово на -у/-ю → винительный женского рода («1 книгу» → «одну книгу»).
     private val accFemEndingRe = Regex(
-        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+[ую](?![а-яё])""",
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+(\p{L}+[ую])(?![а-яё])""",
         RegexOption.IGNORE_CASE
     )
     // Число на 2 (не 12) + слово на -ы/-и → «две» («2 книги» → «две книги», «2 стола» не трогаем).
@@ -1379,9 +1399,53 @@ object Normalizer {
         "хуже", "тоже", "также", "только", "почти", "ровно", "около", "вместо", "кроме", "после", "сразу", "много", "мало",
         "снова", "вроде", "давно", "немного", "менее", "более", "чаще", "реже", "легче", "тяжелее", "быстрее", "медленнее")
     private val nomFemTwoEndingRe = Regex(
-        """(?<![\p{L}\d])(\d+)$numTailExclude\s+\p{L}+[ыи](?![а-яё])""",
+        """(?<![\p{L}\d])(\d+)$numTailExclude\s+(\p{L}+[ыи])(?![а-яё])""",
         RegexOption.IGNORE_CASE
     )
+
+    // 13. По таблице морфологии (Normalizer.morph; null — только правила по окончаниям ниже). Слово сразу
+    // после числа — существительное с известным родом: «1 ночь» → «одна», «1 такси» → «одно», «1 конь» →
+    // «один», «2 двери» → «две», «1 книгу» → «одну». Число из таблицы решено окончательно — до правил по
+    // окончаниям оно уже словами; неизвестное слово или общий род («сирота») оставляем им.
+    private val morphNounRe = Regex("""(?<![\p{L}\d,./-])(\d+)$numTailExclude\s+(\p{L}{2,})(?![а-яё])""", RegexOption.IGNORE_CASE)
+    private fun morphNoun(s: String, morph: Morph) = morphNounRe.replace(s) { m ->
+        val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
+        val word = m.groupValues[2].lowercase()
+        val t = morph.tags(word)
+        // стоп-слова — расхождения таблицы с узусом («евро» в AOT среднего рода) и «1 года»/«1 раза»
+        if (!Morph.isNoun(t) || word in nomOneStop) return@replace m.value
+        m.withGroupReplaced(1 to (numeralByNoun(n, t) ?: return@replace m.value))
+    }
+    /** Род существительного по таблице для правил по окончаниям ниже: они не спорят с ней, когда слово известно. */
+    private fun morphGender(word: String): Gender? = morph?.tags(word)?.takeIf { Morph.isNoun(it) }?.let { Morph.gender(it) }
+
+    /**
+     * Числительное перед существительным с тегами [t]: по каждой клетке сетки число×падеж — форма числительного,
+     * если конструкция грамматична («2 книги» — Р.п. ед. ч. при 2–4, «1 книгу» — В.п. при 1); клетки, невозможные
+     * после числа (ед. ч. косвенных при 5, мн. ч. при 1), пропускаем. Одна форма на все разборы — она, иначе null.
+     */
+    private fun numeralByNoun(n: Long, t: Int): String? {
+        val g = Morph.gender(t)
+        val one = n % 10 == 1L && n % 100 != 11L
+        val few = n % 10 in 2..4 && n % 100 !in 12..14
+        val fem = g == Gender.F
+        val out = HashSet<String>()
+        fun nom() = when (g) {
+            Gender.F -> Declension.cardinal(n, Case.NOM, feminine = true)
+            Gender.N -> cardinal(n).removeSuffix("один") + "одно"
+            else -> cardinal(n)
+        }
+        val sg = Morph.nounCases(t, plural = false)
+        for (c in sg) when {
+            !one -> if (c == Case.GEN && few) out += Declension.cardinal(n, Case.NOM, fem)
+            g == null -> return null
+            c == Case.NOM -> out += nom()
+            c == Case.ACC -> out += if (g == Gender.N) nom() else Declension.cardinal(n, if (Morph.animate(t) && g == Gender.M) Case.GEN else Case.ACC, fem)
+            // «1 коня» → «одного»; у несклоняемых («1 такси») именительный перевешивает
+            c == Case.GEN -> if (Case.NOM !in sg) out += Declension.cardinal(n, Case.GEN, fem)
+        }
+        return out.singleOrNull()
+    }
 
     // Диапазоны: «между N и M» — оба И.п.; «с N по M» — первое Р.п., второе как есть (кроме
     // месяца — тогда оба порядковые среднего/мужского рода); «с N до M» — оба Р.п.
@@ -1485,22 +1549,23 @@ object Normalizer {
             val case = if (m.groupValues[1].equals("по", true)) Case.DAT else Case.ACC
             m.withGroupReplaced(2 to Declension.cardinal(n, case, feminine = true))
         }
+        morph?.let { s = morphNoun(s, it) }
         s = accFemEndingRe.replace(s) { m ->
             val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
-            if (n % 10 != 1L || n % 100 == 11L) return@replace m.value
+            if (n % 10 != 1L || n % 100 == 11L || morphGender(m.groupValues[2]).let { it == Gender.M || it == Gender.N }) return@replace m.value
             m.withGroupReplaced(1 to Declension.cardinal(n, Case.ACC, feminine = true))
         }
         s = nomOneEndingRe.replace(s) { m ->
             val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
             val word = m.groupValues[2].lowercase()
-            if (n % 10 != 1L || n % 100 == 11L || word in nomOneStop) return@replace m.value
+            if (n % 10 != 1L || n % 100 == 11L || word in nomOneStop || morphGender(word) == Gender.M) return@replace m.value
             if (word.endsWith("ь") && !SoftSignGender.isFeminine(word)) return@replace m.value
             val neuter = word.endsWith("мя") || word.last() in "ое"
             m.withGroupReplaced(1 to if (neuter) cardinal(n).removeSuffix("один") + "одно" else Declension.cardinal(n, Case.NOM, feminine = true))
         }
         s = nomFemTwoEndingRe.replace(s) { m ->
             val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
-            if (n % 10 != 2L || n % 100 == 12L) return@replace m.value
+            if (n % 10 != 2L || n % 100 == 12L || morphGender(m.groupValues[2]).let { it == Gender.M || it == Gender.N }) return@replace m.value
             m.withGroupReplaced(1 to Declension.cardinal(n, Case.NOM, feminine = true))
         }
         return s
@@ -1636,8 +1701,8 @@ object Normalizer {
             } else if (suffix.isNotEmpty()) {
                 val tail = s.substring(m.range.last + 1)
                 val sfx = when (suffix.lowercase()) {
-                    "й" -> if (femTailRe.containsMatchIn(tail)) "ей" else "й"
-                    "е" -> if (pluralTailRe.containsMatchIn(tail)) "ые" else "е"
+                    "й" -> if (ordFem(tail) ?: femTailRe.containsMatchIn(tail)) "ей" else "й"
+                    "е" -> if (ordPlural(tail) ?: pluralTailRe.containsMatchIn(tail)) "ые" else "е"
                     else -> suffix.lowercase()
                 }
                 sb.append(ordinal(n, sfx, isDecadeTail(tail)))
