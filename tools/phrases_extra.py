@@ -23,13 +23,13 @@ PRON = set('я ты он она оно мы вы они'.split())
 NOT_ADJ = set('его него чего кого ничего никого некого нечего всего сего много немного итого'.split())
 
 
-def gram_pick(prev, prev2, e):
+def gram_pick(prev, prev2, e, in_homo=False):
     """Зеркало Stress.gramPass: что поставит грамматический проход, None — молчит."""
     if prev in ('под', 'за') and prev2 == 'из': return e.get('g') or e.get('n')
     if prev == 'за' and prev2 == 'что': return None
     if prev in GEN: return e.get('g') or e.get('n')
     if prev in ('в', 'во') and 'g' in e and 'p' not in e: return None
-    if prev in PREP: return e.get('p') or e.get('g') or e.get('n')
+    if prev in PREP: return e.get('p') or e.get('g') or (None if prev in ('в', 'во', 'на', 'при') and in_homo else e.get('n'))
     if prev in PRON: return e.get('v')
     if prev.endswith(('ого', 'его')):
         return None if prev in NOT_ADJ or prev.startswith(('сам', 'котор')) else e.get('g') or e.get('n')
@@ -68,7 +68,8 @@ def apply(data):
 def build():
     with open(JSON, encoding='utf-8') as f: d = json.load(f)
     homo, gram = d['homodict'], d['gram']
-    have = {(w, p) for w, l in d['phrases'].items() for p, _ in l}
+    mine = {(w, p) for w, l in load_extra().items() for p, _ in l}  # уже наложенные наши фразы не считаем чужими
+    have = {(w, p) for w, l in d['phrases'].items() for p, _ in l} - mine
     seen = set(); rows = []
     by_word = collections.defaultdict(list)  # слово → [(фраза словаря, вариант)] — все фразы, не только промахи
     for line in open(os.path.join(BUILD, 'ss_rows.tsv'), encoding='utf-8'):
@@ -82,7 +83,7 @@ def build():
             if '+' not in dv or dv == gw[i][1]: continue
             ok = w in homo and dv in homo[w] or w in gram and dv in gram[w].values()
             if not ok: continue
-            if w in gram and i > 0 and gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w]) is not None: continue
+            if w in gram and i > 0 and gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo) is not None: continue
             phrase = norm(key)
             if (w, phrase) in have or (w, phrase) in seen or w not in phrase.split(' ') and w not in re.split(r'[ ,-]+', phrase): continue
             seen.add((w, phrase)); rows.append((w, phrase, dv, w in homo))

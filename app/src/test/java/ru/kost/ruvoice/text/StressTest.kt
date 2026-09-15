@@ -92,6 +92,7 @@ class StressTest {
         assertEquals("две рук+и", s.gramPass("две руки"))
         assertEquals("в ст+ены", s.gramPass("в стены"))
         assertEquals("за сел+о", s.gramPass("за село"))
+        assertEquals("в пыли", s.gramPass("в пыли"))
         assertEquals("я нош+у", s.gramPass("я ношу"))
         assertEquals("вечного г+орода", s.gramPass("вечного города"))
         assertEquals("его руки", s.gramPass("его руки"))

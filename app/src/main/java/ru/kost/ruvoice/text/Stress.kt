@@ -33,6 +33,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         "два", "две", "три", "четыре", "полтора", "полторы", "нет")
     private val prepOther = setOf("в", "во", "на", "за", "под", "подо", "через", "про", "сквозь", "о", "об", "обо", "по", "при",
         "к", "ко", "над", "надо", "перед", "передо", "между", "меж")
+    private val locPrep = setOf("в", "во", "на", "при")
     private val pronouns = setOf("я", "ты", "он", "она", "оно", "мы", "вы", "они")
     /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
     private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого")
@@ -55,7 +56,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
                     prev in genGov -> e["g"] ?: e["n"]
                     (prev == "в" || prev == "во") && "g" in e && "p" !in e -> null         // «выйти в учителя» — им. мн.
-                    prev in prepOther -> e["p"] ?: e["g"] ?: e["n"]
+                    // второй предложный («в пыл+и», «в цвет+у») совпадает с глаголом — омографы из homodict после в/на оставляем BERT
+                    prev in prepOther -> e["p"] ?: e["g"] ?: if (prev in locPrep && w in d.homodict) null else e["n"]
                     prev in pronouns -> e["v"]
                     // прилагательное в род. ед. («вечного города», «тёплой стены» не берём: «-ой» и у творительного — «вытер рукой глаза»)
                     prev.endsWith("ого") || prev.endsWith("его") -> if (prev in notAdjective || prev.startsWith("сам") || prev.startsWith("котор")) null else e["g"] ?: e["n"]
