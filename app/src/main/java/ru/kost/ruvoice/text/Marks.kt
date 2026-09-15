@@ -33,8 +33,9 @@ object Marks {
 
     class Parsed(val text: String, val words: List<Pair<String, Mark>>)
 
-    /** Снимает маркеры; words — ключ слова и его пометка, в порядке текста. [focus] — сила `*слова*`, 0 — не выделять. */
-    fun parse(text: String, focus: Int = 3): Parsed {
+    /** Снимает маркеры; words — ключ слова и его пометка, в порядке текста. [focus] — сила `*слова*`,
+     * 0 — не выделять; [keyOf] — ключ из сырого слова (для паков с транслитерацией — PackText.translitKey). */
+    fun parse(text: String, focus: Int = 3, keyOf: (String) -> String = ::key): Parsed {
         val focused = BooleanArray(text.length)
         val star = BooleanArray(text.length)
         for (m in focusRe.findAll(text)) {
@@ -69,7 +70,7 @@ object Marks {
         }
         val words = tokenRe.findAll(sb).map { t ->
             val pause = pauseAt.entries.filter { it.key in t.range }.sumOf { it.value }
-            key(t.value) to marks[t.range.first].copy(pauseMs = pause)
+            keyOf(t.value) to marks[t.range.first].copy(pauseMs = pause)
         }.toList()
         return Parsed(sb.toString(), words)
     }

@@ -333,16 +333,17 @@ class SileroTtsService : TextToSpeechService() {
             *(if (rules.on("pause_semicolon")) arrayOf(pack.sym.symbolToId[';'], pack.sym.symbolToId[':']) else emptyArray())).toHashSet()
         val commaFrames = Marks.frames(prefs.commaPauseMs)
         val srcText = request.charSequenceText.toString().let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }.let { Marks.blank(it) }
-        val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), it.range.first, it.range.last + 1) }.toList()
         // prepared (для sequence/tokens) прошёл транслитерацию пака — ключи для сопоставления с ним
         // тоже нужно транслитерировать, иначе для грузинского/армянского/латиницы слова не совпадут.
-        val matcher = Marks.Matcher(srcWords.map { PackText.translitKey(it.first, pack, lang) })
+        val keyOf = { w: String -> PackText.translitKey(w, pack, lang) }
+        val srcWords = Regex("\\S+").findAll(srcText).map { Triple(keyOf(it.value), it.range.first, it.range.last + 1) }.toList()
+        val matcher = Marks.Matcher(srcWords.map { it.first })
         var written = 0L
         if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
         if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
         for (seg in segments) {
             if (stopped) break
-            val marks = Marks.parse(seg.text, 0)
+            val marks = Marks.parse(seg.text, 0, keyOf)
             val prepared = PackText.prepare(marks.text, pack, lang, rules)
             if (prepared.any { it in pack.sym.alphabet }) {
                 val synth = synchronized(models) {
@@ -351,7 +352,7 @@ class SileroTtsService : TextToSpeechService() {
                         val seq = pack.sym.sequence(prepared)
                         val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
                         val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
-                        val al = Marks.align(marks.words.map { (w, m) -> PackText.translitKey(w, pack, lang) to m }, prepared, seq.size, pack.sym)
+                        val al = Marks.align(marks.words, prepared, seq.size, pack.sym)
                         for (i in al.pitches.indices) al.pitches[i] *= curPitch
                         val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
                         Pair(models.synthesizePack(seq, curSpeakerId, sr, al.rates, al.pitches, symbDurs), Marks.tokens(prepared, pack.sym))

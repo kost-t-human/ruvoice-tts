@@ -22,10 +22,11 @@ object PackText {
         return ws.replace(sb, " ").trim()
     }
 
-    /** Ключ слова источника (Marks.key — буквы/цифры, без регистра) → ключ, сравнимый с ключами
-     * слов из prepare(): та же таблица транслитерации, потом тот же фильтр Marks.key (транслит
-     * может добавить апострофы и дефисы вроде «к'», «-h-»). Без таблицы для языка — ключ как есть. */
-    fun translitKey(key: String, pack: Pack, lang: String): String = pack.translit[lang]?.let { Marks.key(translit(key, it)) } ?: key
+    /** Ключ сырого слова источника, сравнимый с ключами слов из prepare(): та же таблица
+     * транслитерации, потом тот же фильтр Marks.key. Таблица идёт до фильтра — в узбекской «o'»/«g'»
+     * с апострофом, Marks.key его срезал бы. Без таблицы для языка — обычный Marks.key. */
+    fun translitKey(token: String, pack: Pack, lang: String): String =
+        Marks.key(pack.translit[lang]?.let { translit(token.lowercase(), it) } ?: token)
 
     /** Самый длинный ключ первым: в узбекской таблице есть «sh», «o'», а не только буквы. */
     private fun translit(s: String, table: Map<String, String>): String {

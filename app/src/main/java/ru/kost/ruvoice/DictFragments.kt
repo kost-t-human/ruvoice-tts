@@ -336,10 +336,14 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val helpTitleRes = R.string.tab_stress
     override val sorted = true
 
+    private var editable = true
+
     override fun onResume() {
         super.onResume()
         val v = view ?: return
         val lang = prefs.lang
+        // раз на onResume, не на каждый bind: prefs.lang за собой тянет Packs.installed (listFiles)
+        if (editable != (lang == "rus")) { editable = lang == "rus"; view?.findViewById<RecyclerView>(R.id.list)?.adapter?.notifyDataSetChanged() }
         val note = v.findViewById<TextView>(R.id.note)
         if (lang == "rus") { note.visibility = View.GONE; v.findViewById<View>(R.id.add).isEnabled = true; return }
         val name = Packs.langs(Packs.installed(requireContext().filesDir))[lang] ?: lang
@@ -373,7 +377,6 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
             holder.word.text = DictLines.accentDisplay(variant)
             // как FAB на onResume: для языка пака редактор (со слушалками) и прослушивание неактивны —
             // disabled clickable View события клика не шлёт, отдельно снимать слушатели не нужно.
-            val editable = prefs.lang == "rus"
             holder.itemView.isEnabled = editable
             holder.itemView.setOnClickListener { showDialog(index) }
             holder.play.isEnabled = editable

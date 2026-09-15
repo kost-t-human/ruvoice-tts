@@ -44,12 +44,15 @@ class PackTextTest {
     }
 
     @Test fun translitKeyMatchesKeyFromPreparedText() {
-        // ключ источника (Marks.key на исходном грузинском слове) после таблицы должен совпасть
-        // с ключом того же слова в prepared-тексте (апостроф из "к'" Marks.key уже вычищает)
+        // ключ сырого слова после таблицы должен совпасть с ключом того же слова в prepared-тексте:
+        // грузинский (апостроф из "к'" Marks.key вычищает) и узбекская латиница, где апостроф
+        // в «o'» нужен таблице, поэтому транслитерация идёт до Marks.key
         val pack = cis()
-        val prepared = PackText.prepare("საქართველო", pack, "kat")
-        val srcKey = Marks.key("საქართველო")
-        assertEquals(Marks.key(prepared), PackText.translitKey(srcKey, pack, "kat"))
+        for ((word, lang) in listOf("საქართველო" to "kat", "O'zbek" to "uzb", "g'isht," to "uzb")) {
+            val prepared = PackText.prepare(word, pack, lang)
+            assertEquals(word, Marks.key(prepared), PackText.translitKey(word, pack, lang))
+        }
+        assertEquals("ўзбэк", PackText.translitKey("O'zbek", pack, "uzb"))
     }
 
     @Test fun translitKeyIsIdentityWithoutTable() {
@@ -61,11 +64,10 @@ class PackTextTest {
         // без сопоставления по транслитерированному ключу Matcher никогда не продвигается (все
         // токены ловят пометку первого слова) — {prosody} второго слова терялся
         val pack = cis()
-        val p = Marks.parse("საქართველო {prosody:150:100}საქართველო{prosody}")
+        val p = Marks.parse("საქართველო {prosody:150:100}საქართველო{prosody}", 0) { PackText.translitKey(it, pack, "kat") }
         val prepared = PackText.prepare(p.text, pack, "kat")
-        val words = p.words.map { (w, m) -> PackText.translitKey(w, pack, "kat") to m }
         val seq = pack.sym.sequence(prepared)
-        val a = Marks.align(words, prepared, seq.size, pack.sym)
+        val a = Marks.align(p.words, prepared, seq.size, pack.sym)
         val t = Marks.tokens(prepared, pack.sym)
         assertEquals(2, t.size)
         assertEquals(1.0f, a.rates[t[0].seqStart], 0f)
