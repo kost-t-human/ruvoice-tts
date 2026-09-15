@@ -2,18 +2,19 @@
 """Оценка омографов на настоящих предложениях: HomographResolutionEval (Илья Козиев, CC BY 4.0,
 huggingface.co/datasets/inkoziev/HomographResolutionEval; копия в app/src/test/resources/homograph_eval/).
 1741 предложение, 509 омографов, у каждого отмечено верное ударение омографа.
-Считает точность Silero Stress как есть и с зеркалом Stress.gramPass (tools/phrases_extra.gram_pick) и
-нашими фразами; промахи — в app/build/homo_eval_miss.txt.
+Считает точность Silero Stress как есть и с зеркалом Stress.gramPass (tools/phrases_extra.gram_pick, с таблицей
+морфологии morph.bin) и нашими фразами; промахи — в app/build/homo_eval_miss.txt.
 Запуск: <venv с silero-stress>/bin/python tools/homo_eval.py"""
 import json, os, re, sys, collections
 from silero_stress import load_accentor
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE); import phrases_extra as pe, stress_fixes as sf
+from aot_morph import Table
 DATA = os.path.join(ROOT, 'app/src/test/resources/homograph_eval/HomographResolutionEval.json')
 d = json.load(open(os.path.join(ROOT, 'app/src/main/assets/silero/silero_ru.json'), encoding='utf-8'))
 gram, homo, phrases = d['gram'], d['homodict'], d['phrases']
-fixes = sf.load_fixes()
+fixes = sf.load_fixes(); morph = Table()
 for w, items in pe.load_extra().items(): phrases[w] = sorted(items + [tuple(x) for x in phrases.get(w, [])], key=lambda x: -len(x[0]))  # системный словарь
 ss = load_accentor()
 word_re = re.compile(r'[а-яё+-]+', re.I)
@@ -43,7 +44,8 @@ for it in items:
     base = stressed[i]
     # зеркало аппки: gramPass → фразы (наши и Silero) → BERT
     ours = None
-    if w in gram and i > 0: ours = pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo)
+    if w in gram and i > 0: ours = pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph)
+    if w == 'все' and i + 1 < len(toks): ours = pe.vse_pick(toks[i + 1], morph, gram)
     if ours is None: ours = phrase_pick(w, text) or base
     if w in fixes: ours = fixes[w]
     stat['всего'] += 1

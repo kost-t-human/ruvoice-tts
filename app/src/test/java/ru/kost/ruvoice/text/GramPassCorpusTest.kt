@@ -24,7 +24,7 @@ class GramPassCorpusTest {
     @Test fun corpus() {
         val f = File(TestData.root(), "app/src/test/resources/local/ss_rows.tsv")
         Assume.assumeTrue("нет app/src/test/resources/local/ss_rows.tsv", f.exists())
-        val stress = Stress(TestData.data(), models)
+        val stress = Stress(TestData.data(), models, morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin")))
         var fired = 0; var wrong = 0; val diff = StringBuilder()
         f.forEachLine { line ->
             val p = line.split('\t'); if (p.size < 2) return@forEachLine
@@ -44,7 +44,7 @@ class GramPassCorpusTest {
     }
 
     companion object {
-        const val MIN_FIRED = 6000
+        const val MIN_FIRED = 10000
         const val MAX_WRONG = 0.025
     }
 }

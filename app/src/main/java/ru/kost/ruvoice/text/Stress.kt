@@ -7,8 +7,10 @@ interface StressModels {
     fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray): FloatArray
 }
 
+/** morph — таблица морфологии для согласования с прилагательным в gramPass; null — правило выключено. По умолчанию та же,
+ * что у нормализатора (SileroModels.data() ставит её раз на процесс; в JVM-тестах без ассета — null). */
 class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
-             private val rules: Rules = Rules()) {
+             private val rules: Rules = Rules(), private val morph: Morph? = Normalizer.morph) {
     /** Сборщик «неуверенных» слов (вкладка «Проверка»): слово, вариант с «+», фраза. Зовётся, когда акцентор
      * ставит ударение с вероятностью ниже unsureMin (по живому тексту: при 0,7 это около процента слов, верных среди них половина; при 0,9 — 3,5 % слов) или BERT выбирает омограф с вероятностью около половины. */
     var unsure: ((word: String, variant: String, sentence: String) -> Unit)? = null
@@ -45,19 +47,26 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
     private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого")
     private val gramWordRe = Regex("[а-яё+-]+", RegexOption.IGNORE_CASE)
+    /** После «две/три/четыре» прилагательное во мн., а слово — в род. ед.: «две толстые ноги». */
+    private val count = setOf("два", "две", "три", "четыре", "оба", "обе", "полтора", "полторы")
 
     /** «вдоль стены» → «стен+ы», «за село» → «сел+о», «я ношу» → «нош+у», «вечного города» → «г+орода», «в озера» → «оз+ёра»: слово из
      * таблицы d.gram получает ударение по слову перед ним (между ними только пробелы). Дальше омографы и акцентор
      * его не трогают. Проверено на фразах чужих словарей: по каждой ветке правило право в 85–95 % расхождений с
-     * моделью; согласование с прилагательным на «-ые», «-ой» и через числительное пробовали — не лучше BERT. */
+     * моделью; согласование с прилагательным по окончанию («-ые», «-ой») пробовали — не лучше BERT, по таблице
+     * морфологии (agree) — спорит со словарями в 1,5 % сработок. С той же таблицей «все» перед словом, которое
+     * бывает только во мн. ч. («все крупные») или согласовано с «все» во мн. («все окна»), становится «вс+е». */
     internal fun gramPass(sentence: String): String {
         if (d.gram.isEmpty()) return sentence
         val sb = StringBuilder(sentence)
-        var prev = ""; var prev2 = ""; var prevEnd = -1; var offset = 0
+        var prev = ""; var prev2 = ""; var prevStart = -1; var prevEnd = -1; var offset = 0
         for (m in gramWordRe.findAll(sentence)) {
             val w = m.value.lowercase()
             val e = d.gram[w]
-            if (e != null && prevEnd >= 0 && sentence.subSequence(prevEnd, m.range.first).all { it.isWhitespace() }) {
+            val adjacent = prevEnd >= 0 && sentence.subSequence(prevEnd, m.range.first).all { it.isWhitespace() }
+            var vse = adjacent && prev == "все" && morph != null && Morph.pluralOnly(morph.tags(w.replace("+", "")))
+            val prevOffset = offset
+            if (e != null && adjacent) {
                 val pick = when {
                     (prev == "под" || prev == "за") && prev2 == "из" -> e["g"] ?: e["n"]   // «из под», «из за» без дефиса
                     prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
@@ -69,6 +78,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     // прилагательное в род. ед. («вечного города», «тёплой стены» не берём: «-ой» и у творительного — «вытер рукой глаза»)
                     prev.endsWith("ого") || prev.endsWith("его") ->
                         if (prev in notAdjective || prev.startsWith("сам") || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
+                    morph != null && ("g" in e || "p" in e) -> agree(morph, prev, prev2, w, e)
                     else -> null
                 }
                 if (pick != null) {
@@ -77,11 +87,32 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     val out = StringBuilder(pick.length)
                     for (c in pick) if (c == '+') out.append('+') else { out.append(if (raw[k].isUpperCase()) c.uppercaseChar() else c); k++ }
                     sb.replace(m.range.first + offset, m.range.last + 1 + offset, out.toString()); offset += out.length - raw.length
+                    if (prev == "все" && pick == e["p"]) vse = true   // «все окна»: слово согласовано с «все» во мн.
                 }
             }
-            prev2 = prev; prev = w; prevEnd = m.range.last + 1
+            if (vse) { sb.insert(prevStart + prevOffset + 2, '+'); offset++ }
+            prev2 = prev; prev = w; prevStart = m.range.first; prevEnd = m.range.last + 1
         }
         return sb.toString()
+    }
+
+    /** «высокие стены» → мн., «высокой стены» → род. ед., «эти руки» → мн.: прилагательное (не существительное
+     * одновременно — «больной») согласуется со словом в клетке род. ед. (вариант g) или им./вин. мн. (p), но не в
+     * обеих; в обеих или ни в одной («вся округа» — им. ед. другой леммы) — молчим. */
+    private fun agree(m: Morph, prev: String, prev2: String, w: String, e: Map<String, String>): String? {
+        if (prev == "всё") return null   // в таблице «ё» = «е», а «всё» — не «все»
+        val ta = m.tags(prev.replace("+", ""))
+        if (!Morph.isAdjective(ta) || Morph.isNoun(ta)) return null
+        val tw = m.tags(w)
+        if (!Morph.isNoun(tw)) return null
+        if (prev2 in count) return e["g"]
+        fun fit(plural: Boolean): Boolean {
+            val noun = Morph.nounCases(tw, plural) intersect if (plural) setOf(Case.NOM, Case.ACC) else setOf(Case.GEN)
+            val genders: List<Gender?> = if (plural) listOf(null) else Morph.genders(tw).ifEmpty { Gender.values().toList() }
+            return genders.any { g -> Morph.adjCases(ta, g, plural).any { it in noun } }
+        }
+        val sg = fit(false); val pl = fit(true)
+        return if (sg && !pl) e["g"] else if (pl && !sg) e["p"] else null
     }
 
     // ---- homosolver (Silero Stress) ----
