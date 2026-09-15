@@ -13,6 +13,9 @@ import ru.kost.ruvoice.audio.Pcm
 import ru.kost.ruvoice.audio.Tempo
 import ru.kost.ruvoice.text.*
 import java.util.Locale
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 
 object Pipeline {
     // Маркер паузы {pause:N} (N — мс) на границе предложений режет текст сегмента на куски
@@ -137,6 +140,7 @@ class SileroTtsService : TextToSpeechService() {
     private val models: SileroModels by lazy { SileroModels(this) }
     private val prefs: Prefs by lazy { Prefs(this) }
     private val handler = Handler(Looper.getMainLooper())
+    private val synthPool = Executors.newSingleThreadExecutor()
     @Volatile private var stopped = false
     // Аудиовыход телефона уходит в standby через ~3 с тишины, а после пробуждения HAL плавно
     // поднимает громкость — первое слово фразы выходит тихим. Если с прошлого звука прошло
@@ -171,7 +175,7 @@ class SileroTtsService : TextToSpeechService() {
         if (prefs.idleOn) handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
-    override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; models.release(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; synthPool.shutdownNow(); models.release(); super.onDestroy() }
 
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int =
         if (lang == "rus") TextToSpeech.LANG_COUNTRY_AVAILABLE else TextToSpeech.LANG_NOT_SUPPORTED
@@ -239,53 +243,62 @@ class SileroTtsService : TextToSpeechService() {
             var written = 0L // сэмплов отдано читалке — точка отсчёта markerInFrames
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
-            for (seg in segments) {
-                if (stopped) break
+            // Звук сегмента и токены для подсветки; null — нечего читать или синтез упал.
+            fun synthSegment(seg: Segment): Pair<SileroModels.Synth, List<Marks.Token>>? {
+                if (stopped) return null
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
                 // по этому же тексту — так и надо.
                 val marks = Marks.parse(seg.text, rules.focusLevel)
                 val prepared = Normalizer.prepare(marks.text, d.allowed, rules)
-                if (prepared.any { it != '+' && it in d.alphabet }) {
-                    // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
-                    // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
-                    val synth = synchronized(models) {
-                        try {
-                            models.ensureLoaded()
-                            val accented = stress.apply(prepared)
-                            val seq = d.sequence(accented)
-                            val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
-                            val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
-                            val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
-                            val al = Marks.align(marks.words, accented, seq.size, d)
-                            for (i in al.pitches.indices) al.pitches[i] *= curPitch
-                            // seq = sos + accented + eos, индексы совпадают с durs напрямую.
-                            val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
-                            Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs), Marks.tokens(accented, d))
-                        } catch (e: Throwable) {
-                            // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
-                            Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
-                        }
+                if (prepared.none { it != '+' && it in d.alphabet }) return null
+                // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
+                // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
+                return synchronized(models) {
+                    try {
+                        models.ensureLoaded()
+                        val accented = stress.apply(prepared)
+                        val seq = d.sequence(accented)
+                        val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
+                        val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
+                        val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
+                        val al = Marks.align(marks.words, accented, seq.size, d)
+                        for (i in al.pitches.indices) al.pitches[i] *= curPitch
+                        // seq = sos + accented + eos, индексы совпадают с durs напрямую.
+                        val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
+                        Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs), Marks.tokens(accented, d))
+                    } catch (e: Throwable) {
+                        // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
+                        Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
                     }
-                    if (synth != null) {
-                        val (out, tokens) = synth
-                        val audio = out.audio
-                        Pcm.fadeEdges(audio, sr, 5)
-                        val segRate = rate * (if (seg.speech) quoteRate else 1f)
-                        val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)
-                        // Границы слов: сумма durs до первого символа слова × сэмплов на кадр, после
-                        // Sonic — в пропорции длин. Слово, которого нет в запросе (число, сокращение,
-                        // латиница), подсветку не двигает.
-                        val perFrame = pcm.size.toDouble() / out.durs.sum()
-                        val cum = DoubleArray(out.durs.size + 1)
-                        for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
-                        for (t in tokens) {
-                            val j = matcher.next(t.key)
-                            if (j >= 0) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
-                        }
-                        if (!write(callback, pcm)) return
-                        written += pcm.size
-                        Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
+                }
+            }
+            // Сегмент N+1 считается, пока звук сегмента N уходит плееру: audioAvailable блокирует,
+            // пока непроигранного звука больше 500 мс (SynthesisPlaybackQueueItem), и без опережения
+            // перед каждым куском была бы пауза в его время счёта.
+            var next: Future<Pair<SileroModels.Synth, List<Marks.Token>>?>? = null
+            for ((si, seg) in segments.withIndex()) {
+                if (stopped) { next?.cancel(false); break }
+                val synth = (next ?: synthPool.submit(Callable { synthSegment(seg) })).get()
+                next = if (si + 1 < segments.size) synthPool.submit(Callable { synthSegment(segments[si + 1]) }) else null
+                if (synth != null) {
+                    val (out, tokens) = synth
+                    val audio = out.audio
+                    Pcm.fadeEdges(audio, sr, 5)
+                    val segRate = rate * (if (seg.speech) quoteRate else 1f)
+                    val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)
+                    // Границы слов: сумма durs до первого символа слова × сэмплов на кадр, после
+                    // Sonic — в пропорции длин. Слово, которого нет в запросе (число, сокращение,
+                    // латиница), подсветку не двигает.
+                    val perFrame = pcm.size.toDouble() / out.durs.sum()
+                    val cum = DoubleArray(out.durs.size + 1)
+                    for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
+                    for (t in tokens) {
+                        val j = matcher.next(t.key)
+                        if (j >= 0) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
                     }
+                    if (!write(callback, pcm)) return
+                    written += pcm.size
+                    Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                 }
                 if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
             }
