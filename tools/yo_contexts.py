@@ -15,6 +15,7 @@ import json, os, re, sys, collections
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE); import wiki_yo_corpus as wiki, phrases_extra as pe
+from aot_morph import Table
 OUT = os.path.join(ROOT, 'app/build/yo_phrases.txt'); TSV = os.path.join(ROOT, 'app/build/yo_contexts.tsv')  # все частые контексты, для просмотра
 MIN, SHARE, SHARE_YO = 20, 0.95, 0.75
 # сосед — служебное слово или буква: контекст ничего не говорит («жены в», «звезды из», «озера до» — перекос Википедии)
@@ -90,13 +91,14 @@ def main():
         if any(t in STOP or len(t) < 2 for t in re.split(r'[ ,]+', phrase) if t != w): dropped['сосед — служебное слово'] += 1; continue
         var = next(v for k, v in words[w].items() if ('ё' in k) == (nyo > ne))
         good[(w, phrase)] = (var, tot, max(ne, nyo) / tot)
-    by_word = pe.dict_phrases()
+    by_word = pe.dict_phrases(); morph = Table()
     rows = []
     for (w, phrase), (var, tot, share) in good.items():
         toks = re.split(r'[ ,]+', phrase); i = toks.index(w)
         if len(toks) == 3 and ((w, ' '.join(phrase.split(' ')[:2])) in good or (w, ' '.join(phrase.split(' ')[1:])) in good):
             dropped['двухсловный уже есть'] += 1; continue
-        if w in gram and i > 0 and pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], True) is not None:
+        if w in gram and i > 0 and pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], True, w, morph) is not None \
+                or w == 'все' and i == 0 and len(toks) > 1 and pe.vse_pick(toks[1], morph, gram) == var:
             dropped['gramPass решает'] += 1; continue
         if pe.conflicts(by_word, w, phrase, var): dropped['спорит со словарями'] += 1; continue
         rows.append((w, phrase, var, tot, share))
