@@ -12,6 +12,13 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <TextView
+            android:id="@+id/note"
+            style="@style/SectionHint"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="12dp"
+            android:visibility="gone" />
+
         <LinearLayout
             android:orientation="horizontal"
             android:gravity="center_vertical"

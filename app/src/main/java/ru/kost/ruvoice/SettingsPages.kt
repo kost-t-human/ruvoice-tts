@@ -243,6 +243,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
         list.removeAllViews()
         val rules = Rules(prefs.rulesOff)
+        val ruOnly = prefs.lang != "rus"
         val inflater = LayoutInflater.from(v.context)
         for ((i, key) in Rules.KEYS.withIndex()) {
             Rules.SECTIONS[key]?.let { section ->
@@ -256,15 +257,24 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             val toggle = row.findViewById<MaterialSwitch>(R.id.toggle)
             toggle.tag = key
             toggle.isChecked = rules.on(key)
-            row.setOnClickListener { toggle.toggle() }
+            if (ruOnly && key in Rules.RU_ONLY) {
+                toggle.isEnabled = false
+                row.alpha = 0.5f
+                row.findViewById<TextView>(R.id.hint).setText(R.string.rule_ru_only)
+            } else row.setOnClickListener { toggle.toggle() }
             list.addView(row)
             // поле силы ударения — сразу под своим тумблером
             if (key == "focus") list.addView(inflater.inflate(R.layout.item_focus_level, list, false).apply {
-                findViewById<EditText>(R.id.focusLevel).setText(prefs.focusLevel.toString())
+                findViewById<EditText>(R.id.focusLevel).apply {
+                    setText(prefs.focusLevel.toString())
+                    isEnabled = !ruOnly
+                }
             })
         }
         v.findViewById<EditText>(R.id.maxLen).setText(prefs.maxLen.toString())
     }
+
+    override fun onResume() { super.onResume(); view?.let { save(it); load(it) } }
 
     override fun save(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)

@@ -1,6 +1,8 @@
 package ru.kost.ruvoice.text
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.kost.ruvoice.TestData
 
@@ -432,5 +434,11 @@ class RulesTest {
         assertEquals("в тысяча девятьсот девяностом году", n("в 1990 г"))
         assertEquals("пятьсот граммов муки", n("500 г муки"))
         assertEquals("с первого по пятое сентября", n("с 1 по 5 сентября"))
+    }
+
+    @Test fun ruOnlyCoversNumbersAbbrevStressAndLetterName() {
+        assertTrue(Rules.RU_ONLY.all { it in Rules.KEYS })
+        for (k in listOf("numbers", "footnotes", "abbrev", "homoglyphs", "homo", "focus", "letter_name")) assertTrue(k, k in Rules.RU_ONLY)
+        for (k in listOf("lead_in", "drop_links", "dehyphen", "ssml", "pause_semicolon")) assertFalse(k, k in Rules.RU_ONLY)
     }
 }

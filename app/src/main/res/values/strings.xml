@@ -82,6 +82,7 @@
     <string name="dict_regex_save">Сохранить</string>
     <string name="dict_menu">Действия со списком</string>
     <string name="stress_empty_hint">Слова, в которых движок ставит ударение не туда. Нажмите +, чтобы добавить</string>
+    <string name="stress_ru_only">Для языка «%1$s» словарь ударений не применяется: ударение эти модели ставят сами. Списки сохраняются и действуют для русского.</string>
     <string name="stress_word">Слово</string>
     <string name="listen_as_model">Как читает модель</string>
     <string name="listen_stressed">С ударением</string>
@@ -131,6 +132,7 @@
     <string name="rules_section_abbrev">Сокращения и латиница</string>
     <string name="rules_section_split">Разбиение текста</string>
     <string name="rules_section_stress">Ударения и интонация</string>
+    <string name="rule_ru_only">Только для русского. Для выбранного языка чтения не действует.</string>
     <string name="rules_section_audio">Звук</string>
     <string name="rules_section_chunk">Длина куска</string>
     <string name="max_len">Максимальная длина куска</string>

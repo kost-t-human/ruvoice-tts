@@ -336,6 +336,18 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val helpTitleRes = R.string.tab_stress
     override val sorted = true
 
+    override fun onResume() {
+        super.onResume()
+        val v = view ?: return
+        val lang = prefs.lang
+        val note = v.findViewById<TextView>(R.id.note)
+        if (lang == "rus") { note.visibility = View.GONE; v.findViewById<View>(R.id.add).isEnabled = true; return }
+        val name = Packs.langs(Packs.installed(requireContext().filesDir))[lang] ?: lang
+        note.text = getString(R.string.stress_ru_only, name)
+        note.visibility = View.VISIBLE
+        v.findViewById<View>(R.id.add).isEnabled = false
+    }
+
     override fun parseLine(line: String) = DictLines.parseStress(line)
     @Suppress("UNCHECKED_CAST")
     private fun parsed(index: Int) = parsedAny(index) as Pair<String, String>?
