@@ -53,5 +53,5 @@ class RuNormalizrCorpusTest {
         assertTrue(s, (without.first["safe"] ?: 0) >= MIN_MATCHED_NO_MORPH)
     }
 
-    companion object { const val MIN_MATCHED = 485; const val MIN_MATCHED_NO_MORPH = 485 }
+    companion object { const val MIN_MATCHED = 487; const val MIN_MATCHED_NO_MORPH = 485 }
 }

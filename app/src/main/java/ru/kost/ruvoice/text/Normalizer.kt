@@ -1404,10 +1404,12 @@ object Normalizer {
     )
 
     // 13. По таблице морфологии (Normalizer.morph; null — только правила по окончаниям ниже). Слово сразу
-    // после числа — существительное с известным родом: «1 ночь» → «одна», «1 такси» → «одно», «1 конь» →
-    // «один», «2 двери» → «две», «1 книгу» → «одну». Число из таблицы решено окончательно — до правил по
-    // окончаниям оно уже словами; неизвестное слово или общий род («сирота») оставляем им.
-    private val morphNounRe = Regex("""(?<![\p{L}\d,./-])(\d+)$numTailExclude\s+(\p{L}{2,})(?![а-яё])""", RegexOption.IGNORE_CASE)
+    // после числа — существительное с известным родом и падежом: «1 ночь» → «одна», «1 такси» → «одно»,
+    // «1 конь» → «один», «2 двери» → «две», «1 книгу» → «одну», «1 другу» → «одному», «5 путями» → «пятью»,
+    // «в 1 доме» → «одном». Родительный и именительный не трогаем — это обычная конструкция «пять минут»,
+    // «два стола». Число из таблицы решено окончательно — до правил по окончаниям оно уже словами;
+    // неизвестное слово или общий род («сирота») оставляем им.
+    private val morphNounRe = Regex("""(?<![\p{L}\d,./–-])(\d+)$numTailExclude\s+(\p{L}{2,})(?![а-яё])""", RegexOption.IGNORE_CASE)
     private fun morphNoun(s: String, morph: Morph) = morphNounRe.replace(s) { m ->
         val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
         val word = m.groupValues[2].lowercase()
@@ -1415,6 +1417,27 @@ object Normalizer {
         // стоп-слова — расхождения таблицы с узусом («евро» в AOT среднего рода) и «1 года»/«1 раза»
         if (!Morph.isNoun(t) || word in nomOneStop) return@replace m.value
         m.withGroupReplaced(1 to (numeralByNoun(n, t) ?: return@replace m.value))
+    }
+    // Прилагательное перед числом задаёт падеж вместе с существительным после (task spec-morph п.2):
+    // «последних 20-30 лет» → «двадцати-тридцати», «в последних 5 случаях» → «пяти». Падежи прилагательного
+    // (мн. ч.; при одушевлённом существительном к родительному добавляем винительный) пересекаем с падежами
+    // существительного; одна клетка не именительного/винительного — склоняем. «последние 5 лет» остаётся.
+    private val morphAdjRe = Regex(
+        """(?<![\p{L}\d-])(\p{L}{3,})\s+(\d+)(?:\s*[-–]\s*(\d+))?$numTailExclude\s+(\p{L}{2,})(?![а-яё])""",
+        RegexOption.IGNORE_CASE
+    )
+    private fun morphAdj(s: String, morph: Morph) = morphAdjRe.replace(s) { m ->
+        val ta = morph.tags(m.groupValues[1]); val tn = morph.tags(m.groupValues[4])
+        if (!Morph.isAdjective(ta) || !Morph.isNoun(tn)) return@replace m.value
+        val adj = Morph.adjCases(ta, null, plural = true).toMutableSet()
+        if (Morph.animate(tn) && Case.GEN in adj) adj += Case.ACC
+        if (Case.NOM in adj || Case.ACC in adj) return@replace m.value
+        val c = (adj intersect Morph.nounCases(tn, plural = true)).singleOrNull() ?: return@replace m.value
+        val fem = Morph.gender(tn) == Gender.F
+        val n1 = m.groupValues[2].toLongOrNull() ?: return@replace m.value
+        val n2 = m.groupValues[3].toLongOrNull()
+        if (n2 == null) m.withGroupReplaced(2 to Declension.cardinal(n1, c, fem))
+        else m.withGroupReplaced(2 to Declension.cardinal(n1, c, fem), 3 to Declension.cardinal(n2, c, fem))
     }
     /** Род существительного по таблице для правил по окончаниям ниже: они не спорят с ней, когда слово известно. */
     private fun morphGender(word: String): Gender? = morph?.tags(word)?.takeIf { Morph.isNoun(it) }?.let { Morph.gender(it) }
@@ -1436,13 +1459,21 @@ object Normalizer {
             else -> cardinal(n)
         }
         val sg = Morph.nounCases(t, plural = false)
+        if (one && g == null) return null
+        // «1 стол», «1 такси» (несклоняемое — все клетки): форма именительного читается именительным
+        if (one && Case.NOM in sg) return nom()
         for (c in sg) when {
             !one -> if (c == Case.GEN && few) out += Declension.cardinal(n, Case.NOM, fem)
-            g == null -> return null
-            c == Case.NOM -> out += nom()
+            // «1 коня» → «одного»
             c == Case.ACC -> out += if (g == Gender.N) nom() else Declension.cardinal(n, if (Morph.animate(t) && g == Gender.M) Case.GEN else Case.ACC, fem)
-            // «1 коня» → «одного»; у несклоняемых («1 такси») именительный перевешивает
-            c == Case.GEN -> if (Case.NOM !in sg) out += Declension.cardinal(n, Case.GEN, fem)
+            else -> out += Declension.cardinal(n, c, fem)
+        }
+        // «5 минут» — родительный мн. ч. при 5+ это именительная конструкция; при 2–4 («3 друзей»,
+        // «3 рабочих дня») он же омонимичен прилагательному, не трогаем
+        if (!one) for (c in Morph.nounCases(t, plural = true)) when (c) {
+            Case.NOM, Case.ACC -> {}
+            Case.GEN -> if (!few) out += cardinal(n)
+            else -> out += Declension.cardinal(n, c, fem)
         }
         return out.singleOrNull()
     }
@@ -1549,7 +1580,7 @@ object Normalizer {
             val case = if (m.groupValues[1].equals("по", true)) Case.DAT else Case.ACC
             m.withGroupReplaced(2 to Declension.cardinal(n, case, feminine = true))
         }
-        morph?.let { s = morphNoun(s, it) }
+        morph?.let { s = morphNoun(morphAdj(s, it), it) }
         s = accFemEndingRe.replace(s) { m ->
             val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
             if (n % 10 != 1L || n % 100 == 11L || morphGender(m.groupValues[2]).let { it == Gender.M || it == Gender.N }) return@replace m.value
