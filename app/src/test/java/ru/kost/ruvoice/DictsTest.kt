@@ -62,8 +62,9 @@ class DictsTest {
         val r = Replacements.parse(replace)
         val pairs = replace.mapNotNull { Replacements.split(it) }
         assertTrue(pairs.size > 5000)
-        assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "").replace('ё', 'е') == k.replace('ё', 'е') && v.count { it == '+' } in 1..2 })
+        assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "").replace('ё', 'е') == k.replace('ё', 'е').removePrefix("$") && v.count { it == '+' } in 1..2 })
         assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
+        assertEquals("опыт Толст+ого и толстого кота", r.apply("опыт Толстого и толстого кота")) // «$» — только с заглавной
         assertEquals("тёмно-зеленый и темно", r.apply("темно-зеленый и темно"))
     }
 
