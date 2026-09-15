@@ -17,7 +17,7 @@ def main():
     fixes = stress_fixes.load_fixes()
     os.makedirs(os.path.join(ASSETS, 'stress'), exist_ok=True); os.makedirs(os.path.join(ASSETS, 'replace'), exist_ok=True)
     with open(os.path.join(ASSETS, 'stress', 'Системный.txt'), 'w', encoding='utf-8') as o:
-        o.write('# Поправки ударений: модель ставит иначе, словари AOT и Викисловаря согласны между собой (tools/stress_fixes.txt)\n')
+        o.write('# Поправки ударений: модель ставит иначе, против неё словари AOT и Викисловаря вместе или словарь Демагога с одним из них (tools/stress_fixes.txt)\n')
         for w, v in sorted(fixes.items()): o.write(f'{w} {v}\n')
     n = 0
     with open(os.path.join(ASSETS, 'replace', 'Системный.txt'), 'w', encoding='utf-8') as o:
