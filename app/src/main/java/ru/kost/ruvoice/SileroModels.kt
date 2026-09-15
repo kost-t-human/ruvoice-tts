@@ -7,6 +7,8 @@ import org.pytorch.LiteModuleLoader
 import org.pytorch.LitePyTorchAndroid
 import org.pytorch.Module
 import org.pytorch.Tensor
+import ru.kost.ruvoice.text.Morph
+import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.StressModels
 import kotlin.math.exp
 
@@ -106,7 +108,11 @@ class SileroModels(private val context: Context) : StressModels {
         // json (2.5 МБ) разбирается один раз на процесс — не на каждый SileroModels(context).
         @Volatile private var shared: SileroData? = null
         fun data(context: Context): SileroData = shared ?: synchronized(this) {
-            shared ?: SileroData(context.applicationContext.assets.open("silero/silero_ru.json").bufferedReader().readText()).also { shared = it }
+            shared ?: SileroData(context.applicationContext.assets.open("silero/silero_ru.json").bufferedReader().readText()).also {
+                shared = it
+                // Морфология для нормализатора — mmap ассета, один раз на процесс.
+                Normalizer.morph = runCatching { Morph.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "morph.bin не открылся", e) }.getOrNull()
+            }
         }
     }
 }

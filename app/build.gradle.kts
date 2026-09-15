@@ -43,7 +43,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    androidResources { noCompress += listOf("ptl", "json") }
+    androidResources { noCompress += listOf("ptl", "json", "bin") }
     packaging { jniLibs.useLegacyPackaging = false }
 }
 
