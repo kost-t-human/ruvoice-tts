@@ -37,7 +37,7 @@
     <string name="sys_tts_settings">Системные настройки синтеза речи</string>
     <string name="sys_settings_missing">Экран настроек синтеза речи не найден</string>
     <string name="section_quote">Прямая речь</string>
-    <string name="section_quote_hint">Реплики, начинающиеся с тире или кавычки, можно озвучивать другим голосом, темпом и высотой.</string>
+    <string name="section_quote_hint">Реплики, начинающиеся с тире или кавычки, можно озвучивать другим голосом, темпом и высотой. Экспериментально: если читалка отдаёт текст по предложению, реплика из нескольких предложений распознаётся только там, где рядом есть слова автора («— сказал он»).</string>
     <string name="quote_on">Распознавать прямую речь</string>
     <string name="quote_voice">Голос прямой речи</string>
     <string name="quote_voice_default">как основной</string>

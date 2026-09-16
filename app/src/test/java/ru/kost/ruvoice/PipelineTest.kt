@@ -110,6 +110,25 @@ class PipelineTest {
         assertEquals(listOf(true, true, false, true), s.map { it.speech })
     }
 
+    @Test fun replyContinuesAcrossSentencesInParagraph() {
+        // Реплика из нескольких предложений в одном абзаце: второе без тире — продолжение речи,
+        // авторский хвост рвёт цепочку, дальше снова автор. Новый абзац цепочку не наследует.
+        val s = Pipeline.plan("— Привет. Как дела? — сказал он. Потом ушёл.\n\nНастала тишина.", d, 0, 0)
+        assertEquals(listOf("— Привет.", "Как дела?", "— сказал он.", "Потом ушёл.", "Настала тишина."), s.map { it.text })
+        assertEquals(listOf(true, true, false, false, false), s.map { it.speech })
+        // Кавычки: закрывающая «»» кончает реплику.
+        val q = Pipeline.plan("«Привет. Как дела?» — спросил он. Потом ушёл.", d, 0, 0)
+        assertEquals(listOf(true, true, false, false), q.map { it.speech })
+    }
+
+    @Test fun replyWithoutDashDetectedByAuthorTail() {
+        // Читалка отдаёт по предложению: «Как дела? — спросил он.» приходит без начала реплики.
+        // Авторская вставка (знак + « — » + строчная) или авторский хвост следом — признак речи.
+        assertEquals(listOf(true, false), Pipeline.plan("Как дела? — спросил он.", d, 0, 0).map { it.speech })
+        assertEquals(listOf(true, false, true), Pipeline.plan("Как дела, — спросил он, — всё хорошо?", d, 0, 0).map { it.speech })
+        assertEquals(listOf(false, false), Pipeline.plan("Он вышел. Дверь хлопнула.", d, 0, 0).map { it.speech })
+    }
+
     @Test fun dashInsideWordIsNotSpeech() {
         val s = Pipeline.plan("Дефис-внутри слова.", d, 0, 0)
         assertEquals(listOf(false), s.map { it.speech })

@@ -37,12 +37,20 @@ object Pipeline {
     // куски, чётные — речь, нечётные — автор. Перед таким тире всегда стоит знак («, —», «! —»,
     // «. —»), перед тире внутри самой реплики («— Нам пора — уже поздно.») — нет, по нему не режем.
     private val speechDash = Regex("(?<=[,.!?…»\"“”])\\s[—–-]\\s")
-    private fun speechPieces(s: String, rules: Rules): List<Pair<String, Boolean>> {
+    // Авторская вставка внутри предложения (« — » + строчная): читалка отдаёт по предложению, и
+    // «Как дела, — спросил он.» приходит без начала реплики — вставка и есть признак речи.
+    // Экспериментально: «Он вышел, — и дверь хлопнула.» тоже попадёт в речь.
+    private val authorInsert = Regex("(?<=[,.!?…»\"“”])\\s[—–-]\\s\\p{Ll}")
+    private val closingQuote = Regex("[»\"”]$")
+    /** cont — предложение идёт следом за незакрытой репликой (или перед авторским хвостом), это
+     * её продолжение без тире/кавычки в начале. */
+    private fun speechPieces(s: String, rules: Rules, cont: Boolean): List<Pair<String, Boolean>> {
         val t0 = s.trim()
         // маркер {prosody} перед репликой (из SSML) — не часть текста, тире ищем за ним
         val prefix = Marks.prosodyRe.matchAt(t0, 0)?.value ?: ""
         val t = t0.substring(prefix.length)
-        if (!rules.on("speech") || !speechStart.containsMatchIn(t) || authorStart.containsMatchIn(t)) return listOf(t0 to false)
+        if (!rules.on("speech") || authorStart.containsMatchIn(t)) return listOf(t0 to false)
+        if (!speechStart.containsMatchIn(t) && !cont && !authorInsert.containsMatchIn(t)) return listOf(t0 to false)
         return speechDash.split(t).mapIndexed { i, p -> (if (i == 0) prefix + p else p) to (i % 2 == 0) }
     }
 
@@ -75,6 +83,8 @@ object Pipeline {
             Splitter.paragraphs(src, rules).mapIndexed { i, p -> Segment(p, paragraph = true) }.let { if (it.isEmpty()) it else it.dropLast(1) + it.last().copy(paragraph = false) }
         val out = ArrayList<Segment>()
         for (seg in segments) {
+            // Реплика в абзаце тянется через предложения, пока её не закроет авторский хвост или кавычка.
+            var openReply = false
             // Замены — до разбиения на предложения; маркер {pause:N} (пришедший из замены или
             // стоявший прямо в тексте) режет результат на куски, между которыми — пауза N мс.
             val txt = replacements.apply(seg.text)
@@ -101,7 +111,8 @@ object Pipeline {
                     val breakMs = if (lastInPiece && !lastPiece)
                         pauses[pi] + (if (markerEndsParagraph && seg.paragraph) paragraphPauseMs else 0)
                         else sentencePauseMs + (if (last) seg.breakMs else 0) + (if (last && seg.paragraph) paragraphPauseMs else 0)
-                    val parts = speechPieces(s, rules)
+                    val parts = speechPieces(s, rules, openReply || sents.getOrNull(i + 1)?.let { authorStart.containsMatchIn(it.trim()) } == true)
+                    openReply = parts.last().second && !closingQuote.containsMatchIn(parts.last().first.trimEnd())
                     for ((k, part) in parts.withIndex()) {
                         val lastPart = k == parts.size - 1
                         out += Segment(part.first, breakMs = if (lastPart) breakMs else 0,
