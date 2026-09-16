@@ -442,7 +442,8 @@ object Normalizer {
     // (sectionRe ниже), а не «10.3» день.месяц внутри него — без этого фикса regex стартовал бы
     // прямо с «10», не видя, что перед ним уже идёт «2.».
     // После латинского слова или знака операции («iOS 18.4», «9 × 11.01») — дробь, не дата.
-    private val dateNoYearRe = Regex("""(?<![\d.])(?<![A-Za-z×*+=÷^−] ?)(\d{1,2})\.(\d{1,2})(?![\d.])""")
+    // После двоеточия («06:58:07.2») — секунды с долями, их читает times().
+    private val dateNoYearRe = Regex("""(?<![\d.:])(?<![A-Za-z×*+=÷^−] ?)(\d{1,2})\.(\d{1,2})(?![\d.])""")
 
     private fun dates(text: String): String {
         val withYear = dateWithYearRe.replace(text) { m ->
@@ -472,8 +473,9 @@ object Normalizer {
     // (в/к/до/с/около/после/на), слово после (утра/дня/вечера/ночи) или сам формат чч:мм:сс.
     // Без триггера «3:16» — это скорее «глава:стих» («Иоанна 3:16»), а не время: оставляем
     // числа по отдельности, их потом читает numberRe (review t17 п.1, Normalizer.kt:176).
+    // Доли секунды («06:58:07.2») — дробь, её потом читает numberRe: «семь целых две десятых секунды».
     private val timeRe = Regex(
-        """(?:(?<![\p{L}])(в|к|до|с|около|после|на)\s+)?(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2}))?(?!\d)""" +
+        """(?:(?<![\p{L}])(в|к|до|с|около|после|на)\s+)?(?<!\d)(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?(?!\d)""" +
             """(?:\s+(утра|утром|дня|вечера|ночи))?""",
         RegexOption.IGNORE_CASE
     )
@@ -492,7 +494,7 @@ object Normalizer {
     // «в 8.00 утром» — точка вместо двоеточия, время только при слове-триггере следом.
     private val timeDotRe = Regex("""(?<![\d.,])(\d{1,2})\.([0-5]\d)(?=\s+(?:утра|утром|дня|вечера|ночи)(?![а-яё]))""")
     private fun times(text: String) = timeRe.replace(timeDotRe.replace(text, "$1:$2")) { m ->
-        val (prep, h, mi, sec, after) = m.destructured
+        val (prep, h, mi, sec, frac, after) = m.destructured
         val hour = h.toInt(); val minute = mi.toInt()
         if (hour !in 0..23 || minute !in 0..59) return@replace m.value
         val second = sec.toIntOrNull()
@@ -504,7 +506,8 @@ object Normalizer {
         if (hasTrigger) {
             sb.append(timeUnit(hour, case, 0))
             if (minute > 0) sb.append(' ').append(timeUnit(minute, case, 1))
-            if (second != null && second > 0) sb.append(' ').append(timeUnit(second, case, 2))
+            if (frac.isNotEmpty()) sb.append(' ').append(fraction(second!!.toLong(), frac) ?: return@replace m.value).append(" секунды")
+            else if (second != null && second > 0) sb.append(' ').append(timeUnit(second, case, 2))
         } else {
             sb.append(h).append(' ').append(mi)
         }
@@ -1390,6 +1393,13 @@ object Normalizer {
         """(?<![\p{L}-])$genTriggerAlt(?![\p{L}])(?:\s+$amplifierRe(?![\p{L}]))*\s+(-?)(\d+)[.,](\d+)(?![\d,.:/]| ?%)""",
         RegexOption.IGNORE_CASE
     )
+    /** «7», «25» → «семь целых двадцать пять сотых»; null — дробная часть длиннее fracStems. */
+    private fun fraction(n: Long, frac: String): String? {
+        val fracN = frac.toLongOrNull() ?: return null
+        val stem = fracStems.getOrNull(frac.length - 1) ?: return null
+        return cardinal(n, feminine = true) + (if (n % 10 == 1L && n % 100 != 11L) " целая " else " целых ") +
+            cardinal(fracN, feminine = true) + " " + plural(fracN, Triple(stem + "ая", stem + "ых", stem + "ых"))
+    }
     private fun genFraction(minus: String, intPart: String, frac: String): String? {
         val n = intPart.toLongOrNull() ?: return null
         val f = frac.toLongOrNull() ?: return null
@@ -1789,11 +1799,7 @@ object Normalizer {
             }
             val n = intPart.toLongOrNull() ?: return@replace m.value
             if (frac.isNotEmpty()) {
-                val fracN = frac.toLongOrNull() ?: return@replace m.value
-                val stem = fracStems.getOrNull(frac.length - 1) ?: return@replace m.value
-                val denom = Triple(stem + "ая", stem + "ых", stem + "ых")
-                sb.append(cardinal(n, feminine = true)).append(if (n % 10 == 1L && n % 100 != 11L) " целая " else " целых ")
-                sb.append(cardinal(fracN, feminine = true)).append(' ').append(plural(fracN, denom))
+                sb.append(fraction(n, frac) ?: return@replace m.value)
             } else if (suffix.isNotEmpty()) {
                 val tail = s.substring(m.range.last + 1)
                 val sfx = when (suffix.lowercase()) {
