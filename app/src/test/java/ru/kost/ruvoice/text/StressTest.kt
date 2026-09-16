@@ -136,6 +136,19 @@ class StressTest {
         assertEquals("все окна", Stress(d, firstVowel, morph = null).gramPass("все окна"))
     }
 
+    @Test fun userDictForbidsModelYo() {
+        // акцентор: ударение на вторую гласную и «ё» на первую «е» — «афера» → «аф+ёра»; словарь с «е» это отменяет
+        val yo = object : StressModels {
+            override fun accentor(words: List<String>) = Pair(
+                Array(words.size) { FloatArray(10).also { it[1] = 1f } }, Array(words.size) { FloatArray(7).also { it[1] = 1f } })
+            override fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray) = FloatArray(ids.size) { 0.9f }
+        }
+        assertEquals("аф+ёра", Stress(d, yo).apply("афера"))
+        assertEquals("аф+ера", Stress(d, yo, mapOf("афера" to "аф+ера")).apply("афера"))
+        // исключение модели «истекший» = [3, 3] (ударение и «ё»); «ист+екший» из замены оставляет «е»
+        assertEquals("ист+ёкший +и ист+екший", Stress(d, yo).apply("истекший и ист+екший"))
+    }
+
     @Test fun unsureWordsReported() {
         // акцентор: первая гласная с вероятностью 0.6 — ниже порога 0.9; BERT ровно 0.5 — омограф под вопросом
         val shaky = object : StressModels {
