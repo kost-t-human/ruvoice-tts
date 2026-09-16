@@ -60,7 +60,7 @@ class DictsTest {
         assertTrue(parsed.all { (w, v) -> v.replace("+", "") == w && v.count { it == '+' } == 1 })
         val replace = TestData.root().resolve("app/src/main/assets/dicts/replace/Системный.txt").readLines()
         val r = Replacements.parse(replace)
-        val pairs = replace.mapNotNull { Replacements.split(it) }
+        val pairs = replace.dropWhile { !it.startsWith("# Фразы-подсказки") }.mapNotNull { Replacements.split(it) } // выше — сложные слова и орфоэпия («гм = гмм»)
         assertTrue(pairs.size > 5000)
         assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "").replace('ё', 'е') == k.replace('ё', 'е').removePrefix("$") && v.count { it == '+' } in 1..2 })
         assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
@@ -68,6 +68,7 @@ class DictsTest {
         assertEquals("тёмно-зеленый и темно", r.apply("темно-зеленый и темно"))
         assertEquals("водяные пар+ы и позитронные п+ары", r.apply("водяные пары и позитронные пары"))
         assertEquals("ут+ёсный паук возбужд+ённее", r.apply("утесный паук возбужденнее"))
+        assertEquals("гмм, тэст и тэнд+энции, тесто", r.apply("гм, тест и тенденции, тесто"))
     }
 
     @Test fun filesAreSortedByRussianCollation() {
