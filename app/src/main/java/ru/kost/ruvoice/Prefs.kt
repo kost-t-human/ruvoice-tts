@@ -36,6 +36,13 @@ class Prefs(private val context: Context) {
     /** Список, куда в прошлый раз добавляли слово с вкладки «Проверка». */
     fun auditDict(kind: Audit.Kind): String = p.getString("audit_dict_${kind.name}", if (kind == Audit.Kind.NAMES) Dicts.NAMES else Dicts.MAIN)!!
     fun setAuditDict(kind: Audit.Kind, name: String) = p.edit().putString("audit_dict_${kind.name}", name).apply()
+    /** Диалог «Проверки»: слово в замены, а не в ударения (ёфикация имён), и список замен, куда. */
+    var auditReplace: Boolean
+        get() = p.getBoolean("audit_replace", false)
+        set(v) = p.edit().putBoolean("audit_replace", v).apply()
+    var auditReplaceDict: String
+        get() = p.getString("audit_dict_replace", Dicts.MAIN)!!
+        set(v) = p.edit().putString("audit_dict_replace", v).apply()
     val audit: Audit get() = AUDIT ?: synchronized(Audit::class.java) { AUDIT ?: Audit(context.filesDir).also { AUDIT = it } }
     var focusLevel: Int get() = p.getInt("focus_level", Rules.FOCUS_DEFAULT); set(v) = p.edit().putInt("focus_level", v).apply()
 
@@ -96,6 +103,7 @@ class Prefs(private val context: Context) {
             "focus_level" to focusLevel,
             "audit_names" to auditNames,
             "audit_dict_names" to auditDict(Audit.Kind.NAMES),
+            "audit_dict_replace" to auditReplaceDict,
         )
         fun all(kind: Dicts.Kind) = dictFiles(kind).associate { Dicts.name(it) to it.readText() }
         val auditLists = Audit.Kind.values().associate { it.name.lowercase() to audit.text(it) }.filterValues { it.isNotEmpty() }
@@ -130,6 +138,7 @@ class Prefs(private val context: Context) {
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
         (prefsMap["audit_names"] as? Boolean)?.let { auditNames = it }
         (prefsMap["audit_dict_names"] as? String)?.let { setAuditDict(Audit.Kind.NAMES, it) }
+        (prefsMap["audit_dict_replace"] as? String)?.let { auditReplaceDict = it }
         parsed.audit?.forEach { (k, text) -> Audit.Kind.values().firstOrNull { it.name.equals(k, ignoreCase = true) }?.let { audit.load(it, text) } }
         fun write(kind: Dicts.Kind, dicts: Map<String, String>?) = dicts?.forEach { (name, body) ->
             if (Dicts.validName(name)) Dicts.file(context.filesDir, kind, name.trim()).also { it.parentFile!!.mkdirs() }.writeText(body)

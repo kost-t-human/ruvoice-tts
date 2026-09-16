@@ -13,14 +13,16 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.textfield.TextInputLayout
 
-/** Вкладка «Проверка»: слова, собранные сервисом при чтении (Audit), с добавлением в словарь ударений. */
+/** Вкладка «Проверка»: слова, собранные сервисом при чтении (Audit), с добавлением в словарь ударений или в замены. */
 class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private lateinit var recycler: RecyclerView
     private lateinit var emptyView: TextView
@@ -96,7 +98,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         }
     }
 
-    /** Слово в словарь ударений: гласная чипом (предвыбрана та, что поставила модель), список — из запомненного. */
+    /** Слово в словарь: «Ударение» — гласная чипом (предвыбрана та, что поставила модель), «Замена» — поле «На что»
+     * с самим словом (дописать «ё» или «+»). Режим и списки назначения запоминаются; «Системный» не предлагается. */
     private fun showDialog(e: Audit.Entry) {
         val ctx = requireContext()
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_audit, null)
@@ -111,21 +114,44 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             chips.addView(chip)
             if (pos == modelPos) chip.isChecked = true
         }
-        val names = prefs.dictFiles(Dicts.Kind.STRESS).map { Dicts.name(it) }.filter { it != Dicts.SYSTEM }
+        val valueLayout = view.findViewById<TextInputLayout>(R.id.valueLayout)
+        val valueField = view.findViewById<TextInputEditText>(R.id.value)
+        valueField.setText(e.word)
+        valueLayout.setEndIconOnClickListener { btn -> valueField.text.toString().takeIf { it.isNotBlank() }?.let { (activity as SettingsActivity).preview(btn, it) } }
         val target = view.findViewById<MaterialAutoCompleteTextView>(R.id.target)
-        target.setSimpleItems(names.toTypedArray())
-        target.setText(prefs.auditDict(kind).takeIf { it in names } ?: names.firstOrNull() ?: Dicts.MAIN, false)
+        val mode = view.findViewById<MaterialButtonToggleGroup>(R.id.mode)
+        fun replaceMode() = mode.checkedButtonId == R.id.modeReplace
+        fun lists() = prefs.dictFiles(if (replaceMode()) Dicts.Kind.REPLACE else Dicts.Kind.STRESS).map { Dicts.name(it) }.filter { it != Dicts.SYSTEM }
+        fun switchMode() {
+            val replace = replaceMode()
+            chips.visibility = if (replace) View.GONE else View.VISIBLE
+            valueLayout.visibility = if (replace) View.VISIBLE else View.GONE
+            val names = lists()
+            target.setSimpleItems(names.toTypedArray())
+            target.setText((if (replace) prefs.auditReplaceDict else prefs.auditDict(kind)).takeIf { it in names } ?: names.firstOrNull() ?: Dicts.MAIN, false)
+        }
+        mode.check(if (prefs.auditReplace) R.id.modeReplace else R.id.modeStress)
+        mode.addOnButtonCheckedListener { _, _, isChecked -> if (isChecked) switchMode() }
+        switchMode()
         MaterialAlertDialogBuilder(ctx).setTitle(DictLines.accentDisplay(e.variant)).setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
-                val pos = chips.checkedChipId.takeIf { it != View.NO_ID }?.let { chips.findViewById<Chip>(it)?.tag as? Int } ?: return@setPositiveButton
+                val replace = replaceMode(); prefs.auditReplace = replace
                 val name = target.text.toString().ifBlank { Dicts.MAIN }
-                prefs.setAuditDict(kind, name)
-                val f = Dicts.file(ctx.filesDir, Dicts.Kind.STRESS, name)
+                val line = if (replace) {
+                    val value = valueField.text.toString().trim().filter { it != '=' }.ifBlank { return@setPositiveButton }
+                    prefs.auditReplaceDict = name
+                    DictLines.formatReplace(e.word, value, false)
+                } else {
+                    val pos = chips.checkedChipId.takeIf { it != View.NO_ID }?.let { chips.findViewById<Chip>(it)?.tag as? Int } ?: return@setPositiveButton
+                    prefs.setAuditDict(kind, name)
+                    DictLines.formatStress(e.word, pos)
+                }
+                val f = Dicts.file(ctx.filesDir, if (replace) Dicts.Kind.REPLACE else Dicts.Kind.STRESS, name)
                 f.parentFile!!.mkdirs()
-                val line = DictLines.formatStress(e.word, pos)
                 f.appendText((if (f.exists() && f.length() > 0 && !f.readText().endsWith("\n")) "\n" else "") + line + "\n")
                 prefs.audit.remove(kind, e.word); refresh()
-                Snackbar.make(requireView(), getString(R.string.audit_added, DictLines.accentDisplay(line.substringAfter(' ')), name), Snackbar.LENGTH_SHORT).show()
+                val shown = if (replace) line.substringAfter(" = ") else DictLines.accentDisplay(line.substringAfter(' '))
+                Snackbar.make(requireView(), getString(R.string.audit_added, shown, name), Snackbar.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.cancel, null).show()
     }

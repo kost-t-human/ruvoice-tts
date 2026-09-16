@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Слово из «Проверки» в словарь: список назначения (запоминается), чипы по гласным. -->
+<!-- Слово из «Проверки» в словарь: ударение (чипы по гласным) или замена (поле «На что», для ёфикации); список назначения запоминается. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
@@ -14,6 +14,48 @@
         android:layout_height="wrap_content"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/mode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        app:singleSelection="true"
+        app:selectionRequired="true">
+        <Button
+            android:id="@+id/modeStress"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/audit_mode_stress" />
+        <Button
+            android:id="@+id/modeReplace"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/audit_mode_replace" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/valueLayout"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:visibility="gone"
+        android:hint="@string/replace_value"
+        app:helperText="@string/audit_replace_helper"
+        app:endIconMode="custom"
+        app:endIconDrawable="@drawable/ic_play"
+        app:endIconContentDescription="@string/preview">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/chips"
