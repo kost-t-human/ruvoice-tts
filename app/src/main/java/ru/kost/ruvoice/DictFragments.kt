@@ -569,6 +569,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             posButton?.isEnabled = ok
             val sample = sampleField.text.toString()
             sampleResult.text = if (ok && sample.isNotBlank()) getString(R.string.replace_arrow, Replacements.parse(listOf(currentLine())).apply(sample)) else ""
+            sampleResult.visibility = if (sampleResult.text.isEmpty()) View.GONE else View.VISIBLE
         }
         regexSwitch.setOnCheckedChangeListener { _, _ -> validate() }
         keyField.doAfterTextChanged { validate() }
@@ -591,7 +592,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         }
         validate()
 
-        view.findViewById<Button>(R.id.listen).setOnClickListener { btn ->
+        valueLayout.setEndIconOnClickListener { btn ->
             val text = valueField.text.toString()
             if (text.isNotBlank()) (activity as SettingsActivity).preview(btn, text)
         }

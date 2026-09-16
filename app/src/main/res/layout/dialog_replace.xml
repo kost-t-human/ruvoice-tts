@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Диалог добавления/редактирования правила замены: ключ, замена (helperText меняется от
      режима regex), переключатель regex со справкой, поле «проверить на тексте» с результатом
-     применения правила и кнопка прослушивания текста замены. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     применения правила; прослушать замену — иконка ▶ в поле «На что». Без лишней высоты: с
+     клавиатурой кнопки диалога иначе не влезают. ScrollView: с клавиатурой окно
+     диалога сжимается, содержимое прокручивается, а кнопки остаются на экране. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+<LinearLayout
     android:orientation="vertical"
     android:paddingHorizontal="24dp"
     android:paddingTop="8dp"
@@ -30,7 +35,10 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:hint="@string/replace_value"
-        app:helperText="@string/replace_value_helper">
+        app:helperText="@string/replace_value_helper"
+        app:endIconMode="custom"
+        app:endIconDrawable="@drawable/ic_play"
+        app:endIconContentDescription="@string/preview">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/value"
             android:layout_width="match_parent"
@@ -77,14 +85,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
+        android:layout_marginBottom="0dp"
+        android:visibility="gone"
         android:textIsSelectable="true" />
-
-    <Button
-        android:id="@+id/listen"
-        style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end"
-        android:layout_marginTop="8dp"
-        android:text="@string/preview" />
 </LinearLayout>
+</ScrollView>
