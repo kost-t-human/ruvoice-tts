@@ -148,19 +148,4 @@ class StressTest {
         // исключение модели «истекший» = [3, 3] (ударение и «ё»); «ист+екший» из замены оставляет «е»
         assertEquals("ист+ёкший +и ист+екший", Stress(d, yo).apply("истекший и ист+екший"))
     }
-
-    @Test fun unsureWordsReported() {
-        // акцентор: первая гласная с вероятностью 0.6 — ниже порога 0.9; BERT ровно 0.5 — омограф под вопросом
-        val shaky = object : StressModels {
-            override fun accentor(words: List<String>) = Pair(
-                Array(words.size) { FloatArray(10).also { it[0] = 0.6f } }, Array(words.size) { FloatArray(7) })
-            override fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray) = FloatArray(ids.size) { 0.5f }
-        }
-        val got = ArrayList<String>()
-        val s = Stress(d, shaky, mapOf("папа" to "п+апа", "белки" to "б+елки")).apply { unsure = { w, v, _ -> got += "$w=$v" } }
-        s.apply("мама папа его замок белки стены")
-        // «его» — из исключений, «папа» и омограф «белки» — из словаря пользователя, «стены» — из грамматической таблицы: их не проверяем
-        assertEquals(listOf("замок=з+амок", "мама=м+ама"), got)
-        got.clear(); s.unsureMin = 0.5f; s.apply("мама"); assertTrue(got.isEmpty())
-    }
 }

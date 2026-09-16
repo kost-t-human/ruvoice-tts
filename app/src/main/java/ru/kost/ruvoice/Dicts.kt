@@ -50,6 +50,7 @@ object Dicts {
 
     /** Кладёт (или обновляет после апдейта приложения) системный список; читает assets через [read]. */
     fun installSystem(root: File, read: (String) -> String?) {
+        File(root, "audit_unsure.txt").delete()  // список «неуверенных» до 0.11.1
         for (kind in Kind.values()) {
             val text = read("dicts/${kind.dir}/$SYSTEM.txt") ?: continue
             val f = file(root, kind, SYSTEM)

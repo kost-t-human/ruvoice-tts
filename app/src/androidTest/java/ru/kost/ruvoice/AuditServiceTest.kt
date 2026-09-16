@@ -14,18 +14,18 @@ import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** Вкладка «Проверка» через живой сервис: имена и неуверенные слова после чтения абзаца попадают в списки. */
+/** Вкладка «Проверка» через живой сервис: имена после чтения абзаца попадают в список. */
 @RunWith(AndroidJUnit4::class)
 class AuditServiceTest {
     private val text = "Хагрид кивнул. — Пойдём, — сказал Хагрид Гарри и повёл его в Косой переулок. " +
         "Стива Облонский проснулся в своём кабинете, а Кингсбридж спал. Она читала Бальмонта и Заболоцкого."
 
-    @Test fun collectsNamesAndUnsure() {
+    @Test fun collectsNames() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = Prefs(ctx)
-        val oldNames = prefs.auditNames; val oldUnsure = prefs.auditUnsure
-        prefs.auditNames = true; prefs.auditUnsure = true
-        prefs.audit.clear(Audit.Kind.NAMES); prefs.audit.clear(Audit.Kind.UNSURE)
+        val oldNames = prefs.auditNames
+        prefs.auditNames = true
+        prefs.audit.clear(Audit.Kind.NAMES)
         try {
             val ready = CountDownLatch(1); var status = -1
             val tts = TextToSpeech(ctx, { s -> status = s; ready.countDown() }, "ru.kost.ruvoice")
@@ -41,13 +41,12 @@ class AuditServiceTest {
             assertEquals(TextToSpeech.SUCCESS, tts.synthesizeToFile(text, Bundle(), File(ctx.cacheDir, "audit.wav"), "audit"))
             assertTrue(done.await(180, TimeUnit.SECONDS))
             tts.shutdown()
-            val names = prefs.audit.entries(Audit.Kind.NAMES); val unsure = prefs.audit.entries(Audit.Kind.UNSURE)
+            val names = prefs.audit.entries(Audit.Kind.NAMES)
             Log.i("RuVoiceTest", "имена: " + names.joinToString { "${it.variant}×${it.count}" })
-            Log.i("RuVoiceTest", "неуверенные: " + unsure.joinToString { "${it.variant} «${it.context.take(40)}»" })
             assertTrue(names.any { it.word == "хагрид" }) // первое «Хагрид» — начало предложения, считается второе
             assertTrue(names.any { it.word == "кингсбридж" })
             assertTrue(names.none { it.word == "пойдём" || it.word == "она" })
-        } finally { prefs.auditNames = oldNames; prefs.auditUnsure = oldUnsure }
+        } finally { prefs.auditNames = oldNames }
     }
 
     /** Списки «Проверки» вместе со скрытыми уезжают в экспорт настроек и возвращаются импортом. */

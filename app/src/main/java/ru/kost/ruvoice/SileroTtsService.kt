@@ -236,9 +236,8 @@ class SileroTtsService : TextToSpeechService() {
             val rules = prefs.rules()
             models.threads = if (rules.on("fast_cores")) SileroModels.fastCores else Runtime.getRuntime().availableProcessors()
             val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict(), rules)
-            // вкладка «Проверка»: неуверенные слова — из Stress, имена — по исходному тексту сегмента
+            // вкладка «Проверка»: имена — по исходному тексту сегмента
             val audit = prefs.audit; val auditNames = prefs.auditNames && !noDict; val userDict = if (noDict) emptyMap() else prefs.userDict()
-            if (prefs.auditUnsure && !noDict) { stress.unsureMin = prefs.auditMin; stress.unsure = { w, v, ctx -> audit.add(Audit.Kind.UNSURE, w, v, ctx) } }
             val replacements = prefs.replacements()
             // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
             val quoteSpeakerId = prefs.quoteVoice.takeIf { it in d.speakers }?.let { d.speakers.getValue(it) }

@@ -13,47 +13,32 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
-import java.util.Locale
 
 /** Вкладка «Проверка»: слова, собранные сервисом при чтении (Audit), с добавлением в словарь ударений. */
 class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private lateinit var recycler: RecyclerView
     private lateinit var emptyView: TextView
-    private var kind = Audit.Kind.NAMES
+    private val kind = Audit.Kind.NAMES
     private var hidden = false
     private lateinit var filterField: TextInputEditText
     private var items: List<Audit.Entry> = emptyList()
 
     override fun load(v: View) {
         v.findViewById<MaterialSwitch>(R.id.namesOn).apply { isChecked = prefs.auditNames; setOnCheckedChangeListener { _, c -> prefs.auditNames = c } }
-        v.findViewById<MaterialSwitch>(R.id.unsureOn).apply { isChecked = prefs.auditUnsure; setOnCheckedChangeListener { _, c -> prefs.auditUnsure = c } }
-        val minValue = v.findViewById<TextView>(R.id.minValue)
-        v.findViewById<Slider>(R.id.minSlider).apply {
-            value = prefs.auditMin.coerceIn(valueFrom, valueTo)
-            minValue.text = String.format(Locale.ROOT, "%.2f", value)
-            addOnChangeListener { _, value, _ -> prefs.auditMin = value; minValue.text = String.format(Locale.ROOT, "%.2f", value) }
-        }
         v.findViewById<TextView>(R.id.help).setOnClickListener {
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_help_title)
                 .setMessage(Html.fromHtml(getString(R.string.audit_help).replace("\n", "<br>"), Html.FROM_HTML_MODE_LEGACY))
                 .setPositiveButton(android.R.string.ok, null).show()
         }
-        val which = v.findViewById<MaterialButtonToggleGroup>(R.id.which)
-        which.check(R.id.showNames)
-        which.addOnButtonCheckedListener { _, id, checked ->
-            if (checked) { kind = if (id == R.id.showNames) Audit.Kind.NAMES else Audit.Kind.UNSURE; refresh() }
-        }
         v.findViewById<CheckBox>(R.id.showHidden).setOnCheckedChangeListener { _, c -> hidden = c; refresh() }
         v.findViewById<View>(R.id.clear).setOnClickListener {
-            val name = getString(if (kind == Audit.Kind.NAMES) R.string.audit_tab_names else R.string.audit_tab_unsure) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
+            val name = getString(R.string.audit_tab_names) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
             MaterialAlertDialogBuilder(requireContext()).setMessage(getString(R.string.audit_clear_confirm, name))
                 .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind, hidden); refresh() }
                 .setNegativeButton(R.string.cancel, null).show()

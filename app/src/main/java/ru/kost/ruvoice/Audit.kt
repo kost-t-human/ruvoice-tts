@@ -4,14 +4,15 @@ import java.io.File
 
 /**
  * Слова на проверку, вкладка «Проверка»: NAMES — слова с заглавной не в начале предложения (имена,
- * которых модель не знает и ударение в которых угадывает), UNSURE — слова, где модель ниже порога
- * уверенности. Копятся сервисом при чтении, по одному файлу на список в данных приложения:
+ * которых модель не знает и ударение в которых угадывает). Список «неуверенных» по вероятности
+ * акцентора убран: на именах модель уверена и там, где ошибается (tools/names_confidence.py: 23 ошибки из 69,
+ * почти все с вероятностью 1,0). Копятся сервисом при чтении, по одному файлу на список в данных приложения:
  * «слово \t вариант с + \t сколько раз \t кусок фразы [\t h]». Не больше MAX видимых записей, старые
  * вытесняются. Смахнутое слово не удаляется, а прячется (h): при чтении снова не всплывает, в UI
  * его показывает переключатель «Скрытые».
  */
 class Audit(private val dir: File) {
-    enum class Kind(val file: String) { NAMES("audit_names.txt"), UNSURE("audit_unsure.txt") }
+    enum class Kind(val file: String) { NAMES("audit_names.txt") }
     class Entry(val word: String, var variant: String, var count: Int, var context: String, var hidden: Boolean = false)
 
     private val lists = HashMap<Kind, LinkedHashMap<String, Entry>>()
@@ -78,8 +79,6 @@ class Audit(private val dir: File) {
     companion object {
         const val MAX = 2000
         const val CONTEXT = 120
-        /** Порог уверенности акцентора по умолчанию: ниже него слово попадает в «неуверенные». */
-        const val MIN_DEFAULT = 0.7f
         private const val VOWELS = "аеёиоуыэюя"
         private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
         private val tokenRe = Regex("\\S+")

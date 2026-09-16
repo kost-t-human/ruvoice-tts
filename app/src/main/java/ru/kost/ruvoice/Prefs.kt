@@ -31,11 +31,9 @@ class Prefs(private val context: Context) {
         get() = p.getString("rules_off", "")!!.split(',').filter { it in Rules.KEYS }.toSet()
         set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()
     var maxLen: Int get() = p.getInt("max_len", Rules.MAX_LEN_DEFAULT); set(v) = p.edit().putInt("max_len", v).apply()
-    /** Вкладка «Проверка»: копить имена / неуверенные слова; порог уверенности акцентора; список, куда добавлять. */
+    /** Вкладка «Проверка»: копить имена; список, куда добавлять. */
     var auditNames: Boolean get() = p.getBoolean("audit_names", false); set(v) = p.edit().putBoolean("audit_names", v).apply()
-    var auditUnsure: Boolean get() = p.getBoolean("audit_unsure", false); set(v) = p.edit().putBoolean("audit_unsure", v).apply()
-    var auditMin: Float get() = p.getFloat("audit_min", Audit.MIN_DEFAULT); set(v) = p.edit().putFloat("audit_min", v).apply()
-    /** Список, куда в прошлый раз добавляли слово с вкладки «Проверка», отдельно для имён и неуверенных. */
+    /** Список, куда в прошлый раз добавляли слово с вкладки «Проверка». */
     fun auditDict(kind: Audit.Kind): String = p.getString("audit_dict_${kind.name}", if (kind == Audit.Kind.NAMES) Dicts.NAMES else Dicts.MAIN)!!
     fun setAuditDict(kind: Audit.Kind, name: String) = p.edit().putString("audit_dict_${kind.name}", name).apply()
     val audit: Audit get() = AUDIT ?: synchronized(Audit::class.java) { AUDIT ?: Audit(context.filesDir).also { AUDIT = it } }
@@ -97,10 +95,7 @@ class Prefs(private val context: Context) {
             "max_len" to maxLen,
             "focus_level" to focusLevel,
             "audit_names" to auditNames,
-            "audit_unsure" to auditUnsure,
-            "audit_min" to auditMin.toDouble(),
             "audit_dict_names" to auditDict(Audit.Kind.NAMES),
-            "audit_dict_unsure" to auditDict(Audit.Kind.UNSURE),
         )
         fun all(kind: Dicts.Kind) = dictFiles(kind).associate { Dicts.name(it) to it.readText() }
         val auditLists = Audit.Kind.values().associate { it.name.lowercase() to audit.text(it) }.filterValues { it.isNotEmpty() }
@@ -134,10 +129,7 @@ class Prefs(private val context: Context) {
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
         (prefsMap["audit_names"] as? Boolean)?.let { auditNames = it }
-        (prefsMap["audit_unsure"] as? Boolean)?.let { auditUnsure = it }
-        (prefsMap["audit_min"] as? Number)?.let { auditMin = it.toFloat().coerceIn(0.3f, 0.99f) }
         (prefsMap["audit_dict_names"] as? String)?.let { setAuditDict(Audit.Kind.NAMES, it) }
-        (prefsMap["audit_dict_unsure"] as? String)?.let { setAuditDict(Audit.Kind.UNSURE, it) }
         parsed.audit?.forEach { (k, text) -> Audit.Kind.values().firstOrNull { it.name.equals(k, ignoreCase = true) }?.let { audit.load(it, text) } }
         fun write(kind: Dicts.Kind, dicts: Map<String, String>?) = dicts?.forEach { (name, body) ->
             if (Dicts.validName(name)) Dicts.file(context.filesDir, kind, name.trim()).also { it.parentFile!!.mkdirs() }.writeText(body)

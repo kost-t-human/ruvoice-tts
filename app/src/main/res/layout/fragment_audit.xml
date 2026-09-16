@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Вкладка «Проверка»: два тумблера (имена, неуверенные) с порогом уверенности, переключатель
-     показываемого списка, список слов; тап по строке — добавить в словарь ударений, свайп — убрать. -->
+<!-- Вкладка «Проверка»: тумблер сбора имён, список слов; тап по строке — добавить в словарь ударений,
+     свайп — скрыть. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
@@ -22,40 +22,6 @@
             android:text="@string/audit_names"
             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/unsureOn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingVertical="4dp"
-            android:text="@string/audit_unsure"
-            android:textAppearance="?attr/textAppearanceBodyLarge" />
-
-        <LinearLayout
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/audit_min"
-                android:textAppearance="?attr/textAppearanceBodyMedium" />
-            <com.google.android.material.slider.Slider
-                android:id="@+id/minSlider"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:valueFrom="0.3"
-                android:valueTo="0.99"
-                android:stepSize="0.01" />
-            <TextView
-                android:id="@+id/minValue"
-                android:layout_width="40dp"
-                android:layout_height="wrap_content"
-                android:gravity="end"
-                android:textAppearance="?attr/textAppearanceBodyMedium" />
-        </LinearLayout>
-
         <TextView
             android:id="@+id/help"
             style="@style/SectionHint"
@@ -72,31 +38,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp">
-            <com.google.android.material.button.MaterialButtonToggleGroup
-                android:id="@+id/which"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                app:singleSelection="true"
-                app:selectionRequired="true">
-                <Button
-                    android:id="@+id/showNames"
-                    style="?attr/materialButtonOutlinedStyle"
-                    android:paddingHorizontal="12dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/audit_tab_names" />
-                <Button
-                    android:id="@+id/showUnsure"
-                    style="?attr/materialButtonOutlinedStyle"
-                    android:paddingHorizontal="12dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/audit_tab_unsure" />
-            </com.google.android.material.button.MaterialButtonToggleGroup>
             <CheckBox
                 android:id="@+id/showHidden"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="wrap_content"
                 android:text="@string/audit_show_hidden" />
             <ImageButton
