@@ -31,10 +31,10 @@ SKIP |= set('бунгало пидары ведьмовской ведьмовс
 SKIP |= set('провернут пристыжен заточенное заточенного захлестнут тяжеленько повторенного дохнем пахнете'.split())
 
 
-def load_fixes():
+def load_fixes(path=FIXES):
     out = {}
-    if not os.path.exists(FIXES): return out
-    for line in open(FIXES, encoding='utf-8'):
+    if not os.path.exists(path): return out
+    for line in open(path, encoding='utf-8'):
         s = line.split('#', 1)[0].strip()
         if '=' in s:
             k, v = (x.strip() for x in s.split('=', 1))

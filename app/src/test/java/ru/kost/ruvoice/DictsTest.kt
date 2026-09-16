@@ -56,8 +56,8 @@ class DictsTest {
         // ударения: «слово сл+ово»; замены: «фраза = фраза с ударением», слово с «+» входит в ключ (ё-вариант — «все же = вс+ё же»)
         val stress = TestData.root().resolve("app/src/main/assets/dicts/stress/Системный.txt").readLines()
         val parsed = stress.mapNotNull { DictLines.parseStress(it) }
-        assertTrue(parsed.size > 1000)
-        assertTrue(parsed.all { (w, v) -> v.replace("+", "") == w && v.count { it == '+' } == 1 })
+        assertTrue(parsed.size > 20000)
+        assertTrue(parsed.all { (w, v) -> v.replace("+", "").replace('ё', 'е') == w.replace('ё', 'е') && v.count { it == '+' } == 1 }) // имена с «ё» и через «е»: «федоров ф+ёдоров»
         val replace = TestData.root().resolve("app/src/main/assets/dicts/replace/Системный.txt").readLines()
         val r = Replacements.parse(replace)
         val pairs = replace.dropWhile { !it.startsWith("# Фразы-подсказки") }.mapNotNull { Replacements.split(it) } // выше — сложные слова и орфоэпия («гм = гмм»)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Системный словарь приложения: tools/stress_fixes.txt и tools/phrases_extra.txt → assets/dicts/{stress,replace}/Системный.txt.
+"""Системный словарь приложения: tools/stress_fixes.txt, tools/wiki_names.txt и tools/phrases_extra.txt → assets/dicts/{stress,replace}/Системный.txt.
 В аппке это обычные списки «Системный» на вкладках «Ударения» и «Замены»: их нельзя удалить и править,
 но можно выключить; при старте файл в данных приложения обновляется из assets, если отличается.
 Запуск: python3 tools/system_dicts.py (export_silero_stress.py вызывает сам)."""
@@ -24,6 +24,11 @@ def main():
     with open(os.path.join(ASSETS, 'stress', 'Системный.txt'), 'w', encoding='utf-8') as o:
         o.write('# Поправки ударений: модель ставит иначе, против неё словари AOT и Викисловаря вместе или словарь Демагога с одним из них (tools/stress_fixes.txt)\n')
         for w, v in sorted(fixes.items()): o.write(f'{w} {v}\n')
+        names = {w: v for w, v in stress_fixes.load_fixes(os.path.join(HERE, 'wiki_names.txt')).items() if w not in fixes}
+        o.write('# Имена и термины из первых абзацев Википедии, где модель ставит ударение иначе (tools/wiki_names.py); с «ё» — и через «е»\n')
+        for w, v in sorted(names.items()):
+            o.write(f'{w} {v}\n')
+            if 'ё' in w: o.write(f'{w.replace("ё", "е")} {v}\n')
     n = 0
     with open(os.path.join(ASSETS, 'replace', 'Системный.txt'), 'w', encoding='utf-8') as o:
         o.write('# Первые части сложных слов с «ё»: отдельно «темно» — наречие темн+о, и модель теряет «ё»\n')
@@ -37,7 +42,7 @@ def main():
                 merged[phrase] = re.sub(r'(?<![а-яё])' + re.escape(w) + r'(?![а-яё])', var, merged.get(phrase, phrase), count=1)
         # «$Толстого» — регистровый ключ Демагога: «$» только в ключе, в замене его быть не должно
         for phrase, out in merged.items(): o.write(f'{phrase} = {out[1:] if phrase.startswith("$") and not phrase.startswith("$$") else out}\n'); n += 1
-    print(f'системный словарь: ударений {len(fixes)}, фраз {n} → {ASSETS}')
+    print(f'системный словарь: ударений {len(fixes)}, имён {len(names)}, фраз {n} → {ASSETS}')
 
 
 if __name__ == '__main__':
