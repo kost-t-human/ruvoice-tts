@@ -86,4 +86,16 @@ class MarksTest {
         assertEquals(-1, m.next("а")); assertEquals(-1, m.next(""))
         assertEquals(3, m.next("г"))
     }
+
+    @Test fun shortExclamationFocusesLastWord() {
+        assertEquals("Эй, *вы*!", Marks.exclaim("Эй, вы!"))
+        assertEquals("*Бам*!", Marks.exclaim("Бам!"))
+        assertEquals("— Ах *ты*!»", Marks.exclaim("— Ах ты!»"))
+        assertEquals("Ну и что!", Marks.exclaim("Ну и что!"))
+        assertEquals("Ты где?!", Marks.exclaim("Ты где?!"))
+        assertEquals("*Бам*!", Marks.exclaim("*Бам*!"))
+        assertEquals("Бам.", Marks.exclaim("Бам."))
+        val p = Marks.parse(Marks.exclaim("Эй, вы!"))
+        assertEquals(listOf(0, 3), p.words.map { it.second.focus })
+    }
 }

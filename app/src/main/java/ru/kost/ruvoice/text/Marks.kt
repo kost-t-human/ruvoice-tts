@@ -33,6 +33,15 @@ object Marks {
 
     class Parsed(val text: String, val words: List<Pair<String, Mark>>)
 
+    // Короткое восклицание («Эй, вы!», «Бам!») модель читает ровно и коротко; фокус на последнем
+    // слове это чинит (выбрано на слух, 16.09.2026). До двух слов, конец «!» (не «?!»).
+    private val shortExclamRe = Regex("""^[^\p{L}]*\p{L}[\p{L}+-]*(?:[^\p{L}?]*\s\p{L}[\p{L}+-]*)?[^\p{L}?*]*!\W*$""")
+    private val lastWordRe = Regex("""\p{L}[\p{L}+-]*(?=[^\p{L}]*$)""")
+
+    /** «Эй, вы!» → «Эй, *вы*!»: логическое ударение на последнем слове короткого восклицания. */
+    fun exclaim(text: String): String =
+        if (shortExclamRe.matches(text)) lastWordRe.replace(text) { "*${it.value}*" } else text
+
     /** Снимает маркеры; words — ключ слова и его пометка, в порядке текста. [focus] — сила `*слова*`, 0 — не выделять. */
     fun parse(text: String, focus: Int = 3): Parsed {
         val focused = BooleanArray(text.length)

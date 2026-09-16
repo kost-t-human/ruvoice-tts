@@ -32,7 +32,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
             "dehyphen", "soft_break", "punct", "ssml",
-            "gram", "homo", "accentor", "intonation", "focus",
+            "gram", "homo", "accentor", "intonation", "focus", "exclaim",
             "pause_semicolon",
         )
         /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */

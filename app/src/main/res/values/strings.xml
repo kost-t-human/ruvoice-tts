@@ -231,6 +231,8 @@
     <string name="rule_focus_hint">Слово в звёздочках — «Он *не* пришёл» в тексте или замене, &lt;emphasis&gt; в SSML — модель выделяет интонацией. Выключено: звёздочки просто снимаются.</string>
     <string name="focus_level">Сила выделения</string>
     <string name="focus_level_hint">От 1 до 3: 1 — чуть заметнее соседей, 3 — как в примерах Silero. Действует на все выделенные слова.</string>
+    <string name="rule_exclaim">Ударение в коротком восклицании</string>
+    <string name="rule_exclaim_hint">«Эй, вы!», «Бам!» — до двух слов на «!» — читаются с логическим ударением на последнем слове, иначе модель проговаривает их коротко и ровно. Сила — как у логического ударения выше.</string>
     <string name="rule_pause_semicolon">Пауза после «;» и «:»</string>
     <string name="rule_pause_semicolon_hint">Пауза «после запятой» с вкладки «Паузы» ставится и после точки с запятой и двоеточия.</string>
 </resources>
