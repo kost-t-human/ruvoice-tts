@@ -66,6 +66,8 @@ class DictsTest {
         assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
         assertEquals("опыт Толст+ого и толстого кота", r.apply("опыт Толстого и толстого кота")) // «$» — только с заглавной
         assertEquals("тёмно-зеленый и темно", r.apply("темно-зеленый и темно"))
+        assertEquals("водяные пар+ы и позитронные п+ары", r.apply("водяные пары и позитронные пары"))
+        assertEquals("ут+ёсный паук возбужд+ённее", r.apply("утесный паук возбужденнее"))
     }
 
     @Test fun filesAreSortedByRussianCollation() {

@@ -32,7 +32,7 @@ class Prefs(private val context: Context) {
         set(v) = p.edit().putString("rules_off", v.filter { it in Rules.KEYS }.joinToString(",")).apply()
     var maxLen: Int get() = p.getInt("max_len", Rules.MAX_LEN_DEFAULT); set(v) = p.edit().putInt("max_len", v).apply()
     /** Вкладка «Проверка»: копить имена / неуверенные слова; порог уверенности акцентора; список, куда добавлять. */
-    var auditNames: Boolean get() = p.getBoolean("audit_names", true); set(v) = p.edit().putBoolean("audit_names", v).apply()
+    var auditNames: Boolean get() = p.getBoolean("audit_names", false); set(v) = p.edit().putBoolean("audit_names", v).apply()
     var auditUnsure: Boolean get() = p.getBoolean("audit_unsure", false); set(v) = p.edit().putBoolean("audit_unsure", v).apply()
     var auditMin: Float get() = p.getFloat("audit_min", Audit.MIN_DEFAULT); set(v) = p.edit().putFloat("audit_min", v).apply()
     /** Список, куда в прошлый раз добавляли слово с вкладки «Проверка», отдельно для имён и неуверенных. */
