@@ -10,6 +10,7 @@ import org.pytorch.Tensor
 import ru.kost.ruvoice.text.Morph
 import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.StressModels
+import java.io.File
 import kotlin.math.exp
 
 class SileroModels(private val context: Context) : StressModels {
@@ -22,9 +23,6 @@ class SileroModels(private val context: Context) : StressModels {
     @Synchronized fun ensureLoaded() {
         if (isLoaded) return
         val t = System.currentTimeMillis()
-        // Два потока: на Galaxy A32 (2×A75 + 6×A55) forward 1009 мс против 776 мс на всех ядрах, но
-        // процессорного времени 1,9 с вместо 4,7 с. RTF при этом ~0,2, запас есть, батарея дороже.
-        LitePyTorchAndroid.setNumThreads(2)
         try {
             tts = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts.ptl")
             acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
@@ -35,6 +33,15 @@ class SileroModels(private val context: Context) : StressModels {
         }
         Log.i(TAG, "модели загружены за ${System.currentTimeMillis() - t} мс")
     }
+
+    /** Потоки forward. Правило fast_cores (вкл. по умолчанию) — по числу быстрых ядер, выключено — все.
+     * Redmi Note 13 5G (Dimensity 6080, 2×A76 + 6×A55, sysfs показывает 4 быстрых): forward на 1/2/4/6/8
+     * потоках = 416/269/207/257/562 мс при 2,3/2,7/3,7/6,4/17 с процессорного времени на запрос —
+     * медленные ядра только вредят. Galaxy A32 (2×A75 + 6×A55): 2 потока 1009 мс против 776 мс на всех,
+     * процессорного времени 1,9 с против 4,7 с. Mobile-сборка PyTorch пересоздаёт pthreadpool на каждый
+     * setNumThreads, менять можно между запросами. */
+    var threads = 0
+        set(n) { if (n != field) { field = n; LitePyTorchAndroid.setNumThreads(n); Log.i(TAG, "потоков синтеза: $n") } }
 
     @Synchronized fun release() {
         tts?.destroy(); acc?.destroy(); homo?.destroy()
@@ -104,6 +111,16 @@ class SileroModels(private val context: Context) : StressModels {
     }
 
     companion object {
+        /** Ядра быстрее самого медленного кластера (по cpuinfo_max_freq): 2 на A32, 4 на Dimensity 6080.
+         * Все ядра, если кластер один или sysfs закрыт. Прибить потоки к ядрам из Java нельзя,
+         * планировщик сам сажает тяжёлые потоки на быстрые. */
+        val fastCores: Int by lazy {
+            val freqs = File("/sys/devices/system/cpu").listFiles { f -> f.name.matches(Regex("cpu\\d+")) }
+                ?.mapNotNull { runCatching { File(it, "cpufreq/cpuinfo_max_freq").readText().trim().toLong() }.getOrNull() }
+                ?: emptyList()
+            val fast = freqs.minOrNull()?.let { m -> freqs.count { it > m } } ?: 0
+            if (fast > 0) fast else Runtime.getRuntime().availableProcessors()
+        }
         const val TAG = "RuVoice"
         // json (2.5 МБ) разбирается один раз на процесс — не на каждый SileroModels(context).
         @Volatile private var shared: SileroData? = null

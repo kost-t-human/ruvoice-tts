@@ -48,6 +48,33 @@ class ServiceSmokeTest {
         assertEquals(0, errors)
     }
 
+    /** Бенч потоков forward: `-e threads N` (по умолчанию как выставит сервис по правилу fast_cores);
+     * прогон 0 с загрузкой моделей, дальше тест сам ставит N (сервис зовёт setNumThreads только при
+     * смене значения, так что N держится), стена и процессорное время процесса — в лог RuVoiceTest. */
+    @Test fun threadsBench() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val threads = InstrumentationRegistry.getArguments().getString("threads")?.toInt()
+        val ready = CountDownLatch(1)
+        val tts = TextToSpeech(ctx, { ready.countDown() }, "ru.kost.ruvoice")
+        assertTrue("engine bind timeout", ready.await(60, TimeUnit.SECONDS))
+        tts.setLanguage(Locale("ru", "RU"))
+        for (run in 0..2) {
+            if (run == 1 && threads != null) org.pytorch.LitePyTorchAndroid.setNumThreads(threads)
+            val done = CountDownLatch(1)
+            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { done.countDown() }
+                @Deprecated("") override fun onError(id: String?) { done.countDown() }
+                override fun onError(id: String?, code: Int) { done.countDown() }
+            })
+            val cpu0 = android.os.Process.getElapsedCpuTime(); val t0 = System.currentTimeMillis()
+            tts.synthesizeToFile(text, Bundle(), File(ctx.cacheDir, "bench.wav"), "b$run")
+            assertTrue("synth timeout", done.await(180, TimeUnit.SECONDS))
+            Log.i("RuVoiceTest", "threads=${threads ?: "default"} run=$run wall=${System.currentTimeMillis() - t0}ms cpu=${android.os.Process.getElapsedCpuTime() - cpu0}ms")
+        }
+        tts.shutdown()
+    }
+
     /** Демо новых входов модели (фокус, пауза в предложении, prosody, робот, подсветка слов) на трёх темпах — файлы для прослушивания. */
     @Test fun demoMarksAtThreeRates() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext

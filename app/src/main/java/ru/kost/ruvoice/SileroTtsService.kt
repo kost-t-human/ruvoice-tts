@@ -234,6 +234,7 @@ class SileroTtsService : TextToSpeechService() {
             // настройки слушают слово «как модель», без пользовательского словаря
             val noDict = request.params?.getString("ruvoice.nodict") == "1"
             val rules = prefs.rules()
+            models.threads = if (rules.on("fast_cores")) SileroModels.fastCores else Runtime.getRuntime().availableProcessors()
             val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict(), rules)
             // вкладка «Проверка»: неуверенные слова — из Stress, имена — по исходному тексту сегмента
             val audit = prefs.audit; val auditNames = prefs.auditNames && !noDict; val userDict = if (noDict) emptyMap() else prefs.userDict()
