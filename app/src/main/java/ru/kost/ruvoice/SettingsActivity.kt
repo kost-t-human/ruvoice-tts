@@ -7,7 +7,10 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.graphics.Typeface
+import android.text.SpannableString
 import android.text.method.LinkMovementMethod
+import android.text.style.StyleSpan
 import android.text.util.Linkify
 import android.view.View
 import android.widget.TextView
@@ -87,10 +90,12 @@ class SettingsActivity : AppCompatActivity() {
                 R.id.about -> {
                     val dialog = MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.about_title)
-                        .setMessage(getString(R.string.about, packageManager.getPackageInfo(packageName, 0).versionName))
+                        .setMessage(SpannableString(getString(R.string.about, packageManager.getPackageInfo(packageName, 0).versionName)).apply {
+                            setSpan(StyleSpan(Typeface.BOLD), 0, indexOf("\n\n"), 0)   // первый абзац — группа в Telegram
+                        })
                         .setPositiveButton(R.string.close, null)
                         .show()
-                    // ссылка на GitHub в тексте — кликабельная
+                    // ссылки в тексте — кликабельные
                     dialog.findViewById<TextView>(android.R.id.message)?.movementMethod = LinkMovementMethod.getInstance()
                     dialog.findViewById<TextView>(android.R.id.message)?.let { Linkify.addLinks(it, Linkify.WEB_URLS) }
                     true
