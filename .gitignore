@@ -4,9 +4,12 @@ build/
 .idea/
 local.properties
 app/src/main/assets/silero/*.ptl
+app/src/main/assets/silero/*.pte
 tools/*.pt
 .kotlin/
 ruvoice-listen/
 app/src/test/resources/local/
 __pycache__/
 tmp/
+app/libs/*.aar
+tools/mel_sample.pt

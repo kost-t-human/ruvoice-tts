@@ -43,12 +43,17 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    androidResources { noCompress += listOf("ptl", "json", "bin") }
-    packaging { jniLibs.useLegacyPackaging = false }
+    androidResources { noCompress += listOf("ptl", "pte", "json", "bin") }
+    // libfbjni/libc++_shared есть и в pytorch_android_lite, и в executorch; из lite годятся обоим
+    packaging { jniLibs.useLegacyPackaging = false; jniLibs.pickFirsts += listOf("lib/*/libfbjni.so", "lib/*/libc++_shared.so") }
 }
 
 dependencies {
     implementation("org.pytorch:pytorch_android_lite:2.1.0")
+    // ExecuTorch 1.5.0 + XNNPACK для бэкбона вокодера (backbone.pte): в Maven Central только 0.6.0, AAR с
+    // https://ossci-android.s3.amazonaws.com/executorch/release/1.5.0-xnnpack/executorch.aar
+    implementation(files("libs/executorch-1.5.0-xnnpack.aar"))
+    implementation("com.facebook.soloader:soloader:0.10.5")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.viewpager2:viewpager2:1.1.0")

@@ -22,9 +22,16 @@ class SileroModelsTest {
         val t1 = System.currentTimeMillis()
         val audio = m.synthesize(seq, 4, 48000, FloatArray(n) { 1f }, FloatArray(n) { 1f }, LongArray(n), LongArray(n), emptyMap()).audio
         val synthMs = System.currentTimeMillis() - t1
-        android.util.Log.i("RuVoiceTest", "load=${loadMs}ms synth=${synthMs}ms len=${audio.size / 48}ms rtf=${audio.size / 48f / synthMs}")
-        assertTrue(audio.size > 48000 / 2)
-        assertTrue(audio.all { it > -1.5f && it < 1.5f })
+        val t2 = System.currentTimeMillis()
+        m.synthesize(seq, 4, 48000, FloatArray(n) { 1f }, FloatArray(n) { 1f }, LongArray(n), LongArray(n), emptyMap())
+        val warmMs = System.currentTimeMillis() - t2
+        android.util.Log.i("RuVoiceTest", "load=${loadMs}ms synth=${synthMs}ms warm=${warmMs}ms len=${audio.size / 48}ms rtf=${warmMs * 48f / audio.size}")
+        // эталон с десктопа (tools/export_silero.py); backbone.pte в XNNPACK на ARM даёт до 6e-3 разницы
+        val ref = testCtx.assets.open("golden_audio.f32").readBytes().let { b ->
+            FloatArray(b.size / 4).also { java.nio.ByteBuffer.wrap(b).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(it) } }
+        assertEquals(ref.size, audio.size)
+        var d = 0f; for (i in ref.indices) d = maxOf(d, Math.abs(ref[i] - audio[i]))
+        assertTrue("maxdiff $d", d < 0.02f)
         m.release(); assertFalse(m.isLoaded)
     }
 

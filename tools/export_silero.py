@@ -1,5 +1,7 @@
 """Экспорт Silero v5_5_ru в .ptl + json для Android. Запуск: python3 tools/export_silero.py
-После него — tools/export_silero_stress.py: он перекрывает accentor.ptl, homo.ptl и стрессовую часть json."""
+После него — tools/export_silero_stress.py: он перекрывает accentor.ptl, homo.ptl и стрессовую часть json,
+и ../venv-et/bin/python tools/vocoder_et.py: бэкбон вокодера в backbone.pte (ExecuTorch, XNNPACK).
+tts_mel.ptl — forward без вокодера (отдаёт мел), head.ptl — голова вокодера с iSTFT."""
 import json, os, re, sys
 from typing import List
 import torch
@@ -16,6 +18,7 @@ imp = torch.package.PackageImporter(PT)
 big = imp.load_pickle('tts_models', 'model')
 pk = big.packages[0]
 mod = imp.import_module('multi_acc_v3_package')  # константы TYPE2ID, WH_FORMS, classify_sentence
+tts_vocoder = pk.models[0].vocoder
 hs = pk.accentor.homosolver
 acc = pk.accentor.accentor
 hm = hs.model
@@ -41,14 +44,37 @@ class HomoQ(torch.nn.Module):
         return self.homo_clf(torch.stack(feats))
 
 
+def tts_args(text, sr=48000):
+    seq, _ = pk.preprocess_tacotron(text); seq = seq.unsqueeze(0); n = seq.shape[1]
+    return (seq, torch.LongTensor([4]), sr, None, torch.ones(1, n), torch.ones(1, n), None, None, 'cpu', -1, False,
+            torch.zeros(1, n, dtype=torch.long), None)
+
+
+def cut_call(graph, submodule):
+    for node in graph.nodes():
+        if node.kind() == 'prim::CallMethod' and node.s('name') == 'forward' and submodule in str(node.inputsAt(0)):
+            node.output().replaceAllUsesWith(node.inputsAt(1)); node.destroy(); return
+    raise SystemExit(f'вызов {submodule}.forward не найден')
+
+
 def export_models():
+    global tts_ref, tts_ref24
+    with torch.no_grad():  # эталоны до хирургии графа
+        tts_ref, _ = pk.models[0](*tts_args('прив+ет, м+ир.'))
+        tts_ref24, _ = pk.models[0](*tts_args('прив+ет, м+ир.', 24000))
     wrapq = HomoQ(hm)
     full_w = hm.bert.embeddings.word_embeddings.weight.data
     hm.bert.embeddings.word_embeddings.weight.data = torch.zeros(1, full_w.shape[1], dtype=torch.int8)
     homo = torch.jit.script(wrapq)
     homo._save_for_lite_interpreter(os.path.join(ASSETS, 'homo.ptl'))
     acc.model._save_for_lite_interpreter(os.path.join(ASSETS, 'accentor.ptl'))
-    pk.models[0]._save_for_lite_interpreter(os.path.join(ASSETS, 'tts.ptl'))
+    tts = pk.models[0]
+    # хирургия графа: вызов подмодуля заменяем его входом, freeze выкидывает ставшие лишними веса.
+    # tts_mel.ptl = tts без вокодера (отдаёт мел), head.ptl = вокодер без бэкбона (голова, iSTFT, PQMF для 24 кГц)
+    cut_call(tts.vocoder.forward.graph, 'backbone')
+    torch.jit.freeze(tts.vocoder.eval())._save_for_lite_interpreter(os.path.join(ASSETS, 'head.ptl'))
+    cut_call(tts.forward.graph, 'vocoder')
+    torch.jit.freeze(tts.eval())._save_for_lite_interpreter(os.path.join(ASSETS, 'tts_mel.ptl'))
     # эталонный (деквантованный) homosolver для проверки
     hm.bert.embeddings.word_embeddings.weight.data = full_w
     big.unpack_q_model()
@@ -137,18 +163,20 @@ def verify(homo_script):
     """lite-модули дают тот же выход, что полная модель."""
     lite_h = _load_for_lite_interpreter(os.path.join(ASSETS, 'homo.ptl'))
     lite_a = _load_for_lite_interpreter(os.path.join(ASSETS, 'accentor.ptl'))
-    lite_t = _load_for_lite_interpreter(os.path.join(ASSETS, 'tts.ptl'))
+    lite_m = _load_for_lite_interpreter(os.path.join(ASSETS, 'tts_mel.ptl'))
+    lite_head = _load_for_lite_interpreter(os.path.join(ASSETS, 'head.ptl'))
     ids = torch.tensor(hs.tokenizer('На двери висел старый [HOMO] замок [/HOMO] , а на холме стоял замок.')).unsqueeze(0)
     st = torch.where(ids[0] == hs.tokenizer.homo_start_id)[0]; en = torch.where(ids[0] == hs.tokenizer.homo_end_id)[0]
     assert (lite_h(ids, st, en) - hm(ids, st, en)).abs().max().item() < 1e-5, 'homo mismatch'
     words = ['привет', 'замок', 'молоко', 'ёжик', 'а']
     ls, ly = lite_a(words); rs, ry = acc.model(words)
     assert (ls - rs).abs().max().item() == 0 and (ly - ry).abs().max().item() == 0, 'accentor mismatch'
-    seq, _ = pk.preprocess_tacotron('прив+ет, м+ир.'); seq = seq.unsqueeze(0); n = seq.shape[1]
-    args = (seq, torch.LongTensor([4]), 48000, None, torch.ones(1, n), torch.ones(1, n), None, None, 'cpu', -1, False,
-            torch.zeros(1, n, dtype=torch.long), None)
-    a, _ = lite_t(*args); b, _ = pk.models[0](*args)
-    assert (a - b).abs().max().item() == 0, 'tts mismatch'
+    with torch.no_grad():
+        mel, _ = lite_m(*tts_args('прив+ет, м+ир.')); h = tts_vocoder.backbone(mel)
+        a = lite_head(h, 48000, 0., True); a24 = lite_head(h, 24000, 0., True)
+    assert (a - tts_ref).abs().max().item() == 0 and (a24 - tts_ref24).abs().max().item() == 0, 'tts_mel+head mismatch'
+    torch.save(mel.contiguous(), os.path.join(HERE, 'mel_sample.pt'))  # вход для проверки vocoder_et.py
+    tts_ref.numpy().astype('<f4').tofile(os.path.join(ROOT, 'app/src/androidTest/assets/golden_audio.f32'))  # эталон для SileroModelsTest
     print('verify: ok')
 
 
@@ -157,6 +185,6 @@ if __name__ == '__main__':
     export_json()
     golden = make_golden()
     verify(homo_script)
-    for n in ('tts.ptl', 'accentor.ptl', 'homo.ptl', 'silero_ru.json'):
+    for n in ('tts_mel.ptl', 'head.ptl', 'accentor.ptl', 'homo.ptl', 'silero_ru.json'):
         print(n, round(os.path.getsize(os.path.join(ASSETS, n)) / 1048576, 1), 'MB')
     print('golden:', len(golden), 'items')

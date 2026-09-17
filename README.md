@@ -69,9 +69,9 @@ RuVoice заворачивает модель в `TextToSpeechService` и доб
 pip install -r tools/requirements.txt
 curl -L -o tools/v5_5_ru.pt https://models.silero.ai/models/tts/ru/v5_5_ru.pt
 
-# 2. Конвертация в TorchScript Lite: tts.ptl, accentor.ptl, homo.ptl и silero_ru.json
-#    появятся в app/src/main/assets/silero/. Скрипт сам сверяет выход lite-модулей
-#    с оригиналом и печатает "verify: ok".
+# 2. Конвертация в TorchScript Lite: tts_mel.ptl (текст → мел), head.ptl (голова вокодера),
+#    accentor.ptl, homo.ptl и silero_ru.json появятся в app/src/main/assets/silero/.
+#    Скрипт сам сверяет выход lite-модулей с оригиналом и печатает "verify: ok".
 python3 tools/export_silero.py
 
 # 2а. Ударения — из Silero Stress (MIT) вместо акцентора v5: перезаписывает accentor.ptl, homo.ptl,
@@ -79,6 +79,12 @@ python3 tools/export_silero.py
 pip install silero-stress
 python3 tools/export_silero_stress.py
 #     Заодно собирает системный словарь из tools/stress_fixes.txt и tools/phrases_extra.txt (tools/system_dicts.py).
+
+# 2б. Бэкбон вокодера (ConvNeXt, три четверти времени синтеза) — в ExecuTorch с XNNPACK: backbone.pte.
+#     Отдельный venv с executorch (pip install executorch torch --extra-index-url https://download.pytorch.org/whl/cpu).
+#     Рантайм для Android: app/libs/executorch-1.5.0-xnnpack.aar с
+#     https://ossci-android.s3.amazonaws.com/executorch/release/1.5.0-xnnpack/executorch.aar
+python3 tools/vocoder_et.py
 
 # 2б. Таблица грамматических омографов (стен+ы / ст+ены по предлогу) — из морфословаря AOT (LGPL):
 #     склонировать github.com/sokirko74/morph_dict, затем
@@ -189,7 +195,7 @@ adb uninstall ru.kost.ruvoice.test
 ```
 app/src/main/java/ru/kost/ruvoice/
   SileroTtsService.kt   TextToSpeechService и сборка сегментов (Pipeline)
-  SileroModels.kt       загрузка .ptl, вызовы accentor/homo/tts
+  SileroModels.kt       загрузка .ptl и backbone.pte, вызовы accentor/homo/tts (мел → бэкбон → голова)
   SileroData.kt         словари и алфавит модели из silero_ru.json
   Prefs.kt              настройки, файлы словарей, экспорт/импорт
   SettingsActivity.kt, SettingsPages.kt, DictFragments.kt   UI
@@ -199,6 +205,7 @@ app/src/main/java/sonic/Sonic.java        растяжение темпа
 app/src/main/assets/silero/               модели и silero_ru.json
 tools/export_silero.py                    конвертация v5_5_ru.pt
 tools/export_silero_stress.py             ударения из Silero Stress поверх (accentor.ptl, homo.ptl)
+tools/vocoder_et.py                       бэкбон вокодера → ExecuTorch backbone.pte (XNNPACK, fp32)
 tools/stress_survey.py, stress_compare.py сверка ударений модели со словарями замен (см. комментарии)
 tools/aot_forms.py, wikt_forms.py          словоформы с ударениями из AOT и Викисловаря → app/build/*.tsv
 tools/aot_morph.py                         таблица морфологии AOT → assets/morph.bin (нормализатор: род, падеж, сокращения)

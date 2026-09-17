@@ -7,6 +7,7 @@ import org.pytorch.LiteModuleLoader
 import org.pytorch.LitePyTorchAndroid
 import org.pytorch.Module
 import org.pytorch.Tensor
+import org.pytorch.executorch.EValue
 import ru.kost.ruvoice.text.Morph
 import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.StressModels
@@ -15,23 +16,37 @@ import kotlin.math.exp
 
 class SileroModels(private val context: Context) : StressModels {
     val data: SileroData get() = data(context)
-    private var tts: Module? = null
+    // tts_mel (текст → мел) и head (голова вокодера, iSTFT) — TorchScript Lite; backbone (ConvNeXt вокодера,
+    // 77 % времени forward) — ExecuTorch/XNNPACK, в 1,4 раза быстрее lite на A32 без потери точности.
+    private var mel: Module? = null
+    private var head: Module? = null
+    private var backbone: org.pytorch.executorch.Module? = null
     private var acc: Module? = null
     private var homo: Module? = null
-    val isLoaded get() = tts != null && acc != null && homo != null
+    val isLoaded get() = mel != null && head != null && backbone != null && acc != null && homo != null
 
     @Synchronized fun ensureLoaded() {
         if (isLoaded) return
         val t = System.currentTimeMillis()
         try {
-            tts = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts.ptl")
+            mel = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts_mel.ptl")
+            head = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/head.ptl")
+            backbone = loadBackbone()
             acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
             homo = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/homo.ptl")
         } catch (e: Exception) {
-            tts = null; acc = null; homo = null
+            release()
             throw e
         }
         Log.i(TAG, "модели загружены за ${System.currentTimeMillis() - t} мс")
+    }
+
+    /** ExecuTorch грузит только с пути, ассет копируем в filesDir один раз (длина — признак той же версии). */
+    private fun loadBackbone(): org.pytorch.executorch.Module {
+        val f = File(context.filesDir, "backbone.pte")
+        val len = context.assets.openFd("silero/backbone.pte").use { it.length }
+        if (f.length() != len) context.assets.open("silero/backbone.pte").use { i -> f.outputStream().use { i.copyTo(it) } }
+        return org.pytorch.executorch.Module.load(f.absolutePath, org.pytorch.executorch.Module.LOAD_MODE_MMAP, threads.takeIf { it > 0 } ?: fastCores)
     }
 
     /** Потоки forward. Правило fast_cores (вкл. по умолчанию) — по числу быстрых ядер, выключено — все.
@@ -39,13 +54,17 @@ class SileroModels(private val context: Context) : StressModels {
      * потоках = 416/269/207/257/562 мс при 2,3/2,7/3,7/6,4/17 с процессорного времени на запрос —
      * медленные ядра только вредят. Galaxy A32 (2×A75 + 6×A55): 2 потока 1009 мс против 776 мс на всех,
      * процессорного времени 1,9 с против 4,7 с. Mobile-сборка PyTorch пересоздаёт pthreadpool на каждый
-     * setNumThreads, менять можно между запросами. */
+     * setNumThreads, менять можно между запросами; у ExecuTorch потоки задаются при загрузке — перегружаем backbone. */
     var threads = 0
-        set(n) { if (n != field) { field = n; LitePyTorchAndroid.setNumThreads(n); Log.i(TAG, "потоков синтеза: $n") } }
+        @Synchronized set(n) {
+            if (n == field) return
+            field = n; LitePyTorchAndroid.setNumThreads(n); Log.i(TAG, "потоков синтеза: $n")
+            if (backbone != null) { backbone?.destroy(); backbone = loadBackbone() }
+        }
 
     @Synchronized fun release() {
-        tts?.destroy(); acc?.destroy(); homo?.destroy()
-        tts = null; acc = null; homo = null
+        mel?.destroy(); head?.destroy(); backbone?.destroy(); acc?.destroy(); homo?.destroy()
+        mel = null; head = null; backbone = null; acc = null; homo = null
     }
 
     private fun softmaxRows(t: Tensor): Array<FloatArray> {
@@ -90,7 +109,7 @@ class SileroModels(private val context: Context) : StressModels {
         ensureLoaded()
         val n = seq.size.toLong()
         val t = System.nanoTime()
-        val out = tts!!.forward(
+        val out = mel!!.forward(
             IValue.from(Tensor.fromBlob(seq, longArrayOf(1, n))),
             IValue.from(Tensor.fromBlob(longArrayOf(speakerId.toLong()), longArrayOf(1))),
             IValue.from(sampleRate.toLong()),
@@ -105,7 +124,10 @@ class SileroModels(private val context: Context) : StressModels {
             IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n))),
             if (focus.all { it == 0L }) IValue.optionalNull() else IValue.from(Tensor.fromBlob(focus, longArrayOf(1, n)))
         ).toTuple()
-        val audio = out[0].toTensor().dataAsFloatArray
+        val melT = out[0].toTensor()
+        val hid = backbone!!.forward(EValue.from(org.pytorch.executorch.Tensor.fromBlob(melT.dataAsFloatArray, melT.shape())))[0].toTensor()
+        val audio = head!!.forward(IValue.from(Tensor.fromBlob(hid.dataAsFloatArray, hid.shape())), IValue.from(sampleRate.toLong()),
+            IValue.from(0.0), IValue.from(true)).toTensor().dataAsFloatArray
         Log.i(TAG, "forward ${(System.nanoTime() - t) / 1_000_000} мс, звук ${audio.size * 1000L / sampleRate} мс, $n симв.")
         return Synth(audio, out[1].toTensor().dataAsFloatArray)
     }
