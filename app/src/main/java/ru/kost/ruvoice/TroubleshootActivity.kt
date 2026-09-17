@@ -21,6 +21,7 @@ class TroubleshootActivity : AppCompatActivity() {
     private val items = listOf(
         Item(R.string.ts_fade_title, R.string.ts_fade_text, R.string.troubleshoot_sound) { openSysSoundSettings(it) },
         Item(R.string.ts_stutter_title, R.string.ts_stutter_text),
+        Item(R.string.ts_delay_title, R.string.ts_delay_text),
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
