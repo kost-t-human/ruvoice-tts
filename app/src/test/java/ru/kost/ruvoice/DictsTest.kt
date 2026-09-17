@@ -58,6 +58,8 @@ class DictsTest {
         val parsed = stress.mapNotNull { DictLines.parseStress(it) }
         assertTrue(parsed.size > 20000)
         assertTrue(parsed.all { (w, v) -> v.replace("+", "").replace('ё', 'е') == w.replace('ё', 'е') && v.count { it == '+' } == 1 }) // имена с «ё» и через «е»: «федоров ф+ёдоров»
+        val stressMap = parsed.toMap()   // выход нормализатора («около 300 рублей», «300-й»): модель читает «тр+ёхсот», норма «трёхс+от»
+        assertEquals("трёхс+от", stressMap["трёхсот"]); assertEquals("четырёхс+отый", stressMap["четырёхсотый"]); assertEquals("трехт+ысячного", stressMap["трехтысячного"])
         val replace = TestData.root().resolve("app/src/main/assets/dicts/replace/Системный.txt").readLines()
         val r = Replacements.parse(replace)
         val pairs = replace.dropWhile { !it.startsWith("# Фразы-подсказки") }.mapNotNull { Replacements.split(it) } // выше — сложные слова и орфоэпия («гм = гмм»)

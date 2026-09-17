@@ -7,7 +7,9 @@
       (github.com/hermitdave/FrequencyWords, OpenSubtitles) рядом с aot_survey.txt, если есть.
   python3 tools/stress_fixes.py build3  — три голоса против модели: словарь Демагога (вариант с максимальной
       частотой из homographs-unknown.txt рядом с репозиторием) или верный ответ HomographResolutionEval
-      (app/build/homo_eval_miss.txt, слова не из homodict), AOT и Викисловарь. Кандидат — словарь с хотя бы
+      (app/build/homo_eval_miss.txt, слова не из homodict) или корпус Козиева (app/build/koziev_survey.txt,
+      tools/koziev_survey.py; без «ё» и с одной формой у омографов, поэтому только как голос, не арбитр), AOT и
+      Викисловарь. Кандидат — словарь с хотя бы
       одним арбитром против модели, ни один арбитр не за модель, у арбитров одно ударение; фильтры те же, что
       в build. Пишет app/build/stress_fixes_new.txt (на просмотр, в список дописывать руками),
       hidden_homographs.txt (у арбитра два ударения — скрытые омографы) и stress_names_review.txt (нет ни в одном
@@ -108,6 +110,12 @@ def build3():
         if w in d['homodict'] or got == t: continue
         if w in words and words[w][2] == 'eval' and words[w][0] != t: words[w][0] = '?'  # в корпусе оба варианта — омограф
         elif w not in words: words[w] = [t, got, 'eval', text]
+    kz = os.path.join(BUILD, 'koziev_survey.txt')  # третий голос: корпус Козиева (tools/koziev_survey.py), те же арбитры и фильтры
+    if os.path.exists(kz):
+        for l in open(kz, encoding='utf-8'):
+            if l.startswith('#'): continue
+            w, st, got, _ = l.rstrip('\n').split('\t')
+            if w not in words and w not in d['homodict']: words[w] = [st, got, 'Козиев', '']
     aot, wk = forms('aot_forms.tsv', words), forms('wikt_forms.tsv', words)
     rows, hidden, names = [], [], []
     for w, (dv, mv, src, text) in words.items():
