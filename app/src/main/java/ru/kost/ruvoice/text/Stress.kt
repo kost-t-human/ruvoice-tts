@@ -41,21 +41,36 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val locPrep = setOf("в", "во", "на", "при")
     private val pronouns = setOf("я", "ты", "он", "она", "оно", "мы", "вы", "они")
     /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
-    private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого")
+    private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого",
+        "отчего", "оттого")   // «отчего цены» наречие, «отчего дома» прилагательное — BERT прав в обоих, правило нет
+    /** «размером с горы», «высотой с дома»: после «с» вин. мн., не родительный. */
+    private val sizeWords = setOf("размером", "высотой", "ростом", "величиной", "длиной", "шириной", "толщиной", "весом")
     private val gramWordRe = Regex("[а-яё+-]+", RegexOption.IGNORE_CASE)
     /** После «две/три/четыре» прилагательное во мн., а слово — в род. ед.: «две толстые ноги». */
     private val count = setOf("два", "две", "три", "четыре", "оба", "обе", "полтора", "полторы")
+    /** Прилагательное во мн. ч.: цепочка таких перед словом («две короткие толстые ноги») не заслоняет числительное. */
+    private val adjPl = Regex("[а-яё]+(ые|ие|ых|их)")
+    /** Прилагательные, управляющие родительным: «лишённые душ+и», «полные вод+ы» (по корпусу 25 из 25). */
+    private val genAdjRe = Regex("(лишённ|лишенн|полн)(ый|ая|ое|ые|ого|ой|ых|ым|ыми|ую|ому|ом)")
+    /** Фазовые глаголы и «буду»: инфинитив после них только несов. вида («начал обполз+ать», не «обп+олзать»). */
+    private val phaseRe = Regex("нач(ал[аио]?|ать|ав|ина[а-яё]+|н[а-яё]+)|ста(л[аио]?|ть|в|н(у|ем|ет|ут|ешь|ете|ь|ьте))|продолж[а-яё]+|" +
+        "перест(ал[аио]?|ать|ав|ан[а-яё]+)|прекра[тщ][а-яё]+|конч(ил[аи]?|ать|ай|айте)|" +
+        "брос(ил[аи]?|ить|ь|ьте|ив)|приня(лся|лась|лись|ться)|прим(ется|усь|емся|утся)|буд(у|ешь|ет|ем|ете|ут)")
 
     /** «вдоль стены» → «стен+ы», «за село» → «сел+о», «я ношу» → «нош+у», «вечного города» → «г+орода», «в озера» → «оз+ёра»: слово из
      * таблицы d.gram получает ударение по слову перед ним (между ними только пробелы). Дальше омографы и акцентор
      * его не трогают. Проверено на фразах чужих словарей: по каждой ветке правило право в 85–95 % расхождений с
      * моделью; согласование с прилагательным по окончанию («-ые», «-ой») пробовали — не лучше BERT, по таблице
      * морфологии (agree) — спорит со словарями в 1,5 % сработок. С той же таблицей «все» перед словом, которое
-     * бывает только во мн. ч. («все крупные») или согласовано с «все» во мн. («все окна»), становится «вс+е». */
+     * бывает только во мн. ч. («все крупные») или согласовано с «все» во мн. («все окна»), становится «вс+е».
+     * Ещё: после фазового глагола инфинитив несов. вида («начал обполз+ать»), после «лишённые/полные» род.
+     * («полные вод+ы»), после «размером с» вин. мн. («с г+оры»), второй предложный после в/на/при («в глуш+и»).
+     * На корпусе GramPassCorpusTest споров со словарями ноль (с поправками gram_pass_overrides.txt). */
     internal fun gramPass(sentence: String): String {
         if (d.gram.isEmpty()) return sentence
         val sb = StringBuilder(sentence)
         var prev = ""; var prev2 = ""; var prevStart = -1; var prevEnd = -1; var offset = 0
+        var chainHead = ""   // слово перед цепочкой прилагательных во мн. ч., кончающейся на prev
         for (m in gramWordRe.findAll(sentence)) {
             val w = m.value.lowercase()
             val e = d.gram[w]
@@ -64,17 +79,22 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             val prevOffset = offset
             if (e != null && adjacent) {
                 val pick = when {
+                    "i" in e -> if (phaseRe.matches(prev)) e["i"] else null
                     (prev == "под" || prev == "за") && prev2 == "из" -> e["g"] ?: e["n"]   // «из под», «из за» без дефиса
                     prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
+                    prev == "с" && prev2 in sizeWords -> e["p"]
                     prev in genGov -> e["g"] ?: e["n"]
+                    prev in locPrep && "l" in e -> e["l"]                                  // «в глуш+и» — второй предложный
                     (prev == "в" || prev == "во") && "g" in e && "p" !in e -> null         // «выйти в учителя» — им. мн.
                     // второй предложный («в пыл+и», «в цвет+у») совпадает с глаголом — омографы из homodict после в/на оставляем BERT
                     prev in prepOther -> e["p"] ?: e["g"] ?: if (prev in locPrep && w in d.homodict) null else e["n"]
                     prev in pronouns -> e["v"]
-                    // прилагательное в род. ед. («вечного города», «тёплой стены» не берём: «-ой» и у творительного — «вытер рукой глаза»)
-                    prev.endsWith("ого") || prev.endsWith("его") ->
-                        if (prev in notAdjective || prev.startsWith("сам") || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
-                    morph != null && ("g" in e || "p" in e) -> agree(morph, prev, prev2, w, e)
+                    // прилагательное в род. ед. («вечного города», «тёплой стены» не берём: «-ой» и у творительного — «вытер рукой глаза»);
+                    // «у самого» — ещё и «у него самого»: «у самог+о глаз+а вылезли», только тут «самого» оставляем BERT
+                    prev.endsWith("ого") || prev.endsWith("его") || genAdjRe.matches(prev) ->
+                        if (prev in notAdjective || prev.startsWith("сам") && prev2 == "у" || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
+                    prev == "все" && w == "дома" -> null   // «не все дома»: идиома, BERT прав в 7 строках корпуса из 9, согласование в 6
+                    morph != null && ("g" in e || "p" in e) -> agree(morph, prev, chainHead, w, e)
                     else -> null
                 }
                 if (pick != null) {
@@ -87,6 +107,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                 }
             }
             if (vse) { sb.insert(prevStart + prevOffset + 2, '+'); offset++ }
+            chainHead = if (adjacent && adjPl.matches(w) && adjPl.matches(prev)) chainHead else prev
             prev2 = prev; prev = w; prevStart = m.range.first; prevEnd = m.range.last + 1
         }
         return sb.toString()
@@ -95,13 +116,13 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     /** «высокие стены» → мн., «высокой стены» → род. ед., «эти руки» → мн.: прилагательное (не существительное
      * одновременно — «больной») согласуется со словом в клетке род. ед. (вариант g) или им./вин. мн. (p), но не в
      * обеих; в обеих или ни в одной («вся округа» — им. ед. другой леммы) — молчим. */
-    private fun agree(m: Morph, prev: String, prev2: String, w: String, e: Map<String, String>): String? {
+    private fun agree(m: Morph, prev: String, chainHead: String, w: String, e: Map<String, String>): String? {
         if (prev == "всё") return null   // в таблице «ё» = «е», а «всё» — не «все»
         val ta = m.tags(prev.replace("+", ""))
         if (!Morph.isAdjective(ta) || Morph.isNoun(ta)) return null
         val tw = m.tags(w)
         if (!Morph.isNoun(tw)) return null
-        if (prev2 in count) return e["g"]
+        if (chainHead in count) return e["g"]
         fun fit(plural: Boolean): Boolean {
             val noun = Morph.nounCases(tw, plural) intersect if (plural) setOf(Case.NOM, Case.ACC) else setOf(Case.GEN)
             val genders: List<Gender?> = if (plural) listOf(null) else Morph.genders(tw).ifEmpty { Gender.values().toList() }

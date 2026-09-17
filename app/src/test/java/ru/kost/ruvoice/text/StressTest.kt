@@ -110,6 +110,19 @@ class StressTest {
         assertEquals("что за свиньи", s.gramPass("что за свиньи"))
         assertEquals("вдоль, стены", s.gramPass("вдоль, стены"))
         assertEquals("стены", s.gramPass("стены"))
+        // «самого» — прилагательное, кроме «у самого» («у него самого глаза вылезли»)
+        assertEquals("до самого яйц+а", s.gramPass("до самого яйца"))
+        assertEquals("у самого яйца", s.gramPass("у самого яйца"))
+        assertEquals("лишённые душ+и, полные вод+ы", s.gramPass("лишённые души, полные воды"))
+        assertEquals("отчего цены", s.gramPass("отчего цены"))
+        assertEquals("размером с г+оры", s.gramPass("размером с горы"))
+        // второй дательный «к утр+у» и второй предложный «в глуш+и»: в таблице нет / нет вин. мн.
+        assertEquals("к утру", s.gramPass("к утру"))
+        assertEquals("в глуш+и", s.gramPass("в глуши"))
+        // после фазового глагола инфинитив несов. вида
+        assertEquals("начал обполз+ать", s.gramPass("начал обползать"))
+        assertEquals("будет разрез+ать", s.gramPass("будет разрезать"))
+        assertEquals("обползать", s.gramPass("обползать"))
         // дальше омографы и акцентор слово не трогают
         assertEquals("з+а сел+о", s.apply("за село"))
     }
@@ -124,10 +137,13 @@ class StressTest {
         assertEquals("крупные оз+ёра", s.gramPass("крупные озера"))
         assertEquals("крупного +озера", s.gramPass("крупного озера"))
         assertEquals("две толстые ног+и", s.gramPass("две толстые ноги"))
+        assertEquals("две короткие толстые ног+и", s.gramPass("две короткие толстые ноги"))
+        assertEquals("четыре кривые тощие ног+и", s.gramPass("четыре кривые тощие ноги"))
         // «все» + слово только мн. ч. → «вс+е»; перед ед. ч. и не по таблице — молчим
         assertEquals("вс+е +окна", s.gramPass("все окна"))
         assertEquals("Вс+е крупные оз+ёра", s.gramPass("Все крупные озера"))
         assertEquals("все время", s.gramPass("все время"))
+        assertEquals("не все дома", s.gramPass("не все дома"))
         assertEquals("все они", s.gramPass("все они"))
         assertEquals("все новых", s.gramPass("все новых"))
         assertEquals("всё дома", s.gramPass("всё дома"))

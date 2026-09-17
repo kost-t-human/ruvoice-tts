@@ -11,8 +11,9 @@ import java.io.File
  * «ключ \t словарь \t Silero Stress», снимается скриптом из tools/stress_survey.py по словарям в local/).
  * Везде, где gramPass поставил ударение, оно сравнивается со словарём. Трещотка по двум числам:
  * правило не должно ни замолчать (сработок не меньше MIN_FIRED), ни начать спорить со словарём чаще,
- * чем в MAX_WRONG случаев на сработку. Все споры — в app/build/gram_pass_diff.txt; часть из них — мусор
- * самих словарей («об козы»), поэтому порог не ноль.
+ * чем в MAX_WRONG случаев на сработку. Все споры — в app/build/gram_pass_diff.txt. Мусор и ошибки самих
+ * словарей («об козы») правит или выкидывает app/src/test/resources/gram_pass_overrides.txt («ключ = словарь»
+ * заменяет столбец словаря, голый «ключ» выкидывает строку), поэтому порог ноль.
  */
 class GramPassCorpusTest {
     private val wordRe = Regex("[а-яё+-]+", RegexOption.IGNORE_CASE)
@@ -25,10 +26,15 @@ class GramPassCorpusTest {
         val f = File(TestData.root(), "app/src/test/resources/local/ss_rows.tsv")
         Assume.assumeTrue("нет app/src/test/resources/local/ss_rows.tsv", f.exists())
         val stress = Stress(TestData.data(), models, morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin")))
+        val overrides = File(TestData.root(), "app/src/test/resources/gram_pass_overrides.txt").readLines()
+            .map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }
+            .associate { l -> l.substringBefore('=').trim() to (if ('=' in l) l.substringAfter('=').trim() else null) }
         var fired = 0; var wrong = 0; val diff = StringBuilder()
         f.forEachLine { line ->
             val p = line.split('\t'); if (p.size < 2) return@forEachLine
-            val key = p[0]; val dict = wordRe.findAll(p[1]).map { it.value }.toList()
+            val key = p[0]
+            val dictLine = if (key in overrides) overrides[key] ?: return@forEachLine else p[1]
+            val dict = wordRe.findAll(dictLine).map { it.value }.toList()
             val ours = wordRe.findAll(stress.gramPass(key)).map { it.value }.toList()
             if (ours.size != dict.size) return@forEachLine
             for (i in ours.indices) {
@@ -45,6 +51,6 @@ class GramPassCorpusTest {
 
     companion object {
         const val MIN_FIRED = 10000
-        const val MAX_WRONG = 0.025
+        const val MAX_WRONG = 0.0
     }
 }

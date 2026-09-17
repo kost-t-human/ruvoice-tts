@@ -13,7 +13,8 @@ class SileroData(json: String) {
     val homodict: Map<String, List<String>>
     /** Фразы Silero Stress: слово → [(фраза, вариант с «+»)], порядок важен — длинные фразы раньше. */
     val phrases: Map<String, List<Pair<String, String>>>
-    /** Грамматические омографы (AOT): форма → {g: род. ед., p: им./вин. мн., n: сущ., v: глагол} с «+». */
+    /** Грамматические омографы (AOT): форма → {g: род. ед., p: им./вин. мн., l: второй предложный, n: сущ., v: глагол,
+     * i: инфинитив несов. вида} с «+». */
     val gram: Map<String, Map<String, String>>
     val bertVocab: Map<String, Int>
     val bertCls: Int

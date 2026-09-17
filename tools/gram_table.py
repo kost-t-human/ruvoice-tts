@@ -2,10 +2,12 @@
 """Таблица грамматических омографов для Stress.gramPass → ключ «gram» в silero_ru.json.
 Вход: app/build/aot_forms.tsv (tools/aot_forms.py, морфословарь AOT, LGPL).
 Берутся формы, где ударение решает падеж или часть речи:
-  Сущ./глагол не берётся, если глагольное ударение совпадает с местным падежом по Викисловарю (в чест+и).
+  Сущ./глагол не берётся, если глагольное ударение по Викисловарю — тоже форма существительного (в чест+и, к утр+у).
   Ключ — форма без «ё», варианты могут быть с «ё» (озера: +озера / оз+ёра).
   g — род. ед. (стен+ы, для одушевлённых это же вин. ед.), p — им./вин. мн. (ст+ены; только если есть вин.,
-      у одушевлённых им. мн. после предлога не бывает), n — существительное (сел+а), v — глагол (с+ела).
+      у одушевлённых им. мн. после предлога не бывает), l — второй предложный, совпадающий с род. ед. (в глуш+и),
+      n — существительное (сел+а), v — глагол (с+ела),
+  i — инфинитив несов. вида (обполз+ать; сов. обп+олзать — после «начал», «стал», «буду» не бывает).
 Варианты с иным различием (м+орщило/морщ+ило — просто два допустимых ударения) не берутся."""
 import json, os, collections
 
@@ -13,8 +15,9 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 SRC = os.path.join(ROOT, 'app/build/aot_forms.tsv'); JSON = os.path.join(ROOT, 'app/src/main/assets/silero/silero_ru.json')
 
 
-def locatives():
-    """форма → {ударные варианты, помеченные в Викисловаре как locative} (в чест+и, в цвет+у)."""
+def wikt_nouns():
+    """форма → {ударные варианты, которые Викисловарь знает и как существительное}: второй предложный
+    (в чест+и, в цвет+у) и второй дательный (к утр+у), которых нет в AOT."""
     out = collections.defaultdict(set)
     path = os.path.join(ROOT, 'app/build/wikt_forms.tsv')
     if not os.path.exists(path): return out
@@ -22,12 +25,12 @@ def locatives():
         p = line.rstrip('\n').split('\t')
         for v in p[1:]:
             st, gr = v.split(' ', 1)
-            if 'locative' in gr: out[p[0]].add(st)
+            if ':noun:' in gr: out[p[0]].add(st)
     return out
 
 
 def build():
-    out = {}; stat = collections.Counter(); loc = locatives()
+    out = {}; stat = collections.Counter(); wn = wikt_nouns()
     # формы с «ё» кладём под ключ без «ё»: в тексте без «ё» «озера» — это и о́зера (род. ед.), и озёра (мн.)
     by_key = collections.defaultdict(list)
     for line in open(SRC, encoding='utf-8'):
@@ -44,9 +47,11 @@ def build():
                 if pos == 'N':
                     t.add('n')
                     if 'sg' in gs and 'gen' in gs: t.add('g')
+                    if 'sg' in gs and 'prp' in gs: t.add('l')
                     if 'pl' in gs and 'nom' in gs: t.add('p')
                     if 'pl' in gs and 'acc' in gs: t.add('pa')
                 elif pos == 'V': t.add('v')
+                elif pos == 'INFINITIVE': t.add('x'); t.add('perf' if 'perf' in gs else 'imperf')
                 else: t.add('x')
             tags[st] = t
         G = [s for s, t in tags.items() if 'g' in t and 'p' not in t]
@@ -56,9 +61,14 @@ def build():
         e = {}
         if len(G) == 1 and len(P) == 1:
             e['g'] = G[0]
-            if 'pa' in tags[P[0]]: e['p'] = P[0]
+            # если род. ед. совпадает с предл. ед. (глуш+и), после «в/на» это второй предложный, а не вин. мн.
+            if 'l' in tags[G[0]]: e['l'] = G[0]
+            elif 'pa' in tags[P[0]]: e['p'] = P[0]
             stat['род.ед./мн.'] += 1
-        if len(N) == 1 and len(V) == 1 and V[0] not in loc.get(w, ()): e['n'] = N[0]; e['v'] = V[0]; stat['сущ./глагол'] += 1
+        if len(N) == 1 and len(V) == 1 and V[0] not in wn.get(w, ()): e['n'] = N[0]; e['v'] = V[0]; stat['сущ./глагол'] += 1
+        I = [s for s, t in tags.items() if 'imperf' in t and 'perf' not in t]
+        F = [s for s, t in tags.items() if 'perf' in t and 'imperf' not in t]
+        if len(I) == 1 and len(F) == 1: e['i'] = I[0]; stat['вид инфинитива'] += 1
         if e:
             out[w] = e
             if any('ё' in x for x in e.values()): stat['с ё'] += 1
