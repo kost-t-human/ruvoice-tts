@@ -44,7 +44,8 @@ for it in items:
     base = stressed[i]
     # зеркало аппки: gramPass → фразы (наши и Silero) → BERT
     ours = None
-    if w in gram and i > 0: ours = pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph)
+    if w in gram and i > 0: ours = pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph,
+                                                toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None)
     if w == 'все' and i + 1 < len(toks): ours = pe.vse_pick(toks[i + 1], morph, gram)
     if ours is None: ours = phrase_pick(w, text) or base
     if w in fixes: ours = fixes[w]

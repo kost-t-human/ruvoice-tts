@@ -1921,11 +1921,26 @@ object Normalizer {
     // JVM \s матчит только ASCII-пробелы; Python \s матчит любой Unicode-пробел (NBSP U+00A0 и т.п.).
     // Сначала приводим все такие пробелы к обычному, иначе они просто выпадают на фильтрации и слова слипаются.
     private val wsClass = Regex("[\\s\\p{Zs}\\u0085\\u2028\\u2029\\u001C-\\u001F]")
+    /** Юникодные дефисы и минус внутри слова — в обычный дефис, иначе фильтр их выкинет и «во‐первых» станет «воперв+ых». */
+    private val hyphenClass = Regex("[\\u2010\\u2011\\u2012\\u2043\\u2212\\uFE63\\uFF0D]")
 
-    fun symbols(text: String, allowed: String): String {
+    // Скобок в алфавите модели нет, а пауза на вставке нужна, как на «;» и «:»: скобка → запятая; у края
+    // предложения или вплотную к другому знаку — просто убираем.
+    private val parenRe = Regex("""\s*[()\[\]]\s*""")
+    private fun parens(s: String) = parenRe.replace(s) { m ->
+        val before = s.getOrNull(m.range.first - 1); val after = s.getOrNull(m.range.last + 1)
+        when {
+            after == null || after in ".,;:!?…" -> ""
+            before == null -> ""
+            before in ".,;:!?…–-" || after in "–-" -> " "
+            else -> ", "
+        }
+    }
+
+    fun symbols(text: String, allowed: String, rules: Rules = Rules()): String {
         // «±»/«≈»/«&» — словами (task 28 п.6), иначе фильтр allowed их молча выкинет.
-        val normalized = text.replace('—', '–').replace('‑', '-').replace("±", " плюс-минус ").replace("≈", " примерно ")
-            .replace("&", " и ").replace(wsClass, " ")
+        val normalized = (if (rules.on("pause_parens")) ::parens else { s: String -> s })(text.replace('—', '–').replace(hyphenClass, "-").replace("±", " плюс-минус ").replace("≈", " примерно ")
+            .replace("&", " и ").replace(wsClass, " "))
         val sb = StringBuilder(normalized.length)
         for (c in normalized) if (c in allowed) sb.append(c)
         return sb.toString().replace(Regex("\\s+"), " ").trim()
@@ -1937,5 +1952,5 @@ object Normalizer {
     // всё как раньше (review t17 round2 п.1).
     // Abbrev до latin(): latin() лоуэркейсит текст, а аббревиатуры узнаются по КАПСУ.
     fun prepare(text: String, allowed: String, rules: Rules = Rules()): String =
-        symbols(latin(Abbrev.apply(numbers(punctuation(text, rules), rules), rules), rules), allowed)
+        symbols(latin(Abbrev.apply(numbers(punctuation(text, rules), rules), rules), rules), allowed, rules)
 }

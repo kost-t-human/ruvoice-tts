@@ -48,7 +48,22 @@ class LatinSymbolsTest {
         assertEquals("иди сюда, – сказала она.", Normalizer.symbols("«иди сюда», – сказала она.", allowed))
         assertEquals("а – б", Normalizer.symbols("а — б", allowed))
         assertEquals("всё…", Normalizer.symbols("всё…", allowed))
-        assertEquals("дом тот", Normalizer.symbols("дом (тот)", allowed)) // скобок в алфавите нет, они удаляются
+    }
+
+    @Test fun parensBecomeCommas() {
+        // скобок в алфавите нет, а пауза, как на «;» и «:», нужна — запятые; у края предложения и рядом со знаком просто убираем
+        assertEquals("дом, тот, стоит", Normalizer.symbols("дом (тот) стоит", allowed))
+        assertEquals("дом, тот.", Normalizer.symbols("дом (тот).", allowed))
+        assertEquals("дом, тот – сказал", Normalizer.symbols("дом (тот) – сказал", allowed))
+        assertEquals("тот, дом", Normalizer.symbols("(тот) дом", allowed))
+        assertEquals("дом, тот", Normalizer.symbols("дом, (тот)", allowed))
+        assertEquals("дом, тот, стоит", Normalizer.symbols("дом [тот] стоит", allowed))
+        assertEquals("дом тот стоит", Normalizer.symbols("дом (тот) стоит", allowed, Rules(off = setOf("pause_parens"))))
+    }
+
+    @Test fun unicodeHyphensBecomeAscii() {
+        // «во‐первых» с U+2010 (и U+2011, U+2212) — иначе дефис выпадает и модель читает «воперв+ых»
+        assertEquals("во-первых, по-русски, кое-как", Normalizer.symbols("во\u2010первых, по\u2011русски, кое\u2212как", allowed))
     }
 
     @Test fun nbspNormalizedBeforeFiltering() {

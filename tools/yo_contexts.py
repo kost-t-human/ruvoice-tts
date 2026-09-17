@@ -97,7 +97,8 @@ def main():
         toks = re.split(r'[ ,]+', phrase); i = toks.index(w)
         if len(toks) == 3 and ((w, ' '.join(phrase.split(' ')[:2])) in good or (w, ' '.join(phrase.split(' ')[1:])) in good):
             dropped['двухсловный уже есть'] += 1; continue
-        if w in gram and i > 0 and pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], True, w, morph) is not None \
+        if w in gram and i > 0 and pe.gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], True, w, morph,
+                                                 toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None) is not None \
                 or w == 'все' and i == 0 and len(toks) > 1 and pe.vse_pick(toks[1], morph, gram) == var:
             dropped['gramPass решает'] += 1; continue
         if pe.conflicts(by_word, w, phrase, var): dropped['спорит со словарями'] += 1; continue

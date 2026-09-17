@@ -26,9 +26,15 @@ COUNT = set('два две три четыре оба обе полтора по
 NOT_ADJ = set('его него чего кого ничего никого некого нечего всего сего много немного итого'.split())
 
 
-def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None):
+NOM_PL = re.compile(r'[а-яё]+(ые|ие)$')
+PARTICIPLE_PL = re.compile(r'[а-яё]+((вш|ш|щ)ие|(нн|т|м)ые)$')
+PASSIVE_PL = re.compile(r'[а-яё]+(нн|т|м)ые$')
+
+
+def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None, prev3=None, prev4=None):
     """Зеркало Stress.gramPass: что поставит грамматический проход, None — молчит. morph — aot_morph.Table для согласования
-    с прилагательным (w — само слово); без неё, как в Kotlin без Morph, это правило выключено."""
+    с прилагательным (w — само слово, prev3/prev4 — для согласования через слово); без неё, как в Kotlin без Morph,
+    это правило выключено."""
     if prev in ('под', 'за') and prev2 == 'из': return e.get('g') or e.get('n')
     if prev == 'за' and prev2 == 'что': return None
     if prev in GEN: return e.get('g') or e.get('n')
@@ -37,19 +43,29 @@ def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None):
     if prev in PRON: return e.get('v')
     if prev.endswith(('ого', 'его')):
         return None if prev in NOT_ADJ or prev.startswith(('сам', 'котор')) or prev.endswith(('вшего', 'ющего', 'ущего', 'ащего', 'ящего')) else e.get('g') or e.get('n')
-    if morph and w and ('g' in e or 'p' in e): return agree(morph, prev, prev2, w, e)
+    if morph and w and ('g' in e or 'p' in e): return agree(morph, prev, prev2, w, e, prev3, prev4)
     return None
 
 
-def agree(m, prev, prev2, w, e):
+def agree(m, prev, prev2, w, e, prev3=None, prev4=None):
     """Зеркало Stress.agree: «высокие стены» → мн., «высокой стены» → род. ед. Прилагательное перед словом согласуется
     с ним в клетке род. ед. (g) или им./вин. мн. (p), но не в обеих; в обеих или ни в одной («вся округа») — молчим.
-    После «две/три/четыре» прилагательное во мн., а слово — в род. ед.: «две толстые ноги»."""
+    После «две/три/четыре» прилагательное во мн., а слово — в род. ед.: «две толстые ноги».
+    Через слово или предложную группу («покрытые пылью доски», «почерневшие от времени доски») прилагательное или
+    причастие на «-ые/-ие» даёт мн.; причастий в таблице нет — по суффиксу, действительное только за предлогом."""
     if prev == 'всё': return None  # в таблице «ё» = «е», а «всё» — не «все»
-    ta = m.tags(prev.replace('+', ''))
-    if not m.is_adjective(ta) or m.is_noun(ta): return None
     tw = m.tags(w)
     if not m.is_noun(tw): return None
+    ta = m.tags(prev.replace('+', ''))
+    if not m.is_adjective(ta) or m.is_noun(ta):
+        if 'p' not in e or prev in GEN or prev in PREP or not prev2: return None
+        far = prev2 in GEN or prev2 in PREP
+        cand, head = (prev3, prev4) if far else (prev2, prev3)
+        if not cand: return None
+        if not far and m.is_noun(ta) and m.noun_cases(ta, True) & {'nom', 'acc'}: return None  # «бревенчатые стены терема»
+        tc = m.tags(cand)
+        adj_plural = cand != 'все' and NOM_PL.match(cand) and ((PARTICIPLE_PL if far else PASSIVE_PL).match(cand) if tc == 0 else m.is_adjective(tc) and not m.is_noun(tc))
+        return None if not adj_plural else e.get('g') if head in COUNT else e['p']
     if prev2 in COUNT: return e.get('g')
     def fit(plural):
         noun = m.noun_cases(tw, plural) & ({'nom', 'acc'} if plural else {'gen'})
@@ -131,7 +147,8 @@ def build():
             if '+' not in dv or dv == gw[i][1]: continue
             ok = w in homo and dv in homo[w] or w in gram and dv in gram[w].values()
             if not ok: continue
-            if w in gram and i > 0 and gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph) is not None: continue
+            if w in gram and i > 0 and gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph,
+                                                 toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None) is not None: continue
             phrase = norm(key)
             if (w, phrase) in have or (w, phrase) in seen or w not in phrase.split(' ') and w not in re.split(r'[ ,-]+', phrase): continue
             seen.add((w, phrase)); rows.append((w, phrase, dv, w in homo))

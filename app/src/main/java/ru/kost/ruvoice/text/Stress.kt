@@ -50,6 +50,10 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val count = setOf("два", "две", "три", "четыре", "оба", "обе", "полтора", "полторы")
     /** Прилагательное во мн. ч.: цепочка таких перед словом («две короткие толстые ноги») не заслоняет числительное. */
     private val adjPl = Regex("[а-яё]+(ые|ие|ых|их)")
+    private val nomPl = Regex("[а-яё]+(ые|ие)")
+    /** Причастие во мн. ч. — их нет в таблице морфологии: «почерневшие», «поросшие», «стоящие», «покрытые», «сложенные», «видимые». */
+    private val participlePl = Regex("[а-яё]+((вш|ш|щ)ие|(нн|т|м)ые)")
+    private val passivePl = Regex("[а-яё]+(нн|т|м)ые")
     /** Прилагательные, управляющие родительным: «лишённые душ+и», «полные вод+ы» (по корпусу 25 из 25). */
     private val genAdjRe = Regex("(лишённ|лишенн|полн)(ый|ая|ое|ые|ого|ой|ых|ым|ыми|ую|ому|ом)")
     /** Фазовые глаголы и «буду»: инфинитив после них только несов. вида («начал обполз+ать», не «обп+олзать»). */
@@ -69,7 +73,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     internal fun gramPass(sentence: String): String {
         if (d.gram.isEmpty()) return sentence
         val sb = StringBuilder(sentence)
-        var prev = ""; var prev2 = ""; var prevStart = -1; var prevEnd = -1; var offset = 0
+        var prev = ""; var prev2 = ""; var prev3 = ""; var prev4 = ""; var prevStart = -1; var prevEnd = -1; var offset = 0
         var chainHead = ""   // слово перед цепочкой прилагательных во мн. ч., кончающейся на prev
         for (m in gramWordRe.findAll(sentence)) {
             val w = m.value.lowercase()
@@ -94,7 +98,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     prev.endsWith("ого") || prev.endsWith("его") || genAdjRe.matches(prev) ->
                         if (prev in notAdjective || prev.startsWith("сам") && prev2 == "у" || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
                     prev == "все" && w == "дома" -> null   // «не все дома»: идиома, BERT прав в 7 строках корпуса из 9, согласование в 6
-                    morph != null && ("g" in e || "p" in e) -> agree(morph, prev, chainHead, w, e)
+                    morph != null && ("g" in e || "p" in e) -> agree(morph, prev, prev2, prev3, prev4, chainHead, w, e)
                     else -> null
                 }
                 if (pick != null) {
@@ -108,20 +112,34 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             }
             if (vse) { sb.insert(prevStart + prevOffset + 2, '+'); offset++ }
             chainHead = if (adjacent && adjPl.matches(w) && adjPl.matches(prev)) chainHead else prev
-            prev2 = prev; prev = w; prevStart = m.range.first; prevEnd = m.range.last + 1
+            prev4 = prev3; prev3 = prev2; prev2 = prev; prev = w; prevStart = m.range.first; prevEnd = m.range.last + 1
         }
         return sb.toString()
     }
 
     /** «высокие стены» → мн., «высокой стены» → род. ед., «эти руки» → мн.: прилагательное (не существительное
      * одновременно — «больной») согласуется со словом в клетке род. ед. (вариант g) или им./вин. мн. (p), но не в
-     * обеих; в обеих или ни в одной («вся округа» — им. ед. другой леммы) — молчим. */
-    private fun agree(m: Morph, prev: String, chainHead: String, w: String, e: Map<String, String>): String? {
+     * обеих; в обеих или ни в одной («вся округа» — им. ед. другой леммы) — молчим.
+     * Через слово или предложную группу («покрытые пылью доски», «почерневшие от времени доски», «мокрые от дождя
+     * стены») прилагательное или причастие на «-ые/-ие» даёт мн.: BERT рядом с причастием прав, а через слово путает.
+     * Причастий в таблице нет — узнаём по суффиксу; рядом с ним молчим («искавшие души» — дополнение). По корпусу
+     * GramPassCorpusTest ~100 сработок без споров, «две поросшие лесом горы» — род. ед. по числительному. */
+    private fun agree(m: Morph, prev: String, prev2: String, prev3: String, prev4: String, chainHead: String, w: String, e: Map<String, String>): String? {
         if (prev == "всё") return null   // в таблице «ё» = «е», а «всё» — не «все»
-        val ta = m.tags(prev.replace("+", ""))
-        if (!Morph.isAdjective(ta) || Morph.isNoun(ta)) return null
         val tw = m.tags(w)
         if (!Morph.isNoun(tw)) return null
+        val ta = m.tags(prev.replace("+", ""))
+        if (!Morph.isAdjective(ta) || Morph.isNoun(ta)) {
+            if ("p" !in e || prev in genGov || prev in prepOther) return null
+            val far = prev2 in genGov || prev2 in prepOther
+            val cand = if (far) prev3 else prev2
+            // «бревенчатые стены терема»: прилагательное согласовано с соседом во мн. — не наше
+            if (!far && Morph.isNoun(ta) && Morph.nounCases(ta, true).any { it == Case.NOM || it == Case.ACC }) return null
+            val tc = m.tags(cand)
+            // действительное причастие берём только за предлогом: «прослужившие и года», «искавшие души» — дополнение
+            val adjPlural = cand != "все" && nomPl.matches(cand) && if (tc == 0) (if (far) participlePl else passivePl).matches(cand) else Morph.isAdjective(tc) && !Morph.isNoun(tc)
+            return if (!adjPlural) null else if ((if (far) prev4 else prev3) in count) e["g"] else e["p"]
+        }
         if (chainHead in count) return e["g"]
         fun fit(plural: Boolean): Boolean {
             val noun = Morph.nounCases(tw, plural) intersect if (plural) setOf(Case.NOM, Case.ACC) else setOf(Case.GEN)

@@ -33,7 +33,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
             "dehyphen", "soft_break", "punct", "ssml",
             "gram", "homo", "accentor", "intonation", "focus", "exclaim",
-            "pause_semicolon", "fast_cores",
+            "pause_semicolon", "pause_parens", "fast_cores",
         )
         /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */
         val SECTIONS = mapOf("letter_name" to "misc", "numbers" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",

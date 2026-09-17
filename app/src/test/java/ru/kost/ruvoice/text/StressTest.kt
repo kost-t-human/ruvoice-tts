@@ -147,6 +147,17 @@ class StressTest {
         assertEquals("все они", s.gramPass("все они"))
         assertEquals("все новых", s.gramPass("все новых"))
         assertEquals("всё дома", s.gramPass("всё дома"))
+        // прилагательное или причастие во мн. через слово или предложную группу: «почерневшие от времени доски» → мн.
+        assertEquals("Я остановился около стен+ы...", s.gramPass("Я остановился около стены..."))
+        assertEquals("увидел почерневшие от вр+емени д+оски", s.gramPass("увидел почерневшие от времени доски"))
+        assertEquals("покрытые пылью д+оски", s.gramPass("покрытые пылью доски"))
+        assertEquals("мокрые от дождя ст+ены", s.gramPass("мокрые от дождя стены"))
+        assertEquals("стоящие вдоль дороги дом+а", s.gramPass("стоящие вдоль дороги дома"))
+        assertEquals("две покрытые лесом гор+ы", s.gramPass("две покрытые лесом горы"))
+        assertEquals("поросшие лесом горы", s.gramPass("поросшие лесом горы"))              // действительное причастие через слово — BERT
+        assertEquals("бревенчатые ст+ены терема", s.gramPass("бревенчатые стены терема"))   // «бревенчатые» про стены, «терема» — BERT
+        assertEquals("искавшие души", s.gramPass("искавшие души"))                         // рядом — BERT
+        assertEquals("все население страны", s.gramPass("все население страны"))
         // без таблицы — как раньше
         assertEquals("высокие стены", Stress(d, firstVowel, morph = null).gramPass("высокие стены"))
         assertEquals("все окна", Stress(d, firstVowel, morph = null).gramPass("все окна"))
