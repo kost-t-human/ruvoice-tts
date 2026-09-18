@@ -89,6 +89,11 @@ GEN_VERB = re.compile(r'[а-яё]*(дости|косн|каса|лиш|бо[ие
 NOT_VERB = set('ли или бы же уж ль ведь здесь хоть чуть пусть ей ней ею нею мной мною тобой тобою собой собою ним нём нем тем всем этим одним '
                'своим моим твоим нашим вашим каким таким самим кем чем ничем никем своей моей твоей нашей вашей всей чьей самой'.split())
 NEG = {'не', 'нет', 'ни'}
+# слово из VERB_PL перед глаголом во мн. ч. — подлежащее: «глаза блестели», «Глаза выглядели» (BERT в начале фразы берёт
+# род. ед.); не после «не», не после «два/оба» в трёх словах («две костлявые р+уки обняли» — счётная форма) и не после
+# существительного («створки окн+а распахнулись», «у края л+еса вели»). По narusco+Викисловарю+HomographEval 62:2.
+VERB_PL_END = re.compile(r'[а-яё]+(ут|ют|ат|ят|ли)(ся|сь)?$')
+DUAL = set('два две три четыре оба обе полтора'.split())
 # количество после слова: «воды нет», «времени мало» — род. ед. (narusco+СинТагРус 81:16)
 QUANT_NEXT = {'нет', 'мало', 'много', 'немного', 'достаточно', 'больше', 'меньше', 'немало', 'хватает', 'хватало', 'хватит'}
 
@@ -117,9 +122,15 @@ def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None, prev3=None, pre
         return None if prev in NOT_ADJ or prev.startswith('сам') and prev2 == 'у' or prev.startswith('котор') or prev.endswith(PARTICIPLE) else e.get('g') or e.get('n')
     if prev == 'все' and w == 'дома': return None
     if w in VERB_PL and 'p' in e and verb_like(prev, morph) and prev2 not in NEG and prev3 not in NEG and nxt not in NEG: return e['p']
+    if subj_pl(w, e, prev, nxt, morph, prev2, prev3): return e["p"]
     if nxt in QUANT_NEXT and 'g' in e and 'p' in e: return e['g']
     if morph and w and ('g' in e or 'p' in e): return agree(morph, prev, prev2, w, e, prev3, prev4, chain_head(prev, prev2, prev3, prev4))
     return None
+
+
+def subj_pl(w, e, prev, nxt, morph, prev2=None, prev3=None):
+    return (w in VERB_PL and 'p' in e and verb_like(nxt, morph) and VERB_PL_END.match(nxt) and prev not in NEG
+            and not {prev, prev2, prev3} & DUAL and not (prev and morph and morph.is_noun(morph.tags(prev))))
 
 
 def agree(m, prev, prev2, w, e, prev3=None, prev4=None, chain_head=None):
@@ -173,6 +184,7 @@ def app_pick(w, toks, i, low, gram, homo, morph, phrase_pick):
     gramPass → фразы Silero. None — решает модель. phrase_pick(w, low) — вариант по фразам json или None."""
     ours = extra_pick(w, low)
     if ours: return ours
+    if w in gram and i == 0 and subj_pl(w, gram[w], '', toks[1] if len(toks) > 1 else None, morph): return gram[w]['p']
     if w in gram and i > 0: ours = gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph,
                                             toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None, toks[i + 1] if i + 1 < len(toks) else None)
     if w == 'все' and i + 1 < len(toks): ours = vse_pick(toks[i + 1], morph, gram)

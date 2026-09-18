@@ -54,6 +54,11 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         "собой", "собою", "ним", "нём", "нем", "тем", "всем", "этим", "одним", "своим", "моим", "твоим", "нашим", "вашим", "каким", "таким",
         "самим", "кем", "чем", "ничем", "никем", "своей", "моей", "твоей", "нашей", "вашей", "всей", "чьей", "самой")
     private val neg = setOf("не", "нет", "ни")
+    /** Слово из [verbPl] перед глаголом во мн. ч. — подлежащее: «глаза блестели», «Глаза выглядели» (BERT в начале фразы
+     * берёт род. ед.). Не после «не», не после «два/оба» в трёх словах («две костлявые р+уки обняли» — счётная форма) и не
+     * после существительного («створки окн+а распахнулись», «у края л+еса вели»). По narusco+Викисловарю+HomographEval 62:2. */
+    private val verbPlEnd = Regex("[а-яё]+(ут|ют|ат|ят|ли)(ся|сь)?")
+    private val dual = setOf("два", "две", "три", "четыре", "оба", "обе", "полтора")
     /** Глаголов в таблице морфологии нет: слово не из таблицы с глагольным окончанием и не причастие. */
     private fun verbLike(t: String) = t.isNotEmpty() && (morph == null || morph.tags(t) == 0) && verbEnd.matches(t) &&
         !participleAny.matches(t) && !genVerb.matches(t) && t !in notVerb
@@ -110,8 +115,11 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             val nxt = if (nm != null && sentence.subSequence(m.range.last + 1, nm.range.first).all { it.isWhitespace() }) nm.value.lowercase() else ""
             var vse = adjacent && prev == "все" && morph != null && Morph.pluralOnly(morph.tags(w.replace("+", "")))
             val prevOffset = offset
-            if (e != null && adjacent) {
+            if (e != null) {
+                val subjPl = w in verbPl && "p" in e && verbLike(nxt) && verbPlEnd.matches(nxt) && prev !in neg &&
+                    prev !in dual && prev2 !in dual && prev3 !in dual && (morph == null || !Morph.isNoun(morph.tags(prev)))
                 val pick = when {
+                    !adjacent -> if (subjPl) e["p"] else null
                     "i" in e -> if (phaseRe.matches(prev)) e["i"] else null
                     (prev == "под" || prev == "за") && prev2 == "из" -> e["g"] ?: e["n"]   // «из под», «из за» без дефиса
                     prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
@@ -130,6 +138,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                         if (prev in notAdjective || prev.startsWith("сам") && prev2 == "у" || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
                     prev == "все" && w == "дома" -> null   // «не все дома»: идиома, BERT прав в 7 строках корпуса из 9, согласование в 6
                     w in verbPl && "p" in e && verbLike(prev) && prev2 !in neg && prev3 !in neg && nxt !in neg -> e["p"]   // «не успел сказать сл+ова»
+                    subjPl -> e["p"]   // «глаза блестели»
                     nxt in quantNext && "g" in e && "p" in e -> e["g"]
                     morph != null && ("g" in e || "p" in e) -> agree(morph, prev, prev2, prev3, prev4, chainHead, w, e)
                     else -> null
