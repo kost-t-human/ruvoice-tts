@@ -6,6 +6,7 @@ import json, os, re, sys
 from typing import List
 import torch
 from torch.jit.mobile import _load_for_lite_interpreter
+from silero_export import split_tts
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -50,13 +51,6 @@ def tts_args(text, sr=48000):
             torch.zeros(1, n, dtype=torch.long), None)
 
 
-def cut_call(graph, submodule):
-    for node in graph.nodes():
-        if node.kind() == 'prim::CallMethod' and node.s('name') == 'forward' and submodule in str(node.inputsAt(0)):
-            node.output().replaceAllUsesWith(node.inputsAt(1)); node.destroy(); return
-    raise SystemExit(f'вызов {submodule}.forward не найден')
-
-
 def export_models():
     global tts_ref, tts_ref24
     with torch.no_grad():  # эталоны до хирургии графа
@@ -69,12 +63,8 @@ def export_models():
     homo._save_for_lite_interpreter(os.path.join(ASSETS, 'homo.ptl'))
     acc.model._save_for_lite_interpreter(os.path.join(ASSETS, 'accentor.ptl'))
     tts = pk.models[0]
-    # хирургия графа: вызов подмодуля заменяем его входом, freeze выкидывает ставшие лишними веса.
-    # tts_mel.ptl = tts без вокодера (отдаёт мел), head.ptl = вокодер без бэкбона (голова, iSTFT, PQMF для 24 кГц)
-    cut_call(tts.vocoder.forward.graph, 'backbone')
-    torch.jit.freeze(tts.vocoder.eval())._save_for_lite_interpreter(os.path.join(ASSETS, 'head.ptl'))
-    cut_call(tts.forward.graph, 'vocoder')
-    torch.jit.freeze(tts.eval())._save_for_lite_interpreter(os.path.join(ASSETS, 'tts_mel.ptl'))
+    # tts_mel.ptl = tts без вокодера, head.ptl = вокодер без бэкбона (silero_export.split_tts)
+    split_tts(tts, os.path.join(ASSETS, 'tts_mel.ptl'), os.path.join(ASSETS, 'head.ptl'))
     # эталонный (деквантованный) homosolver для проверки
     hm.bert.embeddings.word_embeddings.weight.data = full_w
     big.unpack_q_model()
