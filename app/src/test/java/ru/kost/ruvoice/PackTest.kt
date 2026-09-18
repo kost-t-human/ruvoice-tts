@@ -54,9 +54,21 @@ class PackTest {
         assertTrue(Packs.installed(filesDir).isEmpty())
     }
 
+    @Test fun deleteRejectsBadId() {
+        assertThrows(IllegalArgumentException::class.java) { Packs.delete(filesDir, "..") }
+    }
+
     @Test fun rejectsZipWithoutJsonAndBrokenJson() {
         assertEquals(Packs.NOT_A_PACK, assertThrows(IllegalArgumentException::class.java) { Packs.install(ByteArrayInputStream(zip(null, "tts_mel.ptl", "backbone.pte", "head.ptl")), filesDir) }.message)
         assertEquals(Packs.NOT_A_PACK, assertThrows(IllegalArgumentException::class.java) { Packs.install(ByteArrayInputStream(zip("{oops", "tts_mel.ptl", "backbone.pte", "head.ptl")), filesDir) }.message)
+    }
+
+    @Test fun rejectsTruncatedZip() {
+        val bytes = full
+        val truncated = bytes.copyOfRange(0, bytes.size * 6 / 10)
+        val e = assertThrows(IllegalArgumentException::class.java) { Packs.install(ByteArrayInputStream(truncated), filesDir) }
+        assertEquals(Packs.NOT_A_PACK, e.message)
+        assertTrue((File(filesDir, "packs").listFiles() ?: emptyArray()).none { it.name.startsWith(".tmp") })
     }
 
     @Test fun reinstallReplaces() {

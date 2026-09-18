@@ -65,22 +65,27 @@ object Packs {
 
     /**
      * Распаковывает zip во временный каталог `packs/.tmp-<n>`, проверяет, переносит в `packs/<id>`.
-     * Любая ошибка — временный каталог удалён, наружу IllegalArgumentException с текстом для Snackbar.
+     * Временный каталог убирается при любом отказе. Ошибки архива и формата — IllegalArgumentException
+     * с текстом для Snackbar, ошибка записи на диск — IOException.
      */
     fun install(zip: InputStream, filesDir: File): Pack {
         val packs = dir(filesDir).also { it.mkdirs() }
         val tmp = File(packs, ".tmp-${System.nanoTime()}").also { it.mkdirs() }
         try {
             var json: String? = null
-            ZipInputStream(zip).use { z ->
-                while (true) {
-                    val e = z.nextEntry ?: break
-                    when (e.name) {
-                        "pack.json" -> json = z.readBytes().decodeToString()
-                        in MODEL_FILES -> File(tmp, e.name).outputStream().use { z.copyTo(it) }
+            try {
+                ZipInputStream(zip).use { z ->
+                    while (true) {
+                        val e = z.nextEntry ?: break
+                        when (e.name) {
+                            "pack.json" -> json = z.readBytes().decodeToString()
+                            in MODEL_FILES -> File(tmp, e.name).outputStream().use { z.copyTo(it) }
+                        }
+                        z.closeEntry()
                     }
-                    z.closeEntry()
                 }
+            } catch (e: IOException) {
+                throw IllegalArgumentException(NOT_A_PACK, e)
             }
             val text = json ?: throw IllegalArgumentException(NOT_A_PACK)
             if (MODEL_FILES.any { !File(tmp, it).isFile }) throw IllegalArgumentException(NOT_A_PACK)
@@ -98,6 +103,7 @@ object Packs {
     }
 
     fun delete(filesDir: File, id: String) {
+        require(ID_RE.matches(id)) { "Недопустимый id пака: $id" }
         File(dir(filesDir), id).deleteRecursively()
         synchronized(this) { snap = null }
     }
