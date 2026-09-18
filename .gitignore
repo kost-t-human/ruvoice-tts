@@ -5,6 +5,7 @@ build/
 local.properties
 app/src/main/assets/silero/*.ptl
 app/src/main/assets/silero/*.pte
+app/src/full/assets/silero/
 tools/*.pt
 .kotlin/
 ruvoice-listen/

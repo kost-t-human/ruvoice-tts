@@ -7,7 +7,7 @@ import os, torch
 from silero_export import Backbone, export_backbone, verify_backbone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ASSETS = os.path.join(os.path.dirname(HERE), 'app/src/main/assets/silero')
+ASSETS = os.path.join(os.path.dirname(HERE), 'app/src/full/assets/silero')  # модель только в сборке full
 
 if __name__ == '__main__':
     pk = torch.package.PackageImporter(os.path.join(HERE, 'v5_5_ru.pt')).load_pickle('tts_models', 'model').packages[0]

@@ -20,6 +20,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
+    // full — модель v5_5_ru в APK (app/src/full/assets/silero), lite — без неё: штатные голоса ставятся
+    // паком ruvoice-pack-ru.zip, обновление приложения не тянет 85 МБ модели. applicationId и versionCode
+    // одни — ставятся друг поверх друга, паки и настройки сохраняются.
+    flavorDimensions += "model"
+    productFlavors {
+        create("full") { dimension = "model"; buildConfigField("boolean", "BUILTIN_MODEL", "true") }
+        create("lite") { dimension = "model"; buildConfigField("boolean", "BUILTIN_MODEL", "false"); versionNameSuffix = "-lite" }
+    }
+    buildFeatures { buildConfig = true }
     signingConfigs {
         localProps.getProperty("release.storeFile")?.let { path ->
             create("release") {

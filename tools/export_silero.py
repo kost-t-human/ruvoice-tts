@@ -1,7 +1,8 @@
 """Экспорт Silero v5_5_ru в .ptl + json для Android. Запуск: python3 tools/export_silero.py
 После него — tools/export_silero_stress.py: он перекрывает accentor.ptl, homo.ptl и стрессовую часть json,
 и ../venv-et/bin/python tools/vocoder_et.py: бэкбон вокодера в backbone.pte (ExecuTorch, XNNPACK).
-tts_mel.ptl — forward без вокодера (отдаёт мел), head.ptl — голова вокодера с iSTFT."""
+tts_mel.ptl — forward без вокодера (отдаёт мел), head.ptl — голова вокодера с iSTFT;
+tts_mel.ptl и head.ptl — в app/src/full/assets/silero (сборка full)."""
 import json, os, re, sys
 from typing import List
 import torch
@@ -12,8 +13,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PT = os.path.join(HERE, 'v5_5_ru.pt')
 ASSETS = os.path.join(ROOT, 'app/src/main/assets/silero')
+MODEL_ASSETS = os.path.join(ROOT, 'app/src/full/assets/silero')  # модель только в сборке full
 TEST_RES = os.path.join(ROOT, 'app/src/test/resources')
-os.makedirs(ASSETS, exist_ok=True); os.makedirs(TEST_RES, exist_ok=True)
+os.makedirs(ASSETS, exist_ok=True); os.makedirs(MODEL_ASSETS, exist_ok=True); os.makedirs(TEST_RES, exist_ok=True)
 
 imp = torch.package.PackageImporter(PT)
 big = imp.load_pickle('tts_models', 'model')
@@ -64,7 +66,7 @@ def export_models():
     acc.model._save_for_lite_interpreter(os.path.join(ASSETS, 'accentor.ptl'))
     tts = pk.models[0]
     # tts_mel.ptl = tts без вокодера, head.ptl = вокодер без бэкбона (silero_export.split_tts)
-    split_tts(tts, os.path.join(ASSETS, 'tts_mel.ptl'), os.path.join(ASSETS, 'head.ptl'))
+    split_tts(tts, os.path.join(MODEL_ASSETS, 'tts_mel.ptl'), os.path.join(MODEL_ASSETS, 'head.ptl'))
     # эталонный (деквантованный) homosolver для проверки
     hm.bert.embeddings.word_embeddings.weight.data = full_w
     big.unpack_q_model()
@@ -153,8 +155,8 @@ def verify(homo_script):
     """lite-модули дают тот же выход, что полная модель."""
     lite_h = _load_for_lite_interpreter(os.path.join(ASSETS, 'homo.ptl'))
     lite_a = _load_for_lite_interpreter(os.path.join(ASSETS, 'accentor.ptl'))
-    lite_m = _load_for_lite_interpreter(os.path.join(ASSETS, 'tts_mel.ptl'))
-    lite_head = _load_for_lite_interpreter(os.path.join(ASSETS, 'head.ptl'))
+    lite_m = _load_for_lite_interpreter(os.path.join(MODEL_ASSETS, 'tts_mel.ptl'))
+    lite_head = _load_for_lite_interpreter(os.path.join(MODEL_ASSETS, 'head.ptl'))
     ids = torch.tensor(hs.tokenizer('На двери висел старый [HOMO] замок [/HOMO] , а на холме стоял замок.')).unsqueeze(0)
     st = torch.where(ids[0] == hs.tokenizer.homo_start_id)[0]; en = torch.where(ids[0] == hs.tokenizer.homo_end_id)[0]
     assert (lite_h(ids, st, en) - hm(ids, st, en)).abs().max().item() < 1e-5, 'homo mismatch'
@@ -175,6 +177,6 @@ if __name__ == '__main__':
     export_json()
     golden = make_golden()
     verify(homo_script)
-    for n in ('tts_mel.ptl', 'head.ptl', 'accentor.ptl', 'homo.ptl', 'silero_ru.json'):
-        print(n, round(os.path.getsize(os.path.join(ASSETS, n)) / 1048576, 1), 'MB')
+    for d, n in ((MODEL_ASSETS, 'tts_mel.ptl'), (MODEL_ASSETS, 'head.ptl'), (ASSETS, 'accentor.ptl'), (ASSETS, 'homo.ptl'), (ASSETS, 'silero_ru.json')):
+        print(n, round(os.path.getsize(os.path.join(d, n)) / 1048576, 1), 'MB')
     print('golden:', len(golden), 'items')
