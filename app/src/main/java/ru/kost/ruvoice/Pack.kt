@@ -2,9 +2,11 @@ package ru.kost.ruvoice
 
 import android.util.Log
 import org.json.JSONObject
+import java.io.EOFException
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 
 /** Пак голосов: `filesDir/packs/<id>/{pack.json, tts_mel.ptl, backbone.pte, head.ptl}` — та же нарезка,
@@ -65,11 +67,14 @@ object Packs {
 
     /**
      * Распаковывает zip во временный каталог `packs/.tmp-<n>`, проверяет, переносит в `packs/<id>`.
-     * Временный каталог убирается при любом отказе. Ошибки архива и формата — IllegalArgumentException
-     * с текстом для Snackbar, ошибка записи на диск — IOException.
+     * Временный каталог убирается при любом отказе. Битый или обрезанный архив и ошибки формата —
+     * IllegalArgumentException с текстом для Snackbar, ошибка записи на диск (ENOSPC) — IOException
+     * со своим текстом.
      */
     fun install(zip: InputStream, filesDir: File): Pack {
         val packs = dir(filesDir).also { it.mkdirs() }
+        // хвосты .tmp-* от убитого посреди распаковки процесса
+        packs.listFiles()?.filter { it.name.startsWith(".tmp-") }?.forEach { it.deleteRecursively() }
         val tmp = File(packs, ".tmp-${System.nanoTime()}").also { it.mkdirs() }
         try {
             var json: String? = null
@@ -84,7 +89,9 @@ object Packs {
                         z.closeEntry()
                     }
                 }
-            } catch (e: IOException) {
+            } catch (e: ZipException) {
+                throw IllegalArgumentException(NOT_A_PACK, e)
+            } catch (e: EOFException) {
                 throw IllegalArgumentException(NOT_A_PACK, e)
             }
             val text = json ?: throw IllegalArgumentException(NOT_A_PACK)

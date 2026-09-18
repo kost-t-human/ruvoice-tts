@@ -37,8 +37,10 @@ class PackTest {
     }
 
     @Test fun installsListsDeletes() {
+        File(filesDir, "packs/.tmp-old").mkdirs(); File(filesDir, "packs/.tmp-old/x").writeText("x")
         val p = Packs.install(ByteArrayInputStream(full), filesDir)
         assertEquals("cis_ru", p.id)
+        assertFalse(File(filesDir, "packs/.tmp-old").exists()) // хвост убитого процесса убран
         assertEquals(listOf("cis_ru"), Packs.installed(filesDir).map { it.id })
         assertTrue(File(filesDir, "packs/cis_ru/head.ptl").isFile)
         assertEquals(3L, Packs.installed(filesDir).single().size)
