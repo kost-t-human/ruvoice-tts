@@ -44,6 +44,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     androidResources { noCompress += listOf("ptl", "pte", "json", "bin") }
+    testOptions { unitTests.isReturnDefaultValues = true }
     // libfbjni/libc++_shared есть и в pytorch_android_lite, и в executorch; из lite годятся обоим
     packaging { jniLibs.useLegacyPackaging = false; jniLibs.pickFirsts += listOf("lib/*/libfbjni.so", "lib/*/libc++_shared.so") }
 }
