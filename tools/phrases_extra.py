@@ -43,6 +43,7 @@ PHASE = re.compile(r'нач(ал[аио]?|ать|ав|ина[а-яё]+|н[а-я�
 
 
 POSS = {'его', 'её', 'ее', 'их'}
+PRON_ADJ_LIKE = {'чем', 'кем', 'ничем', 'никем', 'ним', 'нём', 'нем', 'ней', 'ей', 'ею', 'нею', 'мной', 'тобой', 'собой'}   # «не на чем ча́ю выпить»: не прилагательное
 
 
 ACC_VERB = re.compile(r'(преврат|превращ|брос|попа[лдсв]|сун|стуч|стукн|закова|заков|ломи|влет|вбе[жг]|ворв|кинул|швыр|толкн|во(шёл|шел|шла|шли|йти|йд)|заман|улов|пойма|разворач|вгляд|загляд)[а-яё]*$')
@@ -55,7 +56,7 @@ def loc2_pick(prev, prev2, prev3, e, w, morph):
     предлога перед таким прилагательным молчим («сосновом лесу» — не знаем, что слева); иначе всегда g («ана́лиз кр+ови»)."""
     if prev in LOC_PREP: return e.get('g') if ACC_VERB.match(prev2 or '') or ACC_VERB.match(prev3 or '') else e['l']   # «сунул голову в дв+ери»
     if prev == 'и' and prev3 in LOC_PREP: return e['l']   # «в крови и гряз+и»
-    adj = prev in POSS or (adj_loc(morph, prev, w) if morph and w and morph.tags(prev) else bool(PRP_ADJ.match(prev)))
+    adj = prev in POSS or (adj_loc(morph, prev, w) if morph and w and morph.tags(prev) else prev not in PRON_ADJ_LIKE and bool(PRP_ADJ.match(prev)))
     if not adj: return e.get('g')
     if prev2 in LOC_PREP: return e['l']
     adj2 = prev2 in POSS or bool(PRP_ADJ.match(prev2 or ''))

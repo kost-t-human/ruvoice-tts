@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 SRC = os.path.join(ROOT, 'app/build/aot_forms.tsv'); JSON = os.path.join(ROOT, 'app/src/main/assets/silero/silero_ru.json')
 
 
-NO_LOC2 = set('брови кости сени щели связи дали пещи нощи пару'.split())   # пару: на пар+у / на п+ару минут
+NO_LOC2 = set('брови кости сени щели связи дали пещи нощи пару шерсти горсти'.split())   # пару: на пар+у / на п+ару минут
 
 
 def wikt_loc2():

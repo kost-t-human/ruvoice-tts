@@ -64,6 +64,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val locPrep = setOf("в", "во", "на", "при")
     private val pronouns = setOf("я", "ты", "он", "она", "оно", "мы", "вы", "они")
     private val possessive = setOf("его", "её", "ее", "их")
+    /** Местоимения с окончанием прилагательного: «не на чем ча́ю выпить» — не «в чужой крови́». */
+    private val pronAdjLike = setOf("чем", "кем", "ничем", "никем", "ним", "нём", "нем", "ней", "ей", "ею", "нею", "мной", "тобой", "собой")
     /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
     private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого",
         "отчего", "оттого")   // «отчего цены» наречие, «отчего дома» прилагательное — BERT прав в обоих, правило нет
@@ -169,7 +171,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         // глагол движения может стоять и через слово: «сунул голову в дв+ери»
         if (prev in locPrep) return if (accVerb.matches(prev2) || accVerb.matches(prev3)) e["g"] else e["l"]
         if (prev == "и" && prev3 in locPrep) return e["l"]   // «в крови и гряз+и»
-        val adj = prev in possessive || (if (morph != null && morph.tags(prev) != 0) adjLoc(morph, prev, w) else prpAdj.matches(prev))
+        val adj = prev in possessive || (if (morph != null && morph.tags(prev) != 0) adjLoc(morph, prev, w) else prev !in pronAdjLike && prpAdj.matches(prev))
         if (!adj) return e["g"]
         if (prev2 in locPrep) return e["l"]
         val adj2 = prev2 in possessive || prpAdj.matches(prev2)
