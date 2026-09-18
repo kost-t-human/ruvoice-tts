@@ -148,6 +148,19 @@
     <string name="browser_missing">Браузер не найден</string>
     <string name="about_body">RuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nУдарения: Silero Stress (github.com/snakers4/silero-stress), лицензия MIT.\n\nМорфологический словарь: AOT (github.com/sokirko74/morph_dict), лицензия LGPL.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
 
+    <!-- Паки голосов -->
+    <string name="voice_packs">Дополнительные голоса…</string>
+    <string name="packs_title">Дополнительные голоса</string>
+    <string name="packs_hint">Экспериментальная функция. Пак — zip-файл с другой моделью Silero и её голосами (около 80 МБ). Эта модель может хуже разбирать текст: у неё нет интонации вопросов и восклицаний и логического ударения. Голоса пака появятся в списке на вкладке «Голос».\n\nПаки лежат в отдельном релизе «Паки голосов»:\nhttps://github.com/kost-t-human/ruvoice-tts/releases/tag/packs</string>
+    <string name="packs_install">Установить из файла…</string>
+    <string name="packs_installing">Установка пака…</string>
+    <string name="pack_installed">Пак установлен: %1$s</string>
+    <string name="pack_info">%1$d голосов · %2$d МБ · %3$s</string>
+    <string name="pack_delete">Удалить</string>
+    <string name="pack_delete_confirm">Удалить пак «%1$s»? Файлы модели будут стёрты, выбранный голос вернётся к штатному.</string>
+    <string name="pack_deleted">Пак удалён</string>
+    <string name="about_pack">\n\nПак «%1$s»: %2$s, лицензия %3$s.</string>
+
     <!-- Правила: rule_<ключ Rules.KEYS> и rule_<ключ>_hint, секции rules_section_<имя> -->
     <string name="rules_hint">Что движок делает с текстом перед озвучиванием. Выключенное правило оставляет текст как есть. Эффект видно в «Разборе» на вкладке «Голос».</string>
     <string name="rules_section_misc">Разное</string>

@@ -28,7 +28,8 @@ class AboutActivity : AppCompatActivity() {
             insets
         }
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
-        findViewById<TextView>(R.id.body).text = getString(R.string.about_body, packageManager.getPackageInfo(packageName, 0).versionName)
+        findViewById<TextView>(R.id.body).text = getString(R.string.about_body, packageManager.getPackageInfo(packageName, 0).versionName) +
+            Packs.installed(filesDir).joinToString("") { getString(R.string.about_pack, it.title, it.source, it.license) }
         findViewById<View>(R.id.support).setOnClickListener {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SUPPORT_URL)))

@@ -7,10 +7,16 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
 import android.view.View
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -51,6 +57,8 @@ class SettingsActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) importFrom(uri)
         }
+    private val packLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) installPack(uri) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
@@ -74,11 +82,15 @@ class SettingsActivity : AppCompatActivity() {
             intent.removeExtra(EXTRA_IMPORT_DONE)
             root.post { showSnackbar(getString(R.string.import_done)) }
         }
+        // После установки/удаления пака окно тоже создаётся заново (списки голосов — lazy в фрагментах).
+        intent.getStringExtra(EXTRA_SNACK)?.let { msg -> intent.removeExtra(EXTRA_SNACK); root.post { showSnackbar(msg) } }
+        if (intent.getBooleanExtra(EXTRA_SHOW_PACKS, false)) { intent.removeExtra(EXTRA_SHOW_PACKS); root.post { showPacks() } }
 
         if (!prefs.setupShown) { prefs.setupShown = true; root.post { showSetupHelp() } }
 
         findViewById<MaterialToolbar>(R.id.toolbar).setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.voice_packs -> { showPacks(); true }
                 R.id.setup_help -> { showSetupHelp(); true }
                 R.id.troubleshoot -> { startActivity(Intent(this, TroubleshootActivity::class.java)); true }
                 R.id.about -> { startActivity(Intent(this, AboutActivity::class.java)); true }
@@ -204,10 +216,71 @@ class SettingsActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private var packsDialog: AlertDialog? = null
+
+    /** Диалог со списком установленных паков; пересобирается после установки и удаления. */
+    private fun showPacks() {
+        packsDialog?.dismiss()
+        val v = layoutInflater.inflate(R.layout.dialog_packs, null)
+        val list = v.findViewById<LinearLayout>(R.id.packsList)
+        val packs = Packs.installed(filesDir)
+        // подсказка всегда видна: пометка «экспериментально» и ссылка на Releases, кликабельная как в «О программе»
+        v.findViewById<TextView>(R.id.packsHint).let { Linkify.addLinks(it, Linkify.WEB_URLS); it.movementMethod = LinkMovementMethod.getInstance() }
+        for (p in packs) {
+            val row = layoutInflater.inflate(R.layout.item_pack, list, false)
+            row.findViewById<TextView>(R.id.title).text = p.title
+            row.findViewById<TextView>(R.id.info).text = getString(R.string.pack_info, p.speakers.size, (p.size / 1048576).toInt(), p.license)
+            row.findViewById<Button>(R.id.delete).setOnClickListener {
+                MaterialAlertDialogBuilder(this).setMessage(getString(R.string.pack_delete_confirm, p.title))
+                    .setPositiveButton(R.string.pack_delete) { _, _ ->
+                        Packs.delete(filesDir, p.id)
+                        // голос удалённого пака — на штатный; save фрагмента после этого его не вернёт (окно пересоздаётся)
+                        if (prefs.voice.startsWith(p.id + "/")) prefs.voice = Speaker.DEFAULT
+                        if (prefs.quoteVoice.startsWith(p.id + "/")) prefs.quoteVoice = ""
+                        refreshPages(getString(R.string.pack_deleted))
+                    }
+                    .setNegativeButton(R.string.cancel, null).show()
+            }
+            list.addView(row)
+        }
+        v.findViewById<Button>(R.id.packsInstall).setOnClickListener { packLauncher.launch(arrayOf("application/zip", "*/*")) }
+        packsDialog = MaterialAlertDialogBuilder(this).setTitle(R.string.packs_title).setView(v)
+            .setPositiveButton(R.string.close, null).show()
+    }
+
+    /** Копирование ~90 МБ идёт в фоне под неотменяемым индикатором. */
+    private fun installPack(uri: Uri) {
+        val progress = MaterialAlertDialogBuilder(this).setMessage(R.string.packs_installing).setCancelable(false).show()
+        Thread {
+            val result = runCatching {
+                contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException("Не удалось открыть файл")
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                progress.dismiss()
+                result.onSuccess { refreshPages(getString(R.string.pack_installed, it.title)) }
+                    .onFailure { showSnackbar(it.message ?: it.toString()) }
+            }
+        }.start()
+    }
+
+    /** Списки голосов в фрагментах — lazy от установленных паков: пересоздаём окно, как после импорта
+     * настроек; новое окно показывает Snackbar и снова открывает диалог паков. */
+    private fun refreshPages(message: String) {
+        // Фрагменты не сохраняются в onPause после finish(): их save() вернул бы голос удалённого пака.
+        intent.putExtra(EXTRA_IMPORT_DONE, true)
+        packsDialog?.dismiss()
+        finish()
+        startActivity(Intent(this, SettingsActivity::class.java).putExtra(EXTRA_SNACK, message).putExtra(EXTRA_SHOW_PACKS, true))
+        overridePendingTransition(0, 0)
+    }
+
     companion object {
         // internal: PageFragment.onPause читает его, чтобы не затирать только что
         // импортированные файлы устаревшими полями старых фрагментов при recreate().
         internal const val EXTRA_IMPORT_DONE = "import_done"
+        internal const val EXTRA_SNACK = "snack"
+        internal const val EXTRA_SHOW_PACKS = "show_packs"
     }
 }
 

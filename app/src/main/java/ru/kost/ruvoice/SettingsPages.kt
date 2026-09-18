@@ -49,16 +49,27 @@ abstract class PageFragment(layout: Int) : Fragment(layout) {
 /** Голос, частота, прямая речь и проверка (прослушать/разбор). */
 class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     private val rates = listOf(48000, 24000)
-    // Список голосов берём из модели (SileroModels.data — общий на процесс), а не из
-    // вручную вписанного списка, чтобы он не разошёлся с ней.
-    private val voices by lazy { SileroModels.data(requireContext()).speakers.keys.sorted() }
-    private val quoteVoices by lazy { listOf(getString(R.string.quote_voice_default)) + voices }
+    private val d by lazy { SileroModels.data(requireContext()) }
+    private val packs by lazy { Packs.installed(requireContext().filesDir) }
+    // Список голосов из модели и установленных паков (Speaker.names), в списке подписи Speaker.label.
+    private val voices by lazy { Speaker.names(d, packs) }
+    private fun nameOf(label: String) = voices.firstOrNull { Speaker.label(it) == label }
+    /** Голоса прямой речи — того же движка, что основной: «как основной» + Speaker.sameEngine. */
+    private fun quoteItems(main: String) = listOf(getString(R.string.quote_voice_default)) +
+        Speaker.sameEngine(Speaker.resolve(main, d, packs) ?: Speaker.default(d), d, packs).map { Speaker.label(it) }
     private val rateItems by lazy { rates.map { getString(R.string.sample_rate_item, it) } }
 
     override fun load(v: View) {
-        v.dropdown(R.id.voice, voices, prefs.voice.takeIf { it in voices } ?: voices.first())
+        val main = prefs.voice.takeIf { it in voices } ?: Speaker.default(d).name
+        val voiceView = v.dropdown(R.id.voice, voices.map { Speaker.label(it) }, Speaker.label(main))
+        val quoteView = v.dropdown(R.id.quoteVoice, quoteItems(main), Speaker.label(prefs.quoteVoice).takeIf { it in quoteItems(main) } ?: quoteItems(main).first())
+        voiceView.setOnItemClickListener { _, _, _, _ ->
+            // сменился движок — список прямой речи другой, несовместимый выбор на «как основной»
+            val items = quoteItems(nameOf(voiceView.str()) ?: main)
+            quoteView.setSimpleItems(items.toTypedArray())
+            if (quoteView.str() !in items) quoteView.setText(items.first(), false)
+        }
         v.dropdown(R.id.sampleRate, rateItems, rateItems[rates.indexOf(prefs.sampleRate).coerceAtLeast(0)])
-        v.dropdown(R.id.quoteVoice, quoteVoices, prefs.quoteVoice.takeIf { it in voices } ?: quoteVoices.first())
         v.slider(R.id.rate, R.id.rateValue, prefs.rate)
         v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
         v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
@@ -89,8 +100,9 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     }
 
     override fun save(v: View) {
-        v.findViewById<TextView>(R.id.voice).str().let { if (it in voices) prefs.voice = it }
-        v.findViewById<TextView>(R.id.quoteVoice).str().let { prefs.quoteVoice = if (it in voices) it else "" }
+        val main = nameOf(v.findViewById<TextView>(R.id.voice).str()) ?: prefs.voice
+        if (main in voices) prefs.voice = main
+        prefs.quoteVoice = nameOf(v.findViewById<TextView>(R.id.quoteVoice).str())?.takeIf { Speaker.label(it) in quoteItems(main) } ?: ""
         rateItems.indexOf(v.findViewById<TextView>(R.id.sampleRate).str()).let { if (it >= 0) prefs.sampleRate = rates[it] }
         prefs.rate = v.findViewById<Slider>(R.id.rate).value
         prefs.pitch = v.findViewById<Slider>(R.id.pitch).value
@@ -143,6 +155,8 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         Thread {
             val report = try {
                 val d = SileroModels.data(ctx)
+                // фильтр символов — того движка, что озвучит: у cis-пака нет «!» и апострофа
+                val allowed = (Speaker.resolve(prefs.voice, d, Packs.installed(ctx.filesDir)) ?: Speaker.default(d)).sym.allowed
                 val rules = prefs.rules()
                 val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
                 buildString {
@@ -151,7 +165,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
                         if (seg.speech) marks += " [речь]"
                         if (seg.paragraph) marks += " [¶]"
                         appendLine(seg.text + marks)
-                        appendLine("→ " + Normalizer.prepare(Marks.parse(seg.text).text, d.allowed, rules))
+                        appendLine("→ " + Normalizer.prepare(Marks.parse(seg.text).text, allowed, rules))
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()
                     }
