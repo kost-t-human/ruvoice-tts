@@ -62,10 +62,12 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     private val rateItems by lazy { rates.map { getString(R.string.sample_rate_item, it) } }
 
     override fun load(v: View) {
-        // lite без пака: голосов нет — пустые выпадашки, кнопки ниже ничего не делают
-        val main = prefs.voice.takeIf { it in voices } ?: Speaker.default(d, packs)?.name ?: ""
+        // lite без пака: голосов нет — пустые выпадашки, кнопки ниже ничего не делают.
+        // Через Speaker.resolve: в lite голое «aidar» из старых prefs — это «ru/aidar» из voices.
+        val main = Speaker.resolve(prefs.voice, d, packs)?.name ?: Speaker.default(d, packs)?.name ?: ""
         val voiceView = v.dropdown(R.id.voice, voices.map { Speaker.label(it) }, Speaker.label(main))
-        val quoteView = v.dropdown(R.id.quoteVoice, quoteItems(main), Speaker.label(prefs.quoteVoice).takeIf { it in quoteItems(main) } ?: quoteItems(main).first())
+        val quote = Speaker.resolve(prefs.quoteVoice, d, packs)?.name?.let(Speaker::label)?.takeIf { it in quoteItems(main) }
+        val quoteView = v.dropdown(R.id.quoteVoice, quoteItems(main), quote ?: quoteItems(main).first())
         voiceView.setOnItemClickListener { _, _, _, _ ->
             // сменился движок — список прямой речи другой, несовместимый выбор на «как основной»
             val items = quoteItems(nameOf(voiceView.str()) ?: main)
@@ -107,7 +109,8 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     override fun save(v: View) {
         val main = nameOf(v.findViewById<TextView>(R.id.voice).str()) ?: prefs.voice
         if (main in voices) prefs.voice = main
-        prefs.quoteVoice = nameOf(v.findViewById<TextView>(R.id.quoteVoice).str())?.takeIf { Speaker.label(it) in quoteItems(main) } ?: ""
+        // без голосов (lite до пака) выпадашка пустая — не затирать голос прямой речи из prefs
+        if (voices.isNotEmpty()) prefs.quoteVoice = nameOf(v.findViewById<TextView>(R.id.quoteVoice).str())?.takeIf { Speaker.label(it) in quoteItems(main) } ?: ""
         rateItems.indexOf(v.findViewById<TextView>(R.id.sampleRate).str()).let { if (it >= 0) prefs.sampleRate = rates[it] }
         prefs.rate = v.findViewById<Slider>(R.id.rate).value
         prefs.pitch = v.findViewById<Slider>(R.id.pitch).value
