@@ -163,7 +163,7 @@
     <string name="pack_installed">Пак установлен: %1$s</string>
     <string name="pack_info">%1$d голосов · %2$d МБ · %3$s</string>
     <string name="pack_delete">Удалить</string>
-    <string name="pack_delete_confirm">Удалить пак «%1$s»? Файлы модели будут стёрты, выбранный голос вернётся к штатному.</string>
+    <string name="pack_delete_confirm">Удалить пак «%1$s»? Файлы модели будут стёрты; если его голос был выбран, голос сбросится.</string>
     <string name="pack_deleted">Пак удалён</string>
     <string name="about_pack">\n\nПак «%1$s»: %2$s, лицензия %3$s.</string>
 

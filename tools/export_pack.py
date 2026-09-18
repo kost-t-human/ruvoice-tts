@@ -12,7 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DIST = os.path.join(ROOT, 'dist')
 GOLDEN = os.path.join(ROOT, 'app/src/test/resources/golden_pack.json')
-FORMAT = 2   # Packs.FORMAT в приложении: три файла моделей, forward на 11 аргументов
+FORMAT = 2   # Packs.FORMAT в приложении: три файла моделей; число аргументов forward задаёт types в pack.json
 PACKS = {
     # id: (файл модели, фильтр голосов, types, title, license, source, golden-голос)
     'cis_ru': ('v5_cis_base_nostress.pt', lambda s: s.startswith('ru_'), False, 'Русские голоса Silero v5 CIS — экспериментально', 'MIT',
@@ -24,7 +24,7 @@ TEXT = 'прив+ет, м+ир.'
 
 
 def tts_args(pk, text, sr=48000):
-    """11 аргументов forward (как у v5_ru: без type_ids и focus_mask), speaker подставляется вызывающим."""
+    """Тензоры для forward: seq, sr, rates, pitches; speaker, type_ids и focus_mask подставляет вызывающий."""
     seq, _ = pk.preprocess_tacotron(text); seq = seq.unsqueeze(0); n = seq.shape[1]
     return seq, sr, torch.ones(1, n), torch.ones(1, n)
 
