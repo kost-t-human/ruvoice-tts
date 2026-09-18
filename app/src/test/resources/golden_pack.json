@@ -2,7 +2,7 @@
  "pack": {
   "format": 2,
   "id": "cis_ru",
-  "title": "Русские голоса Silero v5 CIS",
+  "title": "Русские голоса Silero v5 CIS — экспериментально",
   "license": "MIT",
   "source": "https://models.silero.ai/models/tts/ru/v5_cis_base_nostress.pt",
   "symbols": "|!'+,-.:;?hабвгдежзийклмнопрстуфхцчшщъыьэюяёєіїјўґғҕҗҙқҝҡңҥҫүұҳҷҹһӑӗәӝӟӣӥӧөӯӱӳӵӏ—… ",

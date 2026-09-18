@@ -59,7 +59,17 @@ RuVoice заворачивает модель в `TextToSpeechService` и доб
 
 ## Установка
 
-Собранный APK лежит в [Releases](../../releases): скачать на телефон (arm64, Android 8.0+) и установить. Файл большой, около 220 МБ — внутри модели и два рантайма.
+Собранный APK лежит в [Releases](../../releases): скачать на телефон (arm64, Android 8.0+) и установить. Файл большой, около 230 МБ — внутри модели и два рантайма.
+
+Две сборки в каждом релизе: `ruvoice-tts-X.Y.Z.apk` — с моделью внутри, работает сразу;
+`ruvoice-tts-X.Y.Z-lite.apk` — без модели (~145 МБ вместо ~230), штатные голоса ставятся один раз паком
+`ruvoice-pack-ru.zip` из релиза [«Паки голосов»](../../releases/tag/packs), дальше обновляется только
+приложение. Сборки взаимозаменяемы: ставятся друг поверх друга, настройки и паки сохраняются.
+
+Переход между сборками — обычная установка поверх, без удаления: настройки, словари и паки остаются.
+С 0.12.1 или с полной сборки на lite: поставить lite, затем один раз поставить пак `ruvoice-pack-ru.zip`
+(встроенной модели в lite нет, до установки пака голосов не будет — приложение само откроет диалог паков).
+С lite на полную: поставить полную сборку, пак `ru` станет лишним, его можно удалить в «Дополнительных голосах».
 
 Скорость на телефонах (RTF — время синтеза к длине звука, меньше лучше): Galaxy A32 (Helio G80, 2×A75 + 6×A55) 0,21, Redmi Note 13 5G (Dimensity 6080) и Xiaomi на Snapdragon 4 Gen 2 около 0,05. Вокодер, три четверти времени синтеза, работает в ExecuTorch (XNNPACK, fp32), остальное в TorchScript Lite: на 20 % быстрее и на столько же меньше процессорного времени, чем целиком в Lite, звук тот же. Память в работе 350–500 МБ.
 
@@ -72,11 +82,13 @@ RuVoice заворачивает модель в `TextToSpeechService` и доб
 pip install -r tools/requirements.txt
 curl -L -o tools/v5_5_ru.pt https://models.silero.ai/models/tts/ru/v5_5_ru.pt
 
-# 2. Конвертация в TorchScript Lite: tts_mel.ptl (текст → мел), head.ptl (голова вокодера),
-#    accentor.ptl, homo.ptl и silero_ru.json появятся в app/src/main/assets/silero/.
+# 2. Конвертация в TorchScript Lite: tts_mel.ptl (текст → мел) и head.ptl (голова вокодера) —
+#    модель, попадает в app/src/full/assets/silero/ (только сборка full); accentor.ptl, homo.ptl
+#    и silero_ru.json — общие для full и lite, в app/src/main/assets/silero/.
 #    Скрипт сам сверяет выход lite-модулей с оригиналом и печатает "verify: ok".
 python3 tools/export_silero.py
-# Пак дополнительных голосов собирается отдельно: ../venv-et/bin/python tools/export_pack.py, см. «Дополнительные голоса»
+# Пак дополнительных голосов собирается отдельно: ../venv-et/bin/python tools/export_pack.py cis_ru
+# (или ru — штатный пак для сборки lite), см. «Дополнительные голоса»
 
 # 2а. Ударения — из Silero Stress (MIT) вместо акцентора v5: перезаписывает accentor.ptl, homo.ptl,
 #     стрессовую часть silero_ru.json и golden.json. Нужен venv с silero-stress.
@@ -84,7 +96,8 @@ pip install silero-stress
 python3 tools/export_silero_stress.py
 #     Заодно собирает системный словарь из tools/stress_fixes.txt и tools/phrases_extra.txt (tools/system_dicts.py).
 
-# 2б. Бэкбон вокодера (ConvNeXt, три четверти времени синтеза) — в ExecuTorch с XNNPACK: backbone.pte.
+# 2б. Бэкбон вокодера (ConvNeXt, три четверти времени синтеза) — в ExecuTorch с XNNPACK: backbone.pte,
+#     тоже в app/src/full/assets/silero/ (только full).
 #     Только fp32: в fp16 XNNPACK на ARM копит ошибку, на golden-наборе SNR падает до 20 дБ.
 #     Отдельный venv с executorch (pip install executorch torch --extra-index-url https://download.pytorch.org/whl/cpu).
 #     Рантайм для Android: app/libs/executorch-1.5.0-xnnpack.aar собирает tools/build_executorch_aar.sh (NDK r28c);
@@ -101,9 +114,9 @@ python3 tools/aot_morph.py <morph_dict>/data/Russian
 #     → app/src/main/assets/morph.bin, 13 МБ, 1,1 млн форм; ассет несжатый, читается через mmap, повторная сборка
 #     даёт тот же файл. Что по нему решает нормализатор — в NORMALIZER.md.
 
-# 3. Сборка и установка
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+# 3. Сборка и установка (flavor full — модель встроена в APK; для lite нужен ещё пак ruvoice-pack-ru.zip)
+./gradlew :app:assembleFullDebug
+adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
 ## Настройка
@@ -180,6 +193,17 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Пак — zip-файл с моделью Silero `v5_cis_base_nostress` (около 80 МБ), лежит в отдельном релизе [«Паки голосов»](../../releases/tag/packs) (тег `packs`, не привязан к версии приложения). Установка: меню → **Дополнительные голоса…** → **Установить из файла…** → выбрать скачанный zip. Интернет приложению по-прежнему не нужен, разрешений тоже. Голоса появляются в списке на вкладке «Голос» с пометкой пака: `ru_alexandr (cis_ru)`, и в списке голосов у читалок. Пак не входит в бэкап Android и в экспорт настроек — переносится только имя голоса, без пака оно сбрасывается на штатный.
 
+Какие паки есть:
+
+- `ruvoice-pack-ru.zip` — штатная модель `v5_5_ru`, самая свежая, та же, что встроена в полную сборку
+  (пять голосов, лицензия CC BY-NC-SA 4.0). Нужен только сборке lite.
+- `ruvoice-pack-cis_ru.zip` — 29 русских голосов модели `v5_cis_base_nostress` (лицензия MIT). Добавлен
+  как экспериментальный: модель старее, может хуже работать с ударениями, омографами и произношением, без интонации
+  вопросов и восклицаний и без логического ударения.
+
+Без единого голоса приложение сразу открывает диалог паков, а читалка по кнопке «установить данные»
+попадает туда же.
+
 В паке 29 русских голосов: `ru_aigul, ru_albina, ru_alexandr, ru_alfia, ru_alfia2, ru_bogdan, ru_dmitriy, ru_eduard, ru_ekaterina, ru_gamat, ru_igor, ru_karina, ru_kejilgan, ru_kermen, ru_marat, ru_miyau, ru_nurgul, ru_oksana, ru_onaoy, ru_ramilia, ru_roman, ru_safarhuja, ru_saida, ru_sibday, ru_vika, ru_zara, ru_zhadyra, ru_zhazira, ru_zinaida`. Дикторы — из записей для татарского, калмыцкого, казахского и других языков, читающие по-русски; у части голосов слышен акцент. Лицензия модели MIT, для голосов пака некоммерческое ограничение `v5_5_ru` не действует.
 
 Ударения, словари, замены, прямая речь, паузы, темп и высота работают как со штатными голосами — весь конвейер тот же, другая только модель синтеза. Чего у неё нет: интонации вопросов и восклицаний (типы предложений) и логического ударения (`*слово*`); восклицательный знак и апостроф до модели не доходят (так устроена таблица символов этой модели). Голос прямой речи выбирается из того же движка, что основной: в памяти держится одна модель.
@@ -195,11 +219,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ## Разработка
 
 ```sh
-./gradlew :app:testDebugUnitTest          # JVM-тесты: нормализация, ударения, замены, паузы, SSML
+./gradlew :app:testFullDebugUnitTest          # JVM-тесты: нормализация, ударения, замены, паузы, SSML
 # На устройстве (модели против эталона, сервис через TextToSpeech API, точность омографов и «ё»):
-./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+./gradlew :app:assembleFullDebug :app:assembleFullDebugAndroidTest
+adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
+adb install -r app/build/outputs/apk/androidTest/full/debug/app-full-debug-androidTest.apk
 adb shell am instrument -w -e class ru.kost.ruvoice.SileroModelsTest ru.kost.ruvoice.test/androidx.test.runner.AndroidJUnitRunner
 adb uninstall ru.kost.ruvoice.test
 # Не `connectedAndroidTest`: он переустанавливает приложение и сносит словари и настройки пользователя.
@@ -217,7 +241,9 @@ app/src/main/java/ru/kost/ruvoice/
   text/                 Normalizer, Abbrev, Stress, BertTokenizer, Replacements, Splitter, SentenceType, Ssml
   audio/                Pcm (float → int16 с насыщением), Tempo (Sonic), Pauses
 app/src/main/java/sonic/Sonic.java        растяжение темпа
-app/src/main/assets/silero/               модели и silero_ru.json
+app/src/full/assets/silero/               модель: tts_mel.ptl, head.ptl, backbone.pte (только full)
+app/src/main/assets/silero/               accentor.ptl, homo.ptl, silero_ru.json (общие для full и lite)
+tools/build_release.sh                    релизные APK full и lite в dist/
 tools/export_silero.py                    конвертация v5_5_ru.pt
 tools/silero_export.py                    общая хирургия tts и бэкбон вокодера для ExecuTorch
 tools/export_pack.py                      сборка пака дополнительных голосов

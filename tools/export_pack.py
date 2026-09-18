@@ -15,7 +15,7 @@ GOLDEN = os.path.join(ROOT, 'app/src/test/resources/golden_pack.json')
 FORMAT = 2   # Packs.FORMAT в приложении: три файла моделей, forward на 11 аргументов
 PACKS = {
     # id: (файл модели, фильтр голосов, types, title, license, source, golden-голос)
-    'cis_ru': ('v5_cis_base_nostress.pt', lambda s: s.startswith('ru_'), False, 'Русские голоса Silero v5 CIS', 'MIT',
+    'cis_ru': ('v5_cis_base_nostress.pt', lambda s: s.startswith('ru_'), False, 'Русские голоса Silero v5 CIS — экспериментально', 'MIT',
                'https://models.silero.ai/models/tts/ru/v5_cis_base_nostress.pt', 'ru_alexandr'),
     'ru': ('v5_5_ru.pt', lambda s: True, True, 'Штатные голоса Silero v5.5', 'CC BY-NC-SA 4.0',
            'https://models.silero.ai/models/tts/ru/v5_5_ru.pt', 'xenia'),
