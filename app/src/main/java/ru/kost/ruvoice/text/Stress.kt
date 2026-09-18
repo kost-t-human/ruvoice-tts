@@ -334,6 +334,10 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         return Positions(stress, yo, vowelIds.size, vowelIds.firstOrNull() ?: -1)
     }
 
+    /** Безударные приставки перед дефисом: «в+о-п+ервых» модель тянет «воо…» (о 8 кадров + дефис 7 почти тишины
+     * против 5 у «во-п+ервых»), у Silero Stress так же. «кто-нибудь», «кое-как» ударение на первой части держат. */
+    private val hyphenPrefix = setOf("во", "по", "из")
+
     private fun tokenize(sentence: String): Triple<List<String>, List<String>, List<Boolean>> {
         val tokens = ArrayList<String>(); val inputs = ArrayList<String>(); val mask = ArrayList<Boolean>()
         for (word in splitKeep(sentence)) {
@@ -342,7 +346,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             if (parts.size == 1) { cur = parts; curMask = listOf(true) }
             else {
                 cur = parts.dropLast(1).map { "$it-" } + parts.last()
-                curMask = parts.dropLast(1).map { true } + (parts.last() != "то")
+                curMask = parts.dropLast(1).map { it.lowercase() !in hyphenPrefix } + (parts.last() != "то")
             }
             val curInputs = cur.map { nonCyr.replace(it.lowercase(), "") }
             tokens += cur; inputs += curInputs

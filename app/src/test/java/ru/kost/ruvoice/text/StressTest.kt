@@ -68,6 +68,12 @@ class StressTest {
         assertEquals("кт+о-то, +а т+ы?", Stress(d, firstVowel).apply("кто-то, а ты?"))
     }
 
+    @Test fun hyphenPrefixNotStressed() {
+        // «в+о-п+ервых» модель тянет «воо…»: приставка перед дефисом без принудительного ударения одной гласной
+        assertEquals("во-п+ервых, по-м+оему, из-з+а", Stress(d, firstVowel).apply("во-первых, по-моему, из-за"))
+        assertEquals("кт+о-н+ибудь", Stress(d, firstVowel).apply("кто-нибудь"))
+    }
+
     @Test fun goldenHomographContexts() {
         // контекст с [HOMO]-маркерами (окно 150 символов, чистка HomoSolver._clean_text) — как в Python
         val g = TestData.golden()
