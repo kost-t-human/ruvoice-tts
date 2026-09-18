@@ -55,6 +55,8 @@ class Table:
     @staticmethod
     def is_adjective(t): return t & 14 != 0
     @staticmethod
+    def animate(t): return t & 128 != 0
+    @staticmethod
     def genders(t): return [g for g, b in (('m', 16), ('f', 32), ('n', 64)) if t & b]
     @staticmethod
     def cases(t, shift): return {c for i, c in enumerate(CASES) if t >> (shift + i) & 1}

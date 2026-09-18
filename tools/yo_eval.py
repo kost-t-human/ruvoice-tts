@@ -5,7 +5,9 @@
 однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Поверх модели — наши фразы системного словаря
 (tools/phrases_extra.txt), как замены в аппке, и правило «все» + слово только мн. ч. из Stress.gramPass
 (tools/phrases_extra.vse_pick, таблица morph.bin). Промахи — app/build/yo_eval_miss.txt.
-Запуск: <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений]"""
+Запуск: <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений] [корпус.txt]
+Другой корпус — файл ёфицированных предложений по одному на строку, например ../narusco/yo_corpus.txt (фрагменты narusco с
+ручной «ё», промахи тогда в app/build/<имя>_miss.txt)."""
 import os, re, sys, json, collections, itertools
 from silero_stress import load_accentor
 
@@ -13,7 +15,10 @@ HERE = os.path.dirname(os.path.abspath(__file__)); BUILD = os.path.join(os.path.
 sys.path.insert(0, HERE); import phrases_extra as pe
 from aot_morph import Table
 morph = Table(); gram = json.load(open(pe.JSON, encoding='utf-8'))['gram']
-LIMIT = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+args = sys.argv[1:]
+CORPUS = next((a for a in args if a.endswith('.txt')), os.path.join(BUILD, 'yo_corpus.txt'))
+LIMIT = next((int(a) for a in args if a.isdigit()), 0)
+MISS = os.path.join(BUILD, ('yo_eval' if CORPUS.startswith(BUILD) else os.path.splitext(os.path.basename(CORPUS))[0]) + '_miss.txt')
 word_re = re.compile(r'[а-яё]+')
 # слово → [(regex фразы, смещение слова в фразе, вариант)], длинные фразы раньше, как в homo_eval.py
 phrases = {w: [(re.compile(r'(?<![а-яё-])' + re.escape(p) + r'(?![а-яё-])'), re.search(r'(?<![а-яё])' + w + r'(?![а-яё])', p).start(), v.replace('+', ''))
@@ -44,7 +49,7 @@ def kind(w_yo):
 
 
 ss = load_accentor()
-lines = [l.strip() for l in open(os.path.join(BUILD, 'yo_corpus.txt'), encoding='utf-8') if l.strip()]
+lines = [l.strip() for l in open(CORPUS, encoding='utf-8') if l.strip()]
 if LIMIT: lines = lines[:LIMIT]
 st = collections.defaultdict(collections.Counter); miss = []
 for n, sent in enumerate(lines):
@@ -73,6 +78,6 @@ for k in ('однозначные', 'неоднозначные', 'неизве�
     c = st[k]; tot = c['слов с ё']
     print(f"{k:14} слов с ё {tot:6}, восстановлено {c['ё восстановлена']:6} ({c['ё восстановлена'] * 100 / max(tot, 1):.1f}%), потеряно {c['ё потеряна']:5}, лишняя ё {c['ё лишняя']:5}")
 print(dict(st['всего']))
-with open(os.path.join(BUILD, 'yo_eval_miss.txt'), 'w', encoding='utf-8') as o:
+with open(MISS, 'w', encoding='utf-8') as o:
     o.write('# что | должно быть | модель | предложение\n')
     for m in miss: o.write(' | '.join(m) + '\n')

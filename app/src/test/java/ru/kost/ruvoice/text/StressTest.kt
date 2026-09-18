@@ -42,6 +42,12 @@ class StressTest {
         assertEquals("мам+а", s.apply("мама"))
     }
 
+    @Test fun userDictSkipsPresetStress() {
+        // слово пришло уже с «+» (фраза словаря замен или ударение в тексте) — словарь ударений его не переписывает
+        val s = Stress(d, firstVowel, mapOf("потом" to "пот+ом"))
+        assertEquals("+обливаясь п+отом, +а пот+ом", s.apply("обливаясь п+отом, а потом"))
+    }
+
     @Test fun userDictKeepsOriginalCapitalization() {
         // словарное значение хранится строчными, регистр восстанавливаем по исходному слову
         val s = Stress(d, firstVowel, mapOf("мама" to "мам+а"))
@@ -98,7 +104,7 @@ class StressTest {
         assertEquals("две рук+и", s.gramPass("две руки"))
         assertEquals("в ст+ены", s.gramPass("в стены"))
         assertEquals("за сел+о", s.gramPass("за село"))
-        assertEquals("в пыли", s.gramPass("в пыли"))
+        assertEquals("в пыл+и", s.gramPass("в пыли"))
         assertEquals("я нош+у", s.gramPass("я ношу"))
         assertEquals("вечного г+орода", s.gramPass("вечного города"))
         assertEquals("его руки", s.gramPass("его руки"))
@@ -125,6 +131,45 @@ class StressTest {
         assertEquals("обползать", s.gramPass("обползать"))
         // дальше омографы и акцентор слово не трогают
         assertEquals("з+а сел+о", s.apply("за село"))
+    }
+
+    @Test fun gramPassSecondPrepositional() {
+        val morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin"))
+        val s = Stress(d, firstVowel, morph = morph)
+        // второй предложный после «в/на» и через прилагательное; иначе всегда основа; после глагола движения — вин. мн.
+        assertEquals("в кров+и", s.gramPass("в крови"))
+        assertEquals("анализ кр+ови", s.gramPass("анализ крови"))
+        assertEquals("до кр+ови", s.gramPass("до крови"))
+        assertEquals("в чужой кров+и", s.gramPass("в чужой крови"))
+        assertEquals("в её кров+и", s.gramPass("в её крови"))
+        assertEquals("в потрясённом мозг+у", s.gramPass("в потрясённом мозгу"))
+        assertEquals("в открытые дв+ери", s.gramPass("в открытые двери"))
+        assertEquals("бросилась в дв+ери", s.gramPass("бросилась в двери"))
+        assertEquals("у толстой ц+епи", s.gramPass("у толстой цепи"))
+        assertEquals("колеблющемся дыму", s.gramPass("колеблющемся дыму"))
+        assertEquals("в бред+у", s.gramPass("в бреду"))
+        assertEquals("в тен+и", s.gramPass("в тени"))
+        // одушевлённое после существительного — род. ед.
+        assertEquals("задача уч+ителя", s.gramPass("задача учителя"))
+        assertEquals("пришли учителя", s.gramPass("пришли учителя"))
+        assertEquals("я бреду", s.gramPass("я бреду"))
+    }
+
+    @Test fun gramPassVerbPluralAndQuantity() {
+        val morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin"))
+        val s = Stress(d, firstVowel, morph = morph)
+        // после глагола слово из списка — мн.; не после причастия, не рядом с «не»; вне списка молчим
+        assertEquals("заблестели глаз+а", s.gramPass("заблестели глаза"))
+        assertEquals("опустил р+уки", s.gramPass("опустил руки"))
+        assertEquals("поднявший глаза", s.gramPass("поднявший глаза"))
+        assertEquals("лишился глаза", s.gramPass("лишился глаза"))
+        assertEquals("руки или ноги", s.gramPass("руки или ноги"))
+        assertEquals("не поднимал глаза", s.gramPass("не поднимал глаза"))
+        assertEquals("боялся высоты", s.gramPass("боялся высоты"))
+        // количественное слово справа или слева — род. ед.
+        assertEquals("а вод+ы нет", s.gramPass("а воды нет"))
+        assertEquals("мало вод+ы", s.gramPass("мало воды"))
+        assertEquals("много глаз", s.gramPass("много глаз"))
     }
 
     @Test fun gramPassAgreesWithAdjective() {

@@ -23,23 +23,47 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
 
     fun apply(sentence: String): String {
         var s = sentence
+        // слова, пришедшие уже с «+» (фраза из словаря замен или ударение в самом тексте): словарь ударений их не трогает,
+        // фраза конкретнее слова («обливаясь п+отом» против «потом = пот+ом»)
+        val preset = wordRe.findAll(sentence).filter { '+' in it.value }.map { it.value.lowercase() }.toSet()
         if (rules.on("gram")) s = gramPass(s)
         if (rules.on("homo")) s = homographPass(s)
         if (rules.on("accentor")) s = accentorPass(s)
-        return userDictPass(s)
+        return userDictPass(s, preset)
     }
 
     // ---- грамматика: падеж или часть речи по предыдущему слову ----
     private val genGov = setOf("с", "со", "из", "изо", "от", "ото", "у", "до", "без", "безо", "для", "около", "вдоль", "возле",
         "мимо", "после", "кроме", "вокруг", "против", "среди", "из-за", "из-под", "ради", "вместо", "подле", "близ", "накануне",
-        "вне", "насчёт", "ввиду", "вследствие", "позади", "впереди", "посреди", "сверх", "свыше", "внутри", "внутрь", "вроде",
+        "вне", "насчёт", "насчет", "ввиду", "вследствие", "позади", "впереди", "посреди", "сверх", "свыше", "внутри", "внутрь", "вроде",
         "два", "две", "три", "четыре", "полтора", "полторы", "нет")
+    /** «мало вод+ы», «много дом+ов»: только род. ед. (без запасного n — «он много сопел» глагол); по narusco 110:5. */
+    private val quantGov = setOf("мало", "много", "немного", "немало", "больше", "меньше", "достаточно", "сколько", "столько", "полно")
+    /** «воды нет», «времени мало»: количественное слово справа — род. ед. (по narusco 81:16). */
+    private val quantNext = setOf("нет", "мало", "много", "немного", "достаточно", "больше", "меньше", "немало", "хватает", "хватало", "хватит")
+    /** После глагола эти слова во мн. в ≥93 % (narusco+СинТагРус, n≥6): «заблестели глаз+а», «опустил р+уки». Общее правило
+     * «глагол + слово → мн.» держится лишь на 74 % («бояться высот+ы», «дай вод+ы»), поэтому список. */
+    private val verbPl = setOf("глаза", "руки", "слова", "ноги", "цены", "голоса", "войска", "слезы", "губы", "звезды", "трубы", "окна",
+        "стены", "яйца", "острова", "весла", "колеса", "леса", "ордена", "поля", "свечи", "судьбы")
+    private val verbEnd = Regex("[а-яё]+(ет|ит|ут|ют|ат|ят|ешь|ишь|ем|им|ете|ите|л|ла|ло|ли|ть|ти|чь|ай|яй|уй|юй|ой|ей|йте|ся|сь)")
+    /** Причастия и прилагательные, которых нет в таблице («сломанной», «кодвусийской»), и местоимения («одной», «той»). */
+    private val participleAny = Regex("[а-яё]+((вш|ющ|ущ|ащ|ящ)[а-яё]+|(нн|н|т|ск|ш|щ)(ой|ей|ый|ий))")
+    /** Глаголы, управляющие родительным: «достигли л+еса», «лишился гл+аза», «боимся л+еса», «попросил сл+ова». */
+    private val genVerb = Regex("[а-яё]*(дости|косн|каса|лиш|бо[иея]|опас|избе|сторон|слуша|проси|спроси|требов|треб|доби|добе|было|прибыло)[а-яё]*")
+    private val notVerb = setOf("ли", "или", "бы", "же", "уж", "ль", "ведь", "здесь", "хоть", "чуть", "пусть", "ей", "ней", "ею", "нею", "мной", "мною", "тобой", "тобою",
+        "собой", "собою", "ним", "нём", "нем", "тем", "всем", "этим", "одним", "своим", "моим", "твоим", "нашим", "вашим", "каким", "таким",
+        "самим", "кем", "чем", "ничем", "никем", "своей", "моей", "твоей", "нашей", "вашей", "всей", "чьей", "самой")
+    private val neg = setOf("не", "нет", "ни")
+    /** Глаголов в таблице морфологии нет: слово не из таблицы с глагольным окончанием и не причастие. */
+    private fun verbLike(t: String) = t.isNotEmpty() && (morph == null || morph.tags(t) == 0) && verbEnd.matches(t) &&
+        !participleAny.matches(t) && !genVerb.matches(t) && t !in notVerb
     private val prepOther = setOf("в", "во", "на", "за", "под", "подо", "через", "про", "сквозь", "о", "об", "обо", "по", "при",
         "к", "ко", "над", "надо", "перед", "передо", "между", "меж")
     /** Причастие в род. п. управляет винительным: «прикрывавшего ворота», «туманящего глаза». */
     private val participle = listOf("вшего", "ющего", "ущего", "ащего", "ящего")
     private val locPrep = setOf("в", "во", "на", "при")
     private val pronouns = setOf("я", "ты", "он", "она", "оно", "мы", "вы", "они")
+    private val possessive = setOf("его", "её", "ее", "их")
     /** На «-ого/-его» кончаются и местоимения, после которых стоит именительный: «его руки», «у него дела». */
     private val notAdjective = setOf("его", "него", "чего", "кого", "ничего", "никого", "некого", "нечего", "всего", "сего", "много", "немного", "итого",
         "отчего", "оттого")   // «отчего цены» наречие, «отчего дома» прилагательное — BERT прав в обоих, правило нет
@@ -75,10 +99,13 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         val sb = StringBuilder(sentence)
         var prev = ""; var prev2 = ""; var prev3 = ""; var prev4 = ""; var prevStart = -1; var prevEnd = -1; var offset = 0
         var chainHead = ""   // слово перед цепочкой прилагательных во мн. ч., кончающейся на prev
-        for (m in gramWordRe.findAll(sentence)) {
+        val words = gramWordRe.findAll(sentence).toList()
+        for ((i, m) in words.withIndex()) {
             val w = m.value.lowercase()
             val e = d.gram[w]
             val adjacent = prevEnd >= 0 && sentence.subSequence(prevEnd, m.range.first).all { it.isWhitespace() }
+            val nm = words.getOrNull(i + 1)
+            val nxt = if (nm != null && sentence.subSequence(m.range.last + 1, nm.range.first).all { it.isWhitespace() }) nm.value.lowercase() else ""
             var vse = adjacent && prev == "все" && morph != null && Morph.pluralOnly(morph.tags(w.replace("+", "")))
             val prevOffset = offset
             if (e != null && adjacent) {
@@ -88,6 +115,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
                     prev == "с" && prev2 in sizeWords -> e["p"]
                     prev in genGov -> e["g"] ?: e["n"]
+                    prev in quantGov -> if (prev2 == "не" && (prev == "столько" || prev == "сколько")) null else e["g"]   // «не столько слов+а, сколько…»
+                    "l" in e && e["l"] != e["g"] -> loc2Pick(prev, prev2, prev3, e, w)      // «в кров+и» / «ана́лиз кр+ови»
                     prev in locPrep && "l" in e -> e["l"]                                  // «в глуш+и» — второй предложный
                     (prev == "в" || prev == "во") && "g" in e && "p" !in e -> null         // «выйти в учителя» — им. мн.
                     // второй предложный («в пыл+и», «в цвет+у») совпадает с глаголом — омографы из homodict после в/на оставляем BERT
@@ -98,6 +127,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     prev.endsWith("ого") || prev.endsWith("его") || genAdjRe.matches(prev) ->
                         if (prev in notAdjective || prev.startsWith("сам") && prev2 == "у" || prev.startsWith("котор") || participle.any { prev.endsWith(it) }) null else e["g"] ?: e["n"]
                     prev == "все" && w == "дома" -> null   // «не все дома»: идиома, BERT прав в 7 строках корпуса из 9, согласование в 6
+                    w in verbPl && "p" in e && verbLike(prev) && prev2 !in neg && prev3 !in neg && nxt !in neg -> e["p"]   // «не успел сказать сл+ова»
+                    nxt in quantNext && "g" in e && "p" in e -> e["g"]
                     morph != null && ("g" in e || "p" in e) -> agree(morph, prev, prev2, prev3, prev4, chainHead, w, e)
                     else -> null
                 }
@@ -124,13 +155,48 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
      * стены») прилагательное или причастие на «-ые/-ие» даёт мн.: BERT рядом с причастием прав, а через слово путает.
      * Причастий в таблице нет — узнаём по суффиксу; рядом с ним молчим («искавшие души» — дополнение). По корпусу
      * GramPassCorpusTest ~100 сработок без споров, «две поросшие лесом горы» — род. ед. по числительному. */
+    /** Глаголы движения и превращения: после них «в двери», «в тени» — вин. мн., не второй предложный. */
+    private val accVerb = Regex("(преврат|превращ|брос|попа[лдсв]|сун|стуч|стукн|закова|заков|ломи|влет|вбе[жг]|ворв|кинул|швыр|толкн|во(шёл|шел|шла|шли|йти|йд)|заман|улов|пойма|разворач|вгляд|загляд)[а-яё]*")
+    /** Прилагательное или причастие в предл. ед. по окончанию — для слов, которых нет в таблице морфологии («потрясённом»). */
+    private val prpAdj = Regex("[а-яё]+(ом|ем|ой|ей)(ся)?(-то)?")
+
+    /** Слово со вторым предложным с иным ударением (кр+ови / кров+и): после «в/на/при» — l («в кров+и»), но после глагола
+     * движения это вин. мн. («бросилась в дв+ери»); через прилагательное в предл. — l («в чужой кров+и», «в её кров+и»),
+     * а без предлога перед таким прилагательным молчим («сосновом лесу» — не знаем, что слева); иначе всегда g
+     * («ана́лиз кр+ови»). У слов, совпадающих с глаголом («бреду́»), g нет — без «в/на» молчим. Фразы системного
+     * словаря («превратились в т+ени») применяются к тексту раньше и слово с «+» сюда не попадает. */
+    private fun loc2Pick(prev: String, prev2: String, prev3: String, e: Map<String, String>, w: String): String? {
+        // глагол движения может стоять и через слово: «сунул голову в дв+ери»
+        if (prev in locPrep) return if (accVerb.matches(prev2) || accVerb.matches(prev3)) e["g"] else e["l"]
+        if (prev == "и" && prev3 in locPrep) return e["l"]   // «в крови и гряз+и»
+        val adj = prev in possessive || (if (morph != null && morph.tags(prev) != 0) adjLoc(morph, prev, w) else prpAdj.matches(prev))
+        if (!adj) return e["g"]
+        if (prev2 in locPrep) return e["l"]
+        val adj2 = prev2 in possessive || prpAdj.matches(prev2)
+        if (prev3 in locPrep && adj2) return e["l"]
+        return if (prev2.isNotEmpty() && !adj2) e["g"] else null   // «у толстой ц+епи»; «толстой цепи» без левого контекста — молчим
+    }
+
+    /** Прилагательное согласовано со словом в предл. ед. («густой тени», «самом лесу»), а не в им./вин. мн. («открытые двери»). */
+    private fun adjLoc(m: Morph, adj: String, w: String): Boolean {
+        val ta = m.tags(adj.replace("+", "")); val tw = m.tags(w)
+        if (!Morph.isAdjective(ta) || !Morph.isNoun(tw)) return false
+        if (Morph.adjCases(ta, null, true).any { it == Case.NOM || it == Case.ACC }) return false
+        return Morph.genders(tw).ifEmpty { Gender.values().toList() }.any { Case.PRE in Morph.adjCases(ta, it, false) }
+    }
+
     private fun agree(m: Morph, prev: String, prev2: String, prev3: String, prev4: String, chainHead: String, w: String, e: Map<String, String>): String? {
         if (prev == "всё") return null   // в таблице «ё» = «е», а «всё» — не «все»
         val tw = m.tags(w)
         if (!Morph.isNoun(tw)) return null
         val ta = m.tags(prev.replace("+", ""))
         if (!Morph.isAdjective(ta) || Morph.isNoun(ta)) {
-            if ("p" !in e || prev in genGov || prev in prepOther) return null
+            // одушевлённое без вин. мн. в таблице (учителя, врача): после существительного — род. ед. («задача уч+ителя»),
+            // им. мн. учителя́ после существительного почти не бывает (СинТагРус: 273 против 11, Silero тут ошибается в 18 %)
+            // существительное только в им./вин. мн. («маги учителя», «были мастера» — «были» и есть быль) — молчим
+            if ("p" !in e) return if (prev != "были" && Morph.isNoun(ta) && !Morph.isAdjective(ta) && Morph.animate(tw) &&
+                (Morph.nounCases(ta, false).isNotEmpty() || Morph.nounCases(ta, true).any { it != Case.NOM && it != Case.ACC })) e["g"] else null
+            if (prev in genGov || prev in prepOther) return null
             val far = prev2 in genGov || prev2 in prepOther
             val cand = if (far) prev3 else prev2
             // «бревенчатые стены терема»: прилагательное согласовано с соседом во мн. — не наше
@@ -346,9 +412,10 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     }
 
     // ---- user dictionary ----
-    private fun userDictPass(sentence: String): String {
+    private fun userDictPass(sentence: String, preset: Set<String>): String {
         if (userDict.isEmpty()) return sentence
         return wordRe.replace(sentence) { m ->
+            if (m.value.lowercase() in preset) return@replace m.value
             val orig = m.value.replace("+", "")
             val value = userDict[orig.lowercase()] ?: return@replace m.value
             val stressIdx = value.indexOf('+')
