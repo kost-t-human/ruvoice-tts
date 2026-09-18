@@ -60,6 +60,14 @@ class SpeakerTest {
         assertNull(Speaker.resolve("nobody", d, listOf(ruPack)))
     }
 
+    @Test fun hasVoices() {
+        assertTrue(Speaker.hasVoices(emptyList()))
+        lite {
+            assertFalse(Speaker.hasVoices(emptyList()))
+            assertTrue(Speaker.hasVoices(listOf(pack)))
+        }
+    }
+
     @Test fun fullKeepsBuiltinEvenWithRuPack() {
         val x = Speaker.resolve("xenia", d, listOf(ruPack))!!
         assertNull(x.pack); assertEquals("xenia", x.name)

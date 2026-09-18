@@ -9,7 +9,7 @@ class CheckVoiceDataActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // lite без пака: голосов нет — читалка покажет «установить данные» и пришлёт INSTALL_TTS_DATA
-        val has = Speaker.names(SileroModels.data(this), Packs.installed(filesDir)).isNotEmpty()
+        val has = Speaker.hasVoices(Packs.installed(filesDir))
         val result = Intent().apply {
             putStringArrayListExtra(TextToSpeech.Engine.EXTRA_AVAILABLE_VOICES, arrayListOf<String>().apply { if (has) add("rus-RUS") })
             putStringArrayListExtra(TextToSpeech.Engine.EXTRA_UNAVAILABLE_VOICES, arrayListOf<String>().apply { if (!has) add("rus-RUS") })

@@ -190,8 +190,12 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; synthPool.shutdownNow(); models.release(); super.onDestroy() }
 
+    // Binder-loadLanguage у TextToSpeechService отдаёт клиенту именно этот ответ (onLoadLanguage
+    // в очереди, его результат выбрасывается), поэтому «голосов нет» (lite без пака) — здесь.
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int =
-        if (lang == "rus") TextToSpeech.LANG_COUNTRY_AVAILABLE else TextToSpeech.LANG_NOT_SUPPORTED
+        if (lang != "rus") TextToSpeech.LANG_NOT_SUPPORTED
+        else if (!Speaker.hasVoices(packs())) TextToSpeech.LANG_MISSING_DATA
+        else TextToSpeech.LANG_COUNTRY_AVAILABLE
     override fun onGetLanguage(): Array<String> = arrayOf("rus", "RUS", "")
     override fun onLoadLanguage(lang: String?, country: String?, variant: String?): Int {
         val r = onIsLanguageAvailable(lang, country, variant)

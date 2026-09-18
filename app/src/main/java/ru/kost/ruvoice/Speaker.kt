@@ -27,6 +27,9 @@ class Speaker(val name: String, val pack: Pack?, val id: Int, val sym: Symbols, 
         fun default(d: SileroData, packs: List<Pack>): Speaker? =
             resolve(DEFAULT, d, packs) ?: names(d, packs).firstOrNull()?.let { resolve(it, d, packs) }
 
+        /** Есть ли хоть один голос: встроенная модель или пак с голосами. Без разбора silero_ru.json. */
+        fun hasVoices(packs: List<Pack>) = builtin || packs.any { it.speakers.isNotEmpty() }
+
         /** Все имена: штатные по алфавиту (в full), затем по пакам. */
         fun names(d: SileroData, packs: List<Pack>): List<String> =
             (if (builtin) d.speakers.keys.sorted() else emptyList()) + packs.flatMap { p -> p.speakers.keys.sorted().map { packName(p, it) } }
