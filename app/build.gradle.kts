@@ -50,8 +50,8 @@ android {
 
 dependencies {
     implementation("org.pytorch:pytorch_android_lite:2.1.0")
-    // ExecuTorch 1.5.0 + XNNPACK для бэкбона вокодера (backbone.pte): в Maven Central только 0.6.0, AAR с
-    // https://ossci-android.s3.amazonaws.com/executorch/release/1.5.0-xnnpack/executorch.aar
+    // ExecuTorch 1.5.0 + XNNPACK для бэкбона вокодера (backbone.pte): в Maven Central только 0.6.0. AAR собран
+    // tools/build_executorch_aar.sh — готовый с ossci-android.s3.amazonaws.com падает SIGILL на ARMv8.0 (см. скрипт).
     implementation(files("libs/executorch-1.5.0-xnnpack.aar"))
     implementation("com.facebook.soloader:soloader:0.10.5")
     implementation("androidx.appcompat:appcompat:1.7.0")

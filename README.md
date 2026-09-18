@@ -85,8 +85,8 @@ python3 tools/export_silero_stress.py
 # 2б. Бэкбон вокодера (ConvNeXt, три четверти времени синтеза) — в ExecuTorch с XNNPACK: backbone.pte.
 #     Только fp32: в fp16 XNNPACK на ARM копит ошибку, на golden-наборе SNR падает до 20 дБ.
 #     Отдельный venv с executorch (pip install executorch torch --extra-index-url https://download.pytorch.org/whl/cpu).
-#     Рантайм для Android: app/libs/executorch-1.5.0-xnnpack.aar с
-#     https://ossci-android.s3.amazonaws.com/executorch/release/1.5.0-xnnpack/executorch.aar
+#     Рантайм для Android: app/libs/executorch-1.5.0-xnnpack.aar собирает tools/build_executorch_aar.sh (NDK r28c);
+#     готовый AAR с ossci-android.s3.amazonaws.com не годится — SIGILL на Cortex-A53/A73 (Snapdragon 680/685).
 python3 tools/vocoder_et.py
 
 # 2б. Таблица грамматических омографов (стен+ы / ст+ены по предлогу) — из морфословаря AOT (LGPL):
@@ -209,6 +209,7 @@ app/src/main/assets/silero/               модели и silero_ru.json
 tools/export_silero.py                    конвертация v5_5_ru.pt
 tools/export_silero_stress.py             ударения из Silero Stress поверх (accentor.ptl, homo.ptl)
 tools/vocoder_et.py                       бэкбон вокодера → ExecuTorch backbone.pte (XNNPACK, fp32)
+tools/build_executorch_aar.sh             рантайм ExecuTorch для Android без inline LSE-атомиков (ARMv8.0)
 tools/stress_survey.py, stress_compare.py сверка ударений модели со словарями замен (см. комментарии)
 tools/aot_forms.py, wikt_forms.py          словоформы с ударениями из AOT и Викисловаря → app/build/*.tsv
 tools/aot_morph.py                         таблица морфологии AOT → assets/morph.bin (нормализатор: род, падеж, сокращения)
