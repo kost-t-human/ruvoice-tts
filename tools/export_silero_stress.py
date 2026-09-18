@@ -76,6 +76,7 @@ def phrases():
                 d.append([phrase, variant])
         assert d, word
         out[word] = d
+    sys.path.insert(0, HERE); import phrases_drop; phrases_drop.apply(out)   # вредные и бесполезные по золоту (tools/phrases_drop.txt)
     return out
 
 
