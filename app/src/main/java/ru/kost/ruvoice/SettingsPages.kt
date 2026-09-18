@@ -55,12 +55,15 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     private val voices by lazy { Speaker.names(d, packs) }
     private fun nameOf(label: String) = voices.firstOrNull { Speaker.label(it) == label }
     /** Голоса прямой речи — того же движка, что основной: «как основной» + Speaker.sameEngine. */
-    private fun quoteItems(main: String) = listOf(getString(R.string.quote_voice_default)) +
-        Speaker.sameEngine(Speaker.resolve(main, d, packs) ?: Speaker.default(d, packs)!!, d, packs).map { Speaker.label(it) }
+    private fun quoteItems(main: String): List<String> {
+        val s = Speaker.resolve(main, d, packs) ?: Speaker.default(d, packs) ?: return listOf(getString(R.string.quote_voice_default))
+        return listOf(getString(R.string.quote_voice_default)) + Speaker.sameEngine(s, d, packs).map { Speaker.label(it) }
+    }
     private val rateItems by lazy { rates.map { getString(R.string.sample_rate_item, it) } }
 
     override fun load(v: View) {
-        val main = prefs.voice.takeIf { it in voices } ?: Speaker.default(d, packs)!!.name
+        // lite без пака: голосов нет — пустые выпадашки, кнопки ниже ничего не делают
+        val main = prefs.voice.takeIf { it in voices } ?: Speaker.default(d, packs)?.name ?: ""
         val voiceView = v.dropdown(R.id.voice, voices.map { Speaker.label(it) }, Speaker.label(main))
         val quoteView = v.dropdown(R.id.quoteVoice, quoteItems(main), Speaker.label(prefs.quoteVoice).takeIf { it in quoteItems(main) } ?: quoteItems(main).first())
         voiceView.setOnItemClickListener { _, _, _, _ ->
@@ -90,10 +93,12 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
 
         v.findViewById<Button>(R.id.preview).setOnClickListener { btn ->
+            if (voices.isEmpty()) return@setOnClickListener
             save(v)
             (activity as SettingsActivity).preview(btn, previewText.str().ifBlank { getString(R.string.preview_text) })
         }
         v.findViewById<Button>(R.id.analyze).setOnClickListener {
+            if (voices.isEmpty()) return@setOnClickListener
             save(v)
             analyze(previewText.str().ifBlank { getString(R.string.preview_text) })
         }
@@ -157,7 +162,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
                 val d = SileroModels.data(ctx)
                 val packs = Packs.installed(ctx.filesDir)
                 // фильтр символов — того движка, что озвучит: у cis-пака нет «!» и апострофа
-                val allowed = (Speaker.resolve(prefs.voice, d, packs) ?: Speaker.default(d, packs)!!).sym.allowed
+                val allowed = (Speaker.resolve(prefs.voice, d, packs) ?: Speaker.default(d, packs))?.sym?.allowed ?: d.sym.allowed
                 val rules = prefs.rules()
                 val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
                 buildString {

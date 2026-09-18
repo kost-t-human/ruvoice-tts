@@ -10,6 +10,12 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
         <TextView
+            android:id="@+id/packsNone"
+            style="@style/SectionHint"
+            android:visibility="gone"
+            android:textColor="?attr/colorError"
+            android:text="@string/packs_none" />
+        <TextView
             android:id="@+id/packsHint"
             style="@style/SectionHint"
             android:text="@string/packs_hint" />

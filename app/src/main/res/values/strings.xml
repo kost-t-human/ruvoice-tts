@@ -156,7 +156,8 @@
     <!-- Паки голосов -->
     <string name="voice_packs">Дополнительные голоса…</string>
     <string name="packs_title">Дополнительные голоса</string>
-    <string name="packs_hint">Экспериментальная функция. Пак — zip-файл с другой моделью Silero и её голосами (около 80 МБ). Эта модель может хуже разбирать текст: у неё нет интонации вопросов и восклицаний и логического ударения. Голоса пака появятся в списке на вкладке «Голос».\n\nПаки лежат в отдельном релизе «Паки голосов»:\nhttps://github.com/kost-t-human/ruvoice-tts/releases/tag/packs</string>
+    <string name="packs_hint">Пак — zip-файл с моделью Silero и её голосами (80–85 МБ). Голоса пака появляются в списке на вкладке «Голос». У паков с другими моделями (например, cis_ru) нет интонации вопросов и восклицаний и логического ударения.\n\nПаки лежат в отдельном релизе «Паки голосов»:\nhttps://github.com/kost-t-human/ruvoice-tts/releases/tag/packs</string>
+    <string name="packs_none">Голосов нет: в этой версии приложения модель не встроена. Установите пак ruvoice-pack-ru.zip (штатные голоса, около 85 МБ) или любой другой пак.</string>
     <string name="packs_install">Установить из файла…</string>
     <string name="packs_installing">Установка пака…</string>
     <string name="pack_installed">Пак установлен: %1$s</string>

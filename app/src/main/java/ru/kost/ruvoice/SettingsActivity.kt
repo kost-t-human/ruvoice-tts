@@ -85,6 +85,9 @@ class SettingsActivity : AppCompatActivity() {
         // После установки/удаления пака окно тоже создаётся заново (списки голосов — lazy в фрагментах).
         intent.getStringExtra(EXTRA_SNACK)?.let { msg -> intent.removeExtra(EXTRA_SNACK); root.post { showSnackbar(msg) } }
         if (intent.getBooleanExtra(EXTRA_SHOW_PACKS, false)) { intent.removeExtra(EXTRA_SHOW_PACKS); root.post { showPacks() } }
+        // lite без пака или запрос читалки «установить данные» (INSTALL_TTS_DATA): сразу диалог паков
+        if (intent.action == TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA ||
+            Speaker.names(SileroModels.data(this), Packs.installed(filesDir)).isEmpty()) root.post { showPacks() }
 
         if (!prefs.setupShown) { prefs.setupShown = true; root.post { showSetupHelp() } }
 
@@ -229,8 +232,9 @@ class SettingsActivity : AppCompatActivity() {
         val v = layoutInflater.inflate(R.layout.dialog_packs, null)
         val list = v.findViewById<LinearLayout>(R.id.packsList)
         val packs = Packs.installed(filesDir)
-        // подсказка всегда видна: пометка «экспериментально» и ссылка на Releases, кликабельная как в «О программе»
+        // подсказка всегда видна, ссылка на Releases кликабельная как в «О программе»
         v.findViewById<TextView>(R.id.packsHint).let { Linkify.addLinks(it, Linkify.WEB_URLS); it.movementMethod = LinkMovementMethod.getInstance() }
+        v.findViewById<View>(R.id.packsNone).visibility = if (Speaker.names(SileroModels.data(this), packs).isEmpty()) View.VISIBLE else View.GONE
         for (p in packs) {
             val row = layoutInflater.inflate(R.layout.item_pack, list, false)
             row.findViewById<TextView>(R.id.title).text = p.title
