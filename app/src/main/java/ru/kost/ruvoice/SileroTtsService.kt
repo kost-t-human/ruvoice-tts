@@ -173,10 +173,12 @@ class SileroTtsService : TextToSpeechService() {
         // словари разбираются раз на процесс; большие списки — секунда на телефоне, лучше
         // потратить её сейчас, чем на первой фразе
         prefs.userDict(); prefs.replacements()
+        // греем тройку голоса из настроек, а не штатную: иначе первый запрос перегружает 90 МБ
+        val v = currentSpeaker()
         synchronized(models) {
-            models.ensureLoaded()
-            val seq = models.data.sequence("прив+ет.")
-            models.synthesize(seq, 0, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size), LongArray(seq.size), emptyMap())
+            models.ensureLoaded(v.pack)
+            val seq = v.sym.sequence("прив+ет.")
+            models.synthesize(seq, v.id, prefs.sampleRate, FloatArray(seq.size) { 1f }, FloatArray(seq.size) { 1f }, LongArray(seq.size), LongArray(seq.size), emptyMap(), v.types)
         }
         scheduleUnload()
     }
@@ -226,7 +228,7 @@ class SileroTtsService : TextToSpeechService() {
     override fun onIsValidVoiceName(name: String?): Int =
         if (Speaker.resolve(name?.removePrefix("ru-ru-"), models.data, packs()) != null) TextToSpeech.SUCCESS else TextToSpeech.ERROR
     override fun onLoadVoice(name: String?): Int = onIsValidVoiceName(name)
-    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(prefs.voice)
+    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(currentSpeaker().name)
 
     override fun onStop() { stopped = true }
 
