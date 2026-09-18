@@ -6,7 +6,7 @@ import org.junit.Test
 class SettingsJsonTest {
     private val samplePrefs = mapOf(
         "voice" to "xenia", "sr" to 48000, "pause_sentence" to 0, "pause_paragraph" to 300,
-        "pause_comma" to 100, "idle_min" to 5, "rate" to 1.0, "pitch" to 1.0,
+        "pause_comma" to 100, "pause_dash" to 150, "idle_min" to 5, "rate" to 1.0, "pitch" to 1.0,
         "quote_voice" to "", "quote_rate" to 1.0, "quote_pitch" to 1.0,
     )
 

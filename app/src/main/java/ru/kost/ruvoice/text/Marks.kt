@@ -20,7 +20,7 @@ object Marks {
     private val focusRe = Regex("\\*([^*\\s](?:[^*]*?[^*\\s])?)\\*")
     private val tokenRe = Regex("\\S+")
     private val nonKey = Regex("[^\\p{L}\\d]")
-    private const val PUNCT = ",.;:!?…–-"
+    const val PUNCT = ",.;:!?…–—-"
 
     /** Кадр модели — 12.5 мс; первые 10 кадров символа модель оставляет естественными, остальное тишина (fx_pauses). */
     fun frames(pauseMs: Int): Long = 10L + Math.round(pauseMs / 12.5)

@@ -1939,7 +1939,9 @@ object Normalizer {
 
     fun symbols(text: String, allowed: String, rules: Rules = Rules()): String {
         // «±»/«≈»/«&» — словами (task 28 п.6), иначе фильтр allowed их молча выкинет.
-        val normalized = (if (rules.on("pause_parens")) ::parens else { s: String -> s })(text.replace('—', '–').replace(hyphenClass, "-").replace("±", " плюс-минус ").replace("≈", " примерно ")
+        // Тире — то, что знает модель: v5_5_ru «–», cis-пак только «—»; иначе фильтр съест знак и паузы не будет.
+        val dash = if ('–' in allowed || '—' !in allowed) '–' else '—'
+        val normalized = (if (rules.on("pause_parens")) ::parens else { s: String -> s })(text.replace('—', '–').replace('–', dash).replace(hyphenClass, "-").replace("±", " плюс-минус ").replace("≈", " примерно ")
             .replace("&", " и ").replace(wsClass, " "))
         val sb = StringBuilder(normalized.length)
         for (c in normalized) if (c in allowed) sb.append(c)

@@ -61,6 +61,7 @@
     <string name="pause_sentence">После предложения</string>
     <string name="pause_paragraph">После абзаца</string>
     <string name="pause_comma">После запятой</string>
+    <string name="pause_dash">На тире</string>
     <string name="ms_suffix">мс</string>
     <string name="section_runtime">Память</string>
     <string name="idle_on">Выгружать модели при простое</string>

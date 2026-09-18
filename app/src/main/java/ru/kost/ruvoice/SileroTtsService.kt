@@ -266,10 +266,12 @@ class SileroTtsService : TextToSpeechService() {
             val quoteRate = prefs.quoteRate
             val quotePitch = prefs.quotePitch
             val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
-            // Пауза после запятой — явная длительность самой запятой в кадрах модели (Marks.frames).
-            val commaIds = if (prefs.commaPauseMs <= 0) emptySet() else listOfNotNull(sym.symbolToId[','],
-                *(if (rules.on("pause_semicolon")) arrayOf(sym.symbolToId[';'], sym.symbolToId[':']) else emptyArray())).toHashSet()
-            val commaFrames = Marks.frames(prefs.commaPauseMs)
+            // Паузы после запятой и на тире — явная длительность самого знака в кадрах модели (Marks.frames);
+            // ноль — как решит модель. Дефис/минус в пробелах Normalizer.punctuation уже свёл к «–».
+            val pauseFrames = HashMap<Int, Long>()
+            fun pause(ms: Int, vararg chars: Char) { if (ms > 0) for (c in chars) sym.symbolToId[c]?.let { pauseFrames[it] = Marks.frames(ms) } }
+            pause(prefs.commaPauseMs, ',', *(if (rules.on("pause_semicolon")) charArrayOf(';', ':') else charArrayOf()))
+            pause(prefs.dashPauseMs, '–', '—')
             // Слова запроса для подсветки читаемого слова (rangeStart): ключ и смещения в тексте.
             // SSML-теги и маркеры заменяются пробелами той же длины, чтобы смещения не поехали.
             val srcText = request.charSequenceText.toString().let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }
@@ -302,7 +304,12 @@ class SileroTtsService : TextToSpeechService() {
                         val al = Marks.align(marks.words, accented, seq.size, sym)
                         for (i in al.pitches.indices) al.pitches[i] *= curPitch
                         // seq = sos + accented + eos, индексы совпадают с durs напрямую.
-                        val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
+                        // seq[1] — первый символ сегмента: тире перед репликой («— Привет»), пауза там — тишина до слов.
+                        // Тире после знака («, —», «! —») — авторская ремарка, паузу уже дал сам знак.
+                        val symbDurs = (2 until seq.size).mapNotNull { i ->
+                            val fr = pauseFrames[seq[i].toInt()] ?: return@mapNotNull null
+                            if (accented[i - 1] in "–—" && accented.substring(0, i - 1).trimEnd().lastOrNull()?.let { it in Marks.PUNCT } == true) null else i.toLong() to fr
+                        }.toMap() + al.symbDurs
                         Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs, voice.types), Marks.tokens(accented, sym))
                     } catch (e: Throwable) {
                         // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.

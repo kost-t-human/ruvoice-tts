@@ -12,6 +12,7 @@ class Prefs(private val context: Context) {
     var sentencePauseMs: Int get() = p.getInt("pause_sentence", 0); set(v) = p.edit().putInt("pause_sentence", v).apply()
     var paragraphPauseMs: Int get() = p.getInt("pause_paragraph", 300); set(v) = p.edit().putInt("pause_paragraph", v).apply()
     var commaPauseMs: Int get() = p.getInt("pause_comma", 100); set(v) = p.edit().putInt("pause_comma", v).apply()
+    var dashPauseMs: Int get() = p.getInt("pause_dash", 150); set(v) = p.edit().putInt("pause_dash", v).apply()
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
     /** Выгружать модели по простою; выключено — держать в памяти, пока жив сервис. */
     var idleOn: Boolean get() = p.getBoolean("idle_on", true); set(v) = p.edit().putBoolean("idle_on", v).apply()
@@ -100,6 +101,7 @@ class Prefs(private val context: Context) {
             "pause_sentence" to sentencePauseMs,
             "pause_paragraph" to paragraphPauseMs,
             "pause_comma" to commaPauseMs,
+            "pause_dash" to dashPauseMs,
             "idle_min" to idleMinutes,
             "idle_on" to idleOn,
             "rate" to rate.toDouble(),
@@ -135,6 +137,7 @@ class Prefs(private val context: Context) {
         (prefsMap["pause_sentence"] as? Number)?.let { sentencePauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["pause_paragraph"] as? Number)?.let { paragraphPauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["pause_comma"] as? Number)?.let { commaPauseMs = it.toInt().coerceAtLeast(0) }
+        (prefsMap["pause_dash"] as? Number)?.let { dashPauseMs = it.toInt().coerceAtLeast(0) }
         (prefsMap["idle_min"] as? Number)?.let { idleMinutes = it.toInt().coerceAtLeast(1) }
         (prefsMap["idle_on"] as? Boolean)?.let { idleOn = it }
         (prefsMap["rate"] as? Number)?.let { rate = it.toFloat().coerceIn(0.5f, 2f) }

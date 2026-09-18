@@ -202,6 +202,7 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
         v.findViewById<EditText>(R.id.pauseSentence).setText(prefs.sentencePauseMs.toString())
         v.findViewById<EditText>(R.id.pauseParagraph).setText(prefs.paragraphPauseMs.toString())
         v.findViewById<EditText>(R.id.pauseComma).setText(prefs.commaPauseMs.toString())
+        v.findViewById<EditText>(R.id.pauseDash).setText(prefs.dashPauseMs.toString())
         v.findViewById<EditText>(R.id.idleMinutes).setText(prefs.idleMinutes.toString())
         val minutes = v.findViewById<View>(R.id.idleMinutesLayout)
         v.findViewById<MaterialSwitch>(R.id.idleOn).apply {
@@ -215,6 +216,7 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
         prefs.sentencePauseMs = v.int(R.id.pauseSentence, 0).coerceAtLeast(0)
         prefs.paragraphPauseMs = v.int(R.id.pauseParagraph, 300).coerceAtLeast(0)
         prefs.commaPauseMs = v.int(R.id.pauseComma, 100).coerceAtLeast(0)
+        prefs.dashPauseMs = v.int(R.id.pauseDash, 150).coerceAtLeast(0)
         prefs.idleMinutes = v.int(R.id.idleMinutes, 5).coerceAtLeast(1)
         prefs.idleOn = v.findViewById<MaterialSwitch>(R.id.idleOn).isChecked
     }
