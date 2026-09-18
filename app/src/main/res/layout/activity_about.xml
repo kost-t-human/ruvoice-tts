@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «О программе»: тулбар с «назад», группа в Telegram, блок поддержки с кнопкой,
+     версия, исходники и лицензии. Ссылки кликабельны через autoLink. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:navigationIcon="@drawable/ic_arrow_back"
+            app:navigationContentDescription="@string/back"
+            app:title="@string/about_title" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="@style/SectionHint"
+                android:textColor="?attr/colorOnSurface"
+                android:textStyle="bold"
+                android:autoLink="web"
+                android:text="@string/about_telegram" />
+            <TextView
+                style="@style/SectionHint"
+                android:layout_marginTop="12dp"
+                android:textColor="?attr/colorOnSurface"
+                android:text="@string/about_support" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/support"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/about_support_button" />
+            <TextView
+                android:id="@+id/body"
+                style="@style/SectionHint"
+                android:layout_marginTop="24dp"
+                android:textColor="?attr/colorOnSurface"
+                android:autoLink="web" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

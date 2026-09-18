@@ -142,7 +142,11 @@
     <string name="sound_settings_missing">Экран настроек звука не найден</string>
     <string name="about_title">О программе</string>
     <string name="close">Закрыть</string>
-    <string name="about">Группа в Telegram, анонсы, вопросы и предложения:\nhttps://t.me/ruVoiceTTS\n\nRuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nУдарения: Silero Stress (github.com/snakers4/silero-stress), лицензия MIT.\n\nМорфологический словарь: AOT (github.com/sokirko74/morph_dict), лицензия LGPL.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
+    <string name="about_telegram">Группа в Telegram, анонсы, вопросы и предложения:\nhttps://t.me/ruVoiceTTS</string>
+    <string name="about_support">RuVoice бесплатный, без рекламы и таким останется. Если он вам пригодился и хочется сказать спасибо — можно угостить автора кофе. Это необязательно и ни на что в приложении не влияет.</string>
+    <string name="about_support_button">Поддержать проект</string>
+    <string name="browser_missing">Браузер не найден</string>
+    <string name="about_body">RuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nУдарения: Silero Stress (github.com/snakers4/silero-stress), лицензия MIT.\n\nМорфологический словарь: AOT (github.com/sokirko74/morph_dict), лицензия LGPL.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
 
     <!-- Правила: rule_<ключ Rules.KEYS> и rule_<ключ>_hint, секции rules_section_<имя> -->
     <string name="rules_hint">Что движок делает с текстом перед озвучиванием. Выключенное правило оставляет текст как есть. Эффект видно в «Разборе» на вкладке «Голос».</string>

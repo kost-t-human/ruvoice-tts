@@ -7,13 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import android.graphics.Typeface
-import android.text.SpannableString
-import android.text.method.LinkMovementMethod
-import android.text.style.StyleSpan
-import android.text.util.Linkify
 import android.view.View
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -87,19 +81,7 @@ class SettingsActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.setup_help -> { showSetupHelp(); true }
                 R.id.troubleshoot -> { startActivity(Intent(this, TroubleshootActivity::class.java)); true }
-                R.id.about -> {
-                    val dialog = MaterialAlertDialogBuilder(this)
-                        .setTitle(R.string.about_title)
-                        .setMessage(SpannableString(getString(R.string.about, packageManager.getPackageInfo(packageName, 0).versionName)).apply {
-                            setSpan(StyleSpan(Typeface.BOLD), 0, indexOf("\n\n"), 0)   // первый абзац — группа в Telegram
-                        })
-                        .setPositiveButton(R.string.close, null)
-                        .show()
-                    // ссылки в тексте — кликабельные
-                    dialog.findViewById<TextView>(android.R.id.message)?.movementMethod = LinkMovementMethod.getInstance()
-                    dialog.findViewById<TextView>(android.R.id.message)?.let { Linkify.addLinks(it, Linkify.WEB_URLS) }
-                    true
-                }
+                R.id.about -> { startActivity(Intent(this, AboutActivity::class.java)); true }
                 R.id.export_settings -> {
                     saveAllVisiblePages()
                     exportLauncher.launch("ruvoice-settings.json")

@@ -42,5 +42,6 @@
             </intent-filter>
         </activity>
         <activity android:name=".TroubleshootActivity" android:exported="false" android:label="@string/troubleshoot_title" />
+        <activity android:name=".AboutActivity" android:exported="false" android:label="@string/about_title" />
     </application>
 </manifest>
