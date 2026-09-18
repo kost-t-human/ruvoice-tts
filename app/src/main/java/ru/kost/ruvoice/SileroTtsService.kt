@@ -197,7 +197,7 @@ class SileroTtsService : TextToSpeechService() {
         // модели прямо тут нельзя, это надолго заблокирует главный поток. Прогрев (onCreate выше)
         // и так грузит их отдельным потоком, поэтому с главного потока просто отвечаем по языку.
         if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE && Looper.myLooper() != Looper.getMainLooper()) {
-            runCatching { models.ensureLoaded() }.onFailure {
+            runCatching { models.ensureLoaded(currentSpeaker().pack) }.onFailure {
                 Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
             }
             scheduleUnload()
@@ -206,11 +206,25 @@ class SileroTtsService : TextToSpeechService() {
     }
 
     private fun voiceName(speaker: String) = "ru-ru-$speaker"
-    override fun onGetVoices(): List<Voice> = models.data.speakers.keys.sorted().map {
+    private fun packs() = Packs.installed(filesDir)
+    /** Голос из настроек; голос удалённого пака — штатный по умолчанию. */
+    private fun currentSpeaker(): Speaker = Speaker.resolve(prefs.voice, models.data, packs()) ?: Speaker.default(models.data)
+
+    /** Тройка моделей голоса; пак, который не грузится (битый файл, чужой рантайм) — читаем штатным
+     * голосом этот запрос, в prefs ничего не меняем. */
+    private fun load(s: Speaker): Speaker {
+        try { models.ensureLoaded(s.pack); return s } catch (e: Exception) {
+            if (s.pack == null) throw e
+            Log.e(SileroModels.TAG, "пак ${s.pack.id} не загрузился, читаю штатным голосом", e)
+            return Speaker.default(models.data).also { models.ensureLoaded() }
+        }
+    }
+
+    override fun onGetVoices(): List<Voice> = Speaker.names(models.data, packs()).map {
         Voice(voiceName(it), Locale("ru", "RU"), Voice.QUALITY_HIGH, Voice.LATENCY_NORMAL, false, emptySet())
     }
     override fun onIsValidVoiceName(name: String?): Int =
-        if (name != null && name.removePrefix("ru-ru-") in models.data.speakers) TextToSpeech.SUCCESS else TextToSpeech.ERROR
+        if (Speaker.resolve(name?.removePrefix("ru-ru-"), models.data, packs()) != null) TextToSpeech.SUCCESS else TextToSpeech.ERROR
     override fun onLoadVoice(name: String?): Int = onIsValidVoiceName(name)
     override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(prefs.voice)
 
@@ -221,14 +235,11 @@ class SileroTtsService : TextToSpeechService() {
         handler.removeCallbacks(unload)
         val t0 = System.currentTimeMillis()
         try {
-            models.ensureLoaded()
             val d = models.data
             val sr = prefs.sampleRate
-            val speaker = request.voiceName?.removePrefix("ru-ru-")?.takeIf { it in d.speakers }
-                ?: prefs.voice.takeIf { it in d.speakers }
-                ?: "xenia".takeIf { it in d.speakers }
-                ?: d.speakers.keys.first()
-            val speakerId = d.speakers.getValue(speaker)
+            val voice = load(Speaker.resolve(request.voiceName?.removePrefix("ru-ru-"), d, packs()) ?: currentSpeaker())
+            val speakerId = voice.id
+            val sym = voice.sym
             val rate = (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
             val pitch = (request.pitch / 100f * prefs.pitch).coerceIn(0.5f, 2f)
             // настройки слушают слово «как модель», без пользовательского словаря
@@ -240,13 +251,13 @@ class SileroTtsService : TextToSpeechService() {
             val audit = prefs.audit; val auditNames = prefs.auditNames && !noDict; val userDict = if (noDict) emptyMap() else prefs.userDict()
             val replacements = prefs.replacements()
             // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
-            val quoteSpeakerId = prefs.quoteVoice.takeIf { it in d.speakers }?.let { d.speakers.getValue(it) }
+            val quoteSpeakerId = Speaker.resolve(prefs.quoteVoice, d, packs())?.takeIf { it.pack?.id == voice.pack?.id }?.id
             val quoteRate = prefs.quoteRate
             val quotePitch = prefs.quotePitch
             val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
             // Пауза после запятой — явная длительность самой запятой в кадрах модели (Marks.frames).
-            val commaIds = if (prefs.commaPauseMs <= 0) emptySet() else listOfNotNull(d.symbolToId[','],
-                *(if (rules.on("pause_semicolon")) arrayOf(d.symbolToId[';'], d.symbolToId[':']) else emptyArray())).toHashSet()
+            val commaIds = if (prefs.commaPauseMs <= 0) emptySet() else listOfNotNull(sym.symbolToId[','],
+                *(if (rules.on("pause_semicolon")) arrayOf(sym.symbolToId[';'], sym.symbolToId[':']) else emptyArray())).toHashSet()
             val commaFrames = Marks.frames(prefs.commaPauseMs)
             // Слова запроса для подсветки читаемого слова (rangeStart): ключ и смещения в тексте.
             // SSML-теги и маркеры заменяются пробелами той же длины, чтобы смещения не поехали.
@@ -263,24 +274,25 @@ class SileroTtsService : TextToSpeechService() {
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
                 // по этому же тексту — так и надо.
                 val marks = Marks.parse(if (rules.on("exclaim")) Marks.exclaim(seg.text) else seg.text, rules.focusLevel)
-                val prepared = Normalizer.prepare(marks.text, d.allowed, rules)
-                if (prepared.none { it != '+' && it in d.alphabet }) return null
+                val prepared = Normalizer.prepare(marks.text, sym.allowed, rules)
+                if (prepared.none { it != '+' && it in sym.alphabet }) return null
                 // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized
                 // на this), поэтому выгрузка по простою не может destroy() модуль посреди forward.
                 return synchronized(models) {
                     try {
-                        models.ensureLoaded()
+                        models.ensureLoaded(voice.pack)
                         val accented = stress.apply(prepared)
                         if (auditNames) audit.names(seg.text, accented) { w -> w in d.exceptions || w in d.homodict || w in d.gram || w in userDict || (Normalizer.morph?.tags(w) ?: 0) != 0 }
-                        val seq = d.sequence(accented)
-                        val typeIds = SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d)
+                        val seq = sym.sequence(accented)
+                        // интонация вопросов/восклицаний и логическое ударение есть только у v5_5_ru
+                        val typeIds = if (voice.types) SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d) else LongArray(seq.size)
                         val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId
                         val curPitch = pitch * (if (seg.speech) quotePitch else 1f)
-                        val al = Marks.align(marks.words, accented, seq.size, d.sym)
+                        val al = Marks.align(marks.words, accented, seq.size, sym)
                         for (i in al.pitches.indices) al.pitches[i] *= curPitch
                         // seq = sos + accented + eos, индексы совпадают с durs напрямую.
                         val symbDurs = seq.indices.filter { seq[it].toInt() in commaIds }.associate { it.toLong() to commaFrames } + al.symbDurs
-                        Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs), Marks.tokens(accented, d.sym))
+                        Pair(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs, voice.types), Marks.tokens(accented, sym))
                     } catch (e: Throwable) {
                         // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
                         Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
