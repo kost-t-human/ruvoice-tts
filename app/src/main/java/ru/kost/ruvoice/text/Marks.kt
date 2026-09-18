@@ -1,6 +1,6 @@
 package ru.kost.ruvoice.text
 
-import ru.kost.ruvoice.SileroData
+import ru.kost.ruvoice.Symbols
 
 /**
  * Пометки слов, которые модель умеет поверх текста: логическое ударение `*слово*` (focus_mask),
@@ -87,15 +87,15 @@ object Marks {
      * punctSeq — индекс в seq последнего знака препинания слова, -1 если слово им не кончается. */
     class Token(val key: String, val seqStart: Int, val seqEnd: Int, val punctSeq: Int)
 
-    fun tokens(accented: String, d: SileroData): List<Token> {
+    fun tokens(accented: String, sym: Symbols): List<Token> {
         // индекс символа accented → индекс в seq; символы не из алфавита модели sequence() выкидывает
         val seqIdx = IntArray(accented.length + 1)
         var idx = 1
-        for ((k, c) in accented.withIndex()) { seqIdx[k] = idx; if (c in d.symbolToId) idx++ }
+        for ((k, c) in accented.withIndex()) { seqIdx[k] = idx; if (c in sym.symbolToId) idx++ }
         seqIdx[accented.length] = idx
         return tokenRe.findAll(accented).map {
             val last = it.range.last
-            Token(key(it.value), seqIdx[it.range.first], seqIdx[last + 1], if (accented[last] in PUNCT && accented[last] in d.symbolToId) seqIdx[last] else -1)
+            Token(key(it.value), seqIdx[it.range.first], seqIdx[last + 1], if (accented[last] in PUNCT && accented[last] in sym.symbolToId) seqIdx[last] else -1)
         }.toList()
     }
 
@@ -115,7 +115,7 @@ object Marks {
     class Aligned(val rates: FloatArray, val pitches: FloatArray, val focus: LongArray, val symbDurs: Map<Long, Long>)
 
     /** Раскладывает пометки [words] по символам [accented]; пробелы наследуют пометку слова слева. */
-    fun align(words: List<Pair<String, Mark>>, accented: String, seqLen: Int, d: SileroData): Aligned {
+    fun align(words: List<Pair<String, Mark>>, accented: String, seqLen: Int, sym: Symbols): Aligned {
         val rates = FloatArray(seqLen) { 1f }; val pitches = FloatArray(seqLen) { 1f }; val focus = LongArray(seqLen)
         val symbDurs = HashMap<Long, Long>()
         if (words.isEmpty()) return Aligned(rates, pitches, focus, symbDurs)
@@ -123,7 +123,7 @@ object Marks {
         val used = BooleanArray(words.size) // пауза слова берётся один раз, даже если слово раздулось в несколько
         var prevEnd = 1
         var pending = 0 // пауза, для которой ещё не нашлось знака — на ближайший знак дальше
-        for (t in tokens(accented, d)) {
+        for (t in tokens(accented, sym)) {
             val j = m.next(t.key)
             val k = if (j >= 0) j else minOf(m.pos, words.size - 1)
             val mark = words[k].second

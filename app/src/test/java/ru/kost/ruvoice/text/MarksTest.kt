@@ -28,8 +28,8 @@ class MarksTest {
         val p = Marks.parse("в {prosody:150:100}5 *часов*{prosody} утра")
         val accented = "в п+ять час+ов утр+а"
         val seq = d.sequence(accented)
-        val a = Marks.align(p.words, accented, seq.size, d)
-        val t = Marks.tokens(accented, d)
+        val a = Marks.align(p.words, accented, seq.size, d.sym)
+        val t = Marks.tokens(accented, d.sym)
         assertEquals(4, t.size)
         assertEquals(1.0f, a.rates[t[0].seqStart], 0f)
         assertEquals(1.5f, a.rates[t[1].seqStart], 0f)
@@ -62,7 +62,7 @@ class MarksTest {
         val p = Marks.parse("ждал 5{pause:500}минут")
         val accented = "жд+ал п+ять, мин+ут"
         val seq = d.sequence(accented)
-        val a = Marks.align(p.words, accented, seq.size, d)
+        val a = Marks.align(p.words, accented, seq.size, d.sym)
         val comma = seq.indexOfFirst { it.toInt() == d.symbolToId.getValue(',') }
         assertEquals(mapOf(comma.toLong() to Marks.frames(500)), a.symbDurs)
         assertEquals(50L, Marks.frames(500))
@@ -75,7 +75,7 @@ class MarksTest {
 
     @Test fun tokensSkipSymbolsOutsideAlphabet() {
         // «x» не в алфавите — индексы seq его не считают
-        val t = Marks.tokens("а x б", d)
+        val t = Marks.tokens("а x б", d.sym)
         assertEquals(listOf(1, 3, 4), t.map { it.seqStart })
         assertEquals(3, t[1].seqEnd); assertEquals(5, t[2].seqEnd)
     }
