@@ -14,3 +14,4 @@ tmp/
 app/libs/*.aar
 tools/mel_sample.pt
 docs/
+dist/
