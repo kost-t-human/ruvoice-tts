@@ -5,23 +5,31 @@ package ru.kost.ruvoice
 class Speaker(val name: String, val pack: Pack?, val id: Int, val sym: Symbols, val types: Boolean) {
     companion object {
         const val DEFAULT = "xenia"
+        /** Пак штатной модели для сборки lite: голые имена («xenia» из старых prefs) ищем в нём. */
+        const val RU_PACK = "ru"
+        /** Есть ли модель в APK (сборка full). Тесты подменяют. */
+        var builtin = BuildConfig.BUILTIN_MODEL
         private fun packName(pack: Pack, speaker: String) = "${pack.id}/$speaker"
+        private fun of(pack: Pack, speaker: String): Speaker? = pack.speakers[speaker]?.let { Speaker(packName(pack, speaker), pack, it, pack.sym, pack.types) }
 
         fun resolve(name: String?, d: SileroData, packs: List<Pack>): Speaker? {
             if (name == null) return null
-            d.speakers[name]?.let { return Speaker(name, null, it, d.sym, true) }
-            val i = name.indexOf('/'); if (i < 0) return null
+            val i = name.indexOf('/')
+            if (i < 0) {
+                if (builtin) return d.speakers[name]?.let { Speaker(name, null, it, d.sym, true) }
+                return packs.firstOrNull { it.id == RU_PACK }?.let { of(it, name) }
+            }
             val pack = packs.firstOrNull { it.id == name.substring(0, i) } ?: return null
-            val id = pack.speakers[name.substring(i + 1)] ?: return null
-            return Speaker(name, pack, id, pack.sym, pack.types)
+            return of(pack, name.substring(i + 1))
         }
 
-        /** Штатный голос по умолчанию: «xenia», а если её нет в модели — первый по алфавиту. */
-        fun default(d: SileroData): Speaker = resolve(DEFAULT, d, emptyList()) ?: resolve(d.speakers.keys.sorted().first(), d, emptyList())!!
+        /** Голос по умолчанию: «xenia» (штатная или из пака ru), иначе первый голос первого пака; null — голосов нет. */
+        fun default(d: SileroData, packs: List<Pack>): Speaker? =
+            resolve(DEFAULT, d, packs) ?: names(d, packs).firstOrNull()?.let { resolve(it, d, packs) }
 
-        /** Все имена: штатные по алфавиту, затем по пакам. */
+        /** Все имена: штатные по алфавиту (в full), затем по пакам. */
         fun names(d: SileroData, packs: List<Pack>): List<String> =
-            d.speakers.keys.sorted() + packs.flatMap { p -> p.speakers.keys.sorted().map { packName(p, it) } }
+            (if (builtin) d.speakers.keys.sorted() else emptyList()) + packs.flatMap { p -> p.speakers.keys.sorted().map { packName(p, it) } }
 
         /** Голоса того же движка, что [main] — для прямой речи: в памяти одна тройка моделей,
          * перегружать 90 МБ на каждую реплику нельзя. */

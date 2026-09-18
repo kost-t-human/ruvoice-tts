@@ -56,11 +56,11 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     private fun nameOf(label: String) = voices.firstOrNull { Speaker.label(it) == label }
     /** Голоса прямой речи — того же движка, что основной: «как основной» + Speaker.sameEngine. */
     private fun quoteItems(main: String) = listOf(getString(R.string.quote_voice_default)) +
-        Speaker.sameEngine(Speaker.resolve(main, d, packs) ?: Speaker.default(d), d, packs).map { Speaker.label(it) }
+        Speaker.sameEngine(Speaker.resolve(main, d, packs) ?: Speaker.default(d, packs)!!, d, packs).map { Speaker.label(it) }
     private val rateItems by lazy { rates.map { getString(R.string.sample_rate_item, it) } }
 
     override fun load(v: View) {
-        val main = prefs.voice.takeIf { it in voices } ?: Speaker.default(d).name
+        val main = prefs.voice.takeIf { it in voices } ?: Speaker.default(d, packs)!!.name
         val voiceView = v.dropdown(R.id.voice, voices.map { Speaker.label(it) }, Speaker.label(main))
         val quoteView = v.dropdown(R.id.quoteVoice, quoteItems(main), Speaker.label(prefs.quoteVoice).takeIf { it in quoteItems(main) } ?: quoteItems(main).first())
         voiceView.setOnItemClickListener { _, _, _, _ ->
@@ -155,8 +155,9 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         Thread {
             val report = try {
                 val d = SileroModels.data(ctx)
+                val packs = Packs.installed(ctx.filesDir)
                 // фильтр символов — того движка, что озвучит: у cis-пака нет «!» и апострофа
-                val allowed = (Speaker.resolve(prefs.voice, d, Packs.installed(ctx.filesDir)) ?: Speaker.default(d)).sym.allowed
+                val allowed = (Speaker.resolve(prefs.voice, d, packs) ?: Speaker.default(d, packs)!!).sym.allowed
                 val rules = prefs.rules()
                 val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
                 buildString {

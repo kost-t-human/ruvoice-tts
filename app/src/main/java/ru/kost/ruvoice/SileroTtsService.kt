@@ -210,7 +210,7 @@ class SileroTtsService : TextToSpeechService() {
     private fun voiceName(speaker: String) = "ru-ru-$speaker"
     private fun packs() = Packs.installed(filesDir)
     /** Голос из настроек; голос удалённого пака — штатный по умолчанию. */
-    private fun currentSpeaker(): Speaker = Speaker.resolve(prefs.voice, models.data, packs()) ?: Speaker.default(models.data)
+    private fun currentSpeaker(): Speaker = Speaker.resolve(prefs.voice, models.data, packs()) ?: Speaker.default(models.data, packs())!!
 
     /** Тройка моделей голоса; пак, который не грузится (битый файл, чужой рантайм) — читаем штатным
      * голосом этот запрос, в prefs ничего не меняем. */
@@ -218,7 +218,7 @@ class SileroTtsService : TextToSpeechService() {
         try { models.ensureLoaded(s.pack); return s } catch (e: Exception) {
             if (s.pack == null) throw e
             Log.e(SileroModels.TAG, "пак ${s.pack.id} не загрузился, читаю штатным голосом", e)
-            return Speaker.default(models.data).also { models.ensureLoaded() }
+            return Speaker.default(models.data, packs())!!.also { models.ensureLoaded() }
         }
     }
 
