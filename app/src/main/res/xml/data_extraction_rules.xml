@@ -3,8 +3,12 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="packs" />
+        <!-- Копия ассета для ExecuTorch, пересоздаётся сама -->
+        <exclude domain="file" path="backbone.pte" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="packs" />
+        <!-- Копия ассета для ExecuTorch, пересоздаётся сама -->
+        <exclude domain="file" path="backbone.pte" />
     </device-transfer>
 </data-extraction-rules>

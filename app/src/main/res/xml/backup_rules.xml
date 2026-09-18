@@ -2,4 +2,6 @@
 <!-- Автобэкап: паки голосов (filesDir/packs, ~80 МБ) не берём — квота 25 МБ. Имя голоса остаётся в prefs, без пака сбросится на штатный. -->
 <full-backup-content>
     <exclude domain="file" path="packs" />
+    <!-- Копия ассета для ExecuTorch, пересоздаётся сама -->
+    <exclude domain="file" path="backbone.pte" />
 </full-backup-content>
