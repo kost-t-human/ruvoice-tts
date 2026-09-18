@@ -258,7 +258,7 @@ class SileroTtsService : TextToSpeechService() {
             models.threads = if (rules.on("fast_cores")) SileroModels.fastCores else Runtime.getRuntime().availableProcessors()
             val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict(), rules)
             // вкладка «Проверка»: имена — по исходному тексту сегмента
-            val audit = prefs.audit; val auditNames = prefs.auditNames && !noDict; val userDict = if (noDict) emptyMap() else prefs.userDict()
+            val audit = prefs.audit; val auditNames = prefs.auditNames && !noDict; val known = Audit.known(d, if (noDict) emptyMap() else prefs.userDict())
             val replacements = prefs.replacements()
             // Голос/темп/питч прямой речи — читаем один раз на запрос, как replacements.
             val quoteSpeakerId = Speaker.resolve(prefs.quoteVoice, d, packs())?.takeIf { it.pack?.id == voice.pack?.id }?.id
@@ -292,7 +292,7 @@ class SileroTtsService : TextToSpeechService() {
                     try {
                         models.ensureLoaded(voice.pack)
                         val accented = stress.apply(prepared)
-                        if (auditNames) audit.names(seg.text, accented) { w -> w in d.exceptions || w in d.homodict || w in d.gram || w in userDict || (Normalizer.morph?.tags(w) ?: 0) != 0 }
+                        if (auditNames) audit.names(seg.text, accented, known)
                         val seq = sym.sequence(accented)
                         // интонация вопросов/восклицаний и логическое ударение есть только у v5_5_ru
                         val typeIds = if (voice.types) SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d) else LongArray(seq.size)

@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import ru.kost.ruvoice.text.Normalizer
 import java.io.File
 
 /**
@@ -29,12 +30,12 @@ class Audit(private val dir: File) {
     }
 
     /** Первое вхождение слова запоминает вариант и фразу, повторы только считаются. */
-    @Synchronized fun add(kind: Kind, word: String, variant: String, context: String) {
+    @Synchronized fun add(kind: Kind, word: String, variant: String, context: String, count: Int = 1) {
         val map = list(kind)
         val e = map[word]
-        if (e != null) e.count++
+        if (e != null) e.count += count
         else {
-            map[word] = Entry(word, variant, 1, context.take(CONTEXT).replace('\t', ' ').replace('\n', ' '))
+            map[word] = Entry(word, variant, count, context.take(CONTEXT).replace('\t', ' ').replace('\n', ' '))
             while (map.count { !it.value.hidden } > MAX) map.remove(map.entries.first { !it.value.hidden }.key)
         }
         dirty += kind
@@ -61,22 +62,30 @@ class Audit(private val dir: File) {
     fun names(raw: String, accented: String, known: (String) -> Boolean) {
         val stressed = HashMap<String, String>()
         for (m in wordRe.findAll(accented)) { val w = m.value; if ('+' in w) stressed.putIfAbsent(w.replace("+", ""), w) }
-        var first = true
-        for (m in tokenRe.findAll(raw)) {
-            val t = m.value
-            val letters = t.trim { !it.isLetter() }
-            if (letters.isEmpty()) continue // тире, кавычки, цифры — не слово и не конец предложения
-            val isName = !first && letters.length >= 3 && letters[0].isUpperCase() && letters.drop(1).all { it in 'а'..'я' || it == 'ё' }
-            first = t.trimEnd { it in "\"»)" }.lastOrNull() in ".!?…".toSet()
-            if (!isName) continue
-            val low = letters.lowercase()
-            if (known(low) || low.count { it in VOWELS } < 2) continue
-            val v = stressed[low] ?: continue
-            add(Kind.NAMES, low, v, raw)
-        }
+        for ((low, _) in candidates(raw, known)) stressed[low]?.let { add(Kind.NAMES, low, it, raw) }
     }
 
     companion object {
+        /** Кандидаты в имена: слово в нижнем регистре и его позиция в [raw]. С заглавной не первое в предложении,
+         * от трёх букв и двух гласных, не из словарей ([known]). */
+        fun candidates(raw: String, known: (String) -> Boolean): Sequence<Pair<String, IntRange>> = sequence {
+            var first = true
+            for (m in tokenRe.findAll(raw)) {
+                val t = m.value
+                val letters = t.trim { !it.isLetter() }
+                if (letters.isEmpty()) continue // тире, кавычки, цифры — не слово и не конец предложения
+                val isName = !first && letters.length >= 3 && letters[0].isUpperCase() && letters.drop(1).all { it in 'а'..'я' || it == 'ё' }
+                first = t.trimEnd { it in "\"»)" }.lastOrNull() in ".!?…".toSet()
+                if (!isName) continue
+                val low = letters.lowercase()
+                if (known(low) || low.count { it in VOWELS } < 2) continue
+                yield(low to m.range)
+            }
+        }
+
+        /** Слово знает словарь модели, таблица морфологии или пользовательский список — как имя не собирается. */
+        fun known(d: SileroData, userDict: Map<String, String>): (String) -> Boolean =
+            { w -> w in d.exceptions || w in d.homodict || w in d.gram || w in userDict || (Normalizer.morph?.tags(w) ?: 0) != 0 }
         const val MAX = 2000
         const val CONTEXT = 120
         private const val VOWELS = "аеёиоуыэюя"

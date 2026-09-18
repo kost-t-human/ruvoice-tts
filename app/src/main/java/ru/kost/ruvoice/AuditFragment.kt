@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import android.net.Uri
 import android.text.Html
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -8,7 +9,10 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.textfield.TextInputEditText
+import ru.kost.ruvoice.text.Rules
+import ru.kost.ruvoice.text.Stress
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -30,6 +34,9 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private var hidden = false
     private lateinit var filterField: TextInputEditText
     private var items: List<Audit.Entry> = emptyList()
+    private val scanLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) scan(uri) }
+    @Volatile private var scanCancelled = false
+    private companion object { const val SCAN_BATCH = 64 }
 
     override fun load(v: View) {
         v.findViewById<MaterialSwitch>(R.id.namesOn).apply { isChecked = prefs.auditNames; setOnCheckedChangeListener { _, c -> prefs.auditNames = c } }
@@ -43,6 +50,11 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             val name = getString(R.string.audit_tab_names) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
             MaterialAlertDialogBuilder(requireContext()).setMessage(getString(R.string.audit_clear_confirm, name))
                 .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind, hidden); refresh() }
+                .setNegativeButton(R.string.cancel, null).show()
+        }
+        v.findViewById<View>(R.id.scan).setOnClickListener {
+            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage(R.string.audit_scan_help)
+                .setPositiveButton(R.string.audit_scan_pick) { _, _ -> scanLauncher.launch(arrayOf("*/*")) }
                 .setNegativeButton(R.string.cancel, null).show()
         }
         filterField = v.findViewById(R.id.filter)
@@ -71,6 +83,60 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
 
     override fun save(v: View) {}
     override fun onResume() { super.onResume(); if (view != null) refresh() }
+
+    /** Имена из книги без чтения вслух. Акцентор нужен только самим именам, поэтому не конвейер сервиса по всему
+     * тексту, а один проход по кандидатам (Audit.candidates) и акцентор батчами по уникальным словам: слова через
+     * пробел — одно «предложение» для Stress.apply, как в сервисе, но без грамматики и BERT омографов.
+     * Проценты: первая половина — проход по строкам, вторая — батчи акцентора. */
+    private fun scan(uri: Uri) {
+        val ctx = requireContext().applicationContext
+        scanCancelled = false
+        val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage("0 %")
+            .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
+        Thread {
+            val models = SileroModels(ctx)
+            val audit = prefs.audit
+            val before = audit.entries(kind).size
+            val result = try {
+                val text = Book.text(ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл"))
+                val d = SileroModels.data(ctx)
+                val userDict = prefs.userDict()
+                val r = prefs.rules()
+                val stress = Stress(d, models, userDict, Rules(r.off + setOf("gram", "homo"), r.maxLen, r.focus))
+                val known = Audit.known(d, userDict)
+                var shown = -1
+                fun progress(pct: Int) { if (pct != shown) { shown = pct; activity?.runOnUiThread { dialog.setMessage("$pct %") } } }
+                // слово → сколько раз и кусок текста вокруг первого вхождения (по границам слов)
+                val found = LinkedHashMap<String, Pair<Int, String>>()
+                val lines = text.lines()
+                for ((i, line) in lines.withIndex()) {
+                    if (scanCancelled) break
+                    progress(i * 50 / lines.size)
+                    for ((w, range) in Audit.candidates(line, known)) {
+                        val e = found[w]
+                        if (e != null) { found[w] = Pair(e.first + 1, e.second); continue }
+                        val a = maxOf(0, range.first - 40); val b = minOf(line.length, range.last + 80)
+                        val ctxText = line.substring(a, b).let { if (a > 0) it.substringAfter(' ') else it }.let { if (b < line.length) it.substringBeforeLast(' ') else it }
+                        found[w] = Pair(1, ctxText)
+                    }
+                }
+                val batches = found.keys.chunked(SCAN_BATCH)
+                for ((i, batch) in batches.withIndex()) {
+                    if (scanCancelled) break
+                    progress(50 + i * 50 / batches.size)
+                    for ((w, v) in batch.zip(stress.apply(batch.joinToString(" ")).split(" "))) {
+                        val (count, context) = found.getValue(w)
+                        if ('+' in v) audit.add(kind, w, v, context, count)
+                    }
+                }
+                getString(R.string.audit_scan_done, audit.entries(kind).size - before)
+            } catch (e: Exception) { e.message ?: e.toString() } finally { audit.flush(); models.release() }
+            activity?.runOnUiThread {
+                dialog.dismiss()
+                if (view != null) { refresh(); Snackbar.make(requireView(), result, Snackbar.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
 
     private fun refresh() {
         val query = filterField.text?.toString()?.trim().orEmpty()
