@@ -2,11 +2,18 @@ package ru.kost.ruvoice.text
 
 import org.junit.Assert.*
 import org.junit.Test
+import ru.kost.ruvoice.TestData
 
 class ReplacementsTest {
     @Test fun wholeWordCaseInsensitiveLiteralReplacement() {
         val r = Replacements.parse(listOf("Гарри = Г+арри"))
         assertEquals("Г+арри и Г+арри!", r.apply("Гарри и гарри!"))
+    }
+
+    @Test fun systemVowelInterjectionDoubled() {
+        val line = java.io.File(TestData.root(), "app/src/main/assets/dicts/replace/Системный.txt").readLines().single { it.startsWith("~(?<![") }
+        val r = Replacements.parse(listOf(line))
+        assertEquals("АА! Ну ОО? а ты, а он, ах! на!", r.apply("А! Ну О? а ты, а он, ах! на!"))
     }
 
     @Test fun phraseWithStressOnNeighbourWord() {
