@@ -72,7 +72,14 @@ class Prefs(private val context: Context) {
 
     init {
         Dicts.migrate(context.filesDir, DEFAULT_REPLACE)
-        Dicts.installSystem(context.filesDir) { path -> runCatching { context.assets.open(path).bufferedReader().readText() }.getOrNull() }
+        // Системный список кладём раз на установку/обновление APK, а не на каждый Prefs():
+        // у каждой страницы настроек свой Prefs, а чтение 4 МБ из assets в init давало
+        // 300–600 мс фриза на каждую вкладку и проскок ViewPager2 мимо нужной страницы.
+        val installedAt = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        if (p.getLong("system_dicts_at", -1) != installedAt) {
+            Dicts.installSystem(context.filesDir) { path -> runCatching { context.assets.open(path).bufferedReader().readText() }.getOrNull() }
+            p.edit().putLong("system_dicts_at", installedAt).apply()
+        }
         // пустой список «Имена» один раз: удалённый пользователем не воскрешаем
         if (!p.getBoolean("names_dict_made", false)) {
             Dicts.file(context.filesDir, Dicts.Kind.STRESS, Dicts.NAMES).takeIf { !it.exists() }?.let { it.parentFile!!.mkdirs(); it.writeText("") }

@@ -113,7 +113,11 @@ class SettingsActivity : AppCompatActivity() {
             override fun getItemCount() = pages.size
             override fun createFragment(position: Int): Fragment = pages[position].second()
         }
-        TabLayoutMediator(findViewById<TabLayout>(R.id.tabs), pager) { tab, i -> tab.setText(pages[i].first) }.attach()
+        // smoothScroll = false: при плавной прокрутке к вкладке через несколько страниц
+        // LinearSmoothScroller шагает по времени, а создание страниц по пути (инфлейт + load)
+        // блокирует кадры — один шаг перелетал все страницы, цель успевала уйти в recycle,
+        // пейджер вставал на последней вкладке с индикатором на нужной. Свайп не затронут.
+        TabLayoutMediator(findViewById<TabLayout>(R.id.tabs), pager, true, false) { tab, i -> tab.setText(pages[i].first) }.attach()
     }
 
     /** «Как включить»: путь к системному экрану синтеза речи и объяснение стандартного
