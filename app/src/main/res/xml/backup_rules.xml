@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Автобэкап: паки голосов (filesDir/packs, ~80 МБ) не берём — квота 25 МБ. Имя голоса остаётся в prefs, без пака сбросится на штатный. -->
+<full-backup-content>
+    <exclude domain="file" path="packs" />
+</full-backup-content>
