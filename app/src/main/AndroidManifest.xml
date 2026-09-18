@@ -42,6 +42,10 @@
                 <action android:name="android.speech.tts.engine.CONFIGURE_ENGINE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.speech.tts.engine.INSTALL_TTS_DATA" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
         <activity android:name=".TroubleshootActivity" android:exported="false" android:label="@string/troubleshoot_title" />
         <activity android:name=".AboutActivity" android:exported="false" android:label="@string/about_title" />

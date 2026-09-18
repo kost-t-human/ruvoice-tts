@@ -174,7 +174,7 @@ class SileroTtsService : TextToSpeechService() {
         // потратить её сейчас, чем на первой фразе
         prefs.userDict(); prefs.replacements()
         // греем тройку голоса из настроек, а не штатную: иначе первый запрос перегружает 90 МБ
-        val v = currentSpeaker()
+        val v = currentSpeaker() ?: return   // lite без пака: голосов нет
         synchronized(models) {
             models.ensureLoaded(v.pack)
             val seq = v.sym.sequence("прив+ет.")
@@ -199,7 +199,8 @@ class SileroTtsService : TextToSpeechService() {
         // модели прямо тут нельзя, это надолго заблокирует главный поток. Прогрев (onCreate выше)
         // и так грузит их отдельным потоком, поэтому с главного потока просто отвечаем по языку.
         if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE && Looper.myLooper() != Looper.getMainLooper()) {
-            runCatching { models.ensureLoaded(currentSpeaker().pack) }.onFailure {
+            val s = currentSpeaker() ?: return TextToSpeech.LANG_MISSING_DATA   // lite без пака: читалка предложит установить данные
+            runCatching { models.ensureLoaded(s.pack) }.onFailure {
                 Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
             }
             scheduleUnload()
@@ -209,8 +210,8 @@ class SileroTtsService : TextToSpeechService() {
 
     private fun voiceName(speaker: String) = "ru-ru-$speaker"
     private fun packs() = Packs.installed(filesDir)
-    /** Голос из настроек; голос удалённого пака — штатный по умолчанию. */
-    private fun currentSpeaker(): Speaker = Speaker.resolve(prefs.voice, models.data, packs()) ?: Speaker.default(models.data, packs())!!
+    /** Голос из настроек; голос удалённого пака — штатный по умолчанию; null — голосов нет (lite без пака). */
+    private fun currentSpeaker(): Speaker? = Speaker.resolve(prefs.voice, models.data, packs()) ?: Speaker.default(models.data, packs())
 
     /** Тройка моделей голоса; пак, который не грузится (битый файл, чужой рантайм) — читаем штатным
      * голосом этот запрос, в prefs ничего не меняем. */
@@ -218,7 +219,8 @@ class SileroTtsService : TextToSpeechService() {
         try { models.ensureLoaded(s.pack); return s } catch (e: Exception) {
             if (s.pack == null) throw e
             Log.e(SileroModels.TAG, "пак ${s.pack.id} не загрузился, читаю штатным голосом", e)
-            return Speaker.default(models.data, packs())!!.also { models.ensureLoaded() }
+            // lite: без встроенной модели читать нечем
+            return Speaker.default(models.data, packs())?.also { models.ensureLoaded(it.pack) } ?: throw e
         }
     }
 
@@ -228,7 +230,7 @@ class SileroTtsService : TextToSpeechService() {
     override fun onIsValidVoiceName(name: String?): Int =
         if (Speaker.resolve(name?.removePrefix("ru-ru-"), models.data, packs()) != null) TextToSpeech.SUCCESS else TextToSpeech.ERROR
     override fun onLoadVoice(name: String?): Int = onIsValidVoiceName(name)
-    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(currentSpeaker().name)
+    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(currentSpeaker()?.name ?: Speaker.DEFAULT)
 
     override fun onStop() { stopped = true }
 
@@ -239,7 +241,9 @@ class SileroTtsService : TextToSpeechService() {
         try {
             val d = models.data
             val sr = prefs.sampleRate
-            val voice = load(Speaker.resolve(request.voiceName?.removePrefix("ru-ru-"), d, packs()) ?: currentSpeaker())
+            val voice = load(Speaker.resolve(request.voiceName?.removePrefix("ru-ru-"), d, packs()) ?: currentSpeaker() ?: run {
+                Log.e(SileroModels.TAG, "голосов нет: сборка без модели и без пака"); callback.error(TextToSpeech.ERROR_NOT_INSTALLED_YET); return
+            })
             val speakerId = voice.id
             val sym = voice.sym
             val rate = (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
