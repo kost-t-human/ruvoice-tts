@@ -2,7 +2,7 @@
 """Буква «ё»: сколько Silero Stress восстанавливает на ёфицированном тексте. Корпус — app/build/yo_corpus.txt
 (tools/wiki_yo_corpus.py, Википедия); из предложения «ё» стирается, модель ставит её заново.
 Слова делятся по словарю eyo (github.com/e2yo/eyo-kernel, MIT; safe.txt и not_safe.txt рядом с корпусом):
-однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Поверх модели — наши фразы системного словаря
+однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Раньше модели — словарь eyo safe (как YoDict в аппке), поверх — наши фразы системного словаря
 (tools/phrases_extra.txt), как замены в аппке, и правило «все» + слово только мн. ч. из Stress.gramPass
 (tools/phrases_extra.vse_pick, таблица morph.bin). Промахи — app/build/yo_eval_miss.txt.
 Запуск: <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений] [корпус.txt]
@@ -42,6 +42,10 @@ def eyo(name):
 
 
 safe, not_safe = eyo('eyo_safe.txt'), eyo('eyo_not_safe.txt')
+# словарь бесспорной «ё» раньше модели, как YoDict в Stress.accentorPass (регистр здесь не различаем — текст в нижнем)
+yo_dict = {w.replace('ё', 'е'): w for w in safe}
+for line in open(os.path.join(HERE, 'yo_extra.txt'), encoding='utf-8'):   # добор tools/yo_extra.py, в ассете с «_»
+    if line.strip() and not line.startswith('#'): yo_dict[line.strip().replace('ё', 'е')] = line.strip()
 def kind(w_yo):
     if w_yo in not_safe: return 'неоднозначные'
     if w_yo in safe: return 'однозначные'
@@ -60,6 +64,7 @@ for n, sent in enumerate(lines):
     low = deyo.lower(); starts = {m.start(): i for i, m in enumerate(word_re.finditer(low))}
     for i, w in enumerate(orig):
         w = w.replace('ё', 'е')
+        if w in yo_dict: got[i] = yo_dict[w]
         for p, off, v in phrases.get(w, ()):
             hit = next((m for m in p.finditer(low) if starts.get(m.start() + off) == i), None)
             if hit: got[i] = v; break

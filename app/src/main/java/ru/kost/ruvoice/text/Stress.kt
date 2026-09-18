@@ -10,7 +10,7 @@ interface StressModels {
 /** morph — таблица морфологии для согласования с прилагательным в gramPass; null — правило выключено. По умолчанию та же,
  * что у нормализатора (SileroModels.data() ставит её раз на процесс; в JVM-тестах без ассета — null). */
 class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
-             private val rules: Rules = Rules(), private val morph: Morph? = Normalizer.morph) {
+             private val rules: Rules = Rules(), private val morph: Morph? = Normalizer.morph, private val yo: YoDict? = YoDict.shared) {
     private val vowels = "аоуыэиеяёю"
     private val tok = BertTokenizer(d)
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
@@ -383,6 +383,10 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             var rawWord = raw[i]; val cleanWord = clean[i]
             if (!mask[i]) { out.append(rawWord); continue }
             val sp = stressProbs[bi]; val yp = yoProbs[bi]; bi++
+            // бесспорная «ё» по словарю раньше модели: «ежик» → «ёжик», ударение на «ё» поставит ветка haveYo ниже;
+            // слово из пользовательского словаря не трогаем, иначе он его не найдёт (как и setYo)
+            if (rules.on("yo") && yo != null && '+' !in rawWord && 'ё' !in rawWord && 'Ё' !in rawWord && cleanWord !in userDict)
+                yo.restore(rawWord.trimEnd('-'))?.let { rawWord = it + rawWord.substring(rawWord.trimEnd('-').length) }
             val lower = rawWord.lowercase()
             val haveStress = '+' in lower; val haveYo = 'ё' in lower
             if (haveStress && haveYo) { out.append(rawWord); continue }
