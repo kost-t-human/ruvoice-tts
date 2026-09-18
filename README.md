@@ -2,7 +2,7 @@
 
 Системный движок синтеза русской речи для Android на нейросети Silero `v5_5_ru`. Работает офлайн, ставится как обычный голос в настройках телефона, и любая читалка, умеющая Android TTS, читает им книги.
 
-![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84) ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF) ![arm64-v8a](https://img.shields.io/badge/ABI-arm64--v8a-555) ![Модель: CC BY-NC-SA 4.0](https://img.shields.io/badge/%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C-CC%20BY--NC--SA%204.0-blue)
+![Android 8.0+](https://img.shields.io/badge/Android-6.0%2B-3DDC84) ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF) ![arm64-v8a](https://img.shields.io/badge/ABI-arm64--v8a-555) ![Модель: CC BY-NC-SA 4.0](https://img.shields.io/badge/%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D1%8C-CC%20BY--NC--SA%204.0-blue)
 
 ## Приватность
 
@@ -59,7 +59,7 @@ RuVoice заворачивает модель в `TextToSpeechService` и доб
 
 ## Установка
 
-Собранный APK лежит в [Releases](../../releases): скачать на телефон (arm64, Android 8.0+) и установить. Файл большой, около 230 МБ — внутри модели и два рантайма.
+Собранный APK лежит в [Releases](../../releases): скачать на телефон (arm64, Android 6.0+) и установить. Файл большой, около 230 МБ — внутри модели и два рантайма.
 
 Две сборки в каждом релизе: `ruvoice-tts-X.Y.Z.apk` — с моделью внутри, работает сразу;
 `ruvoice-tts-X.Y.Z-lite.apk` — без модели (~145 МБ вместо ~230), штатные голоса ставятся один раз паком
