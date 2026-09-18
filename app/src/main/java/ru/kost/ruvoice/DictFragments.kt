@@ -539,8 +539,13 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         val keyLayout = view.findViewById<TextInputLayout>(R.id.keyLayout)
         val keyField = view.findViewById<TextInputEditText>(R.id.key)
         val valueLayout = view.findViewById<TextInputLayout>(R.id.valueLayout)
-        val valueField = view.findViewById<TextInputEditText>(R.id.value)
+        val valueField = view.findViewById<CursorEditText>(R.id.value)
+        val stressChips = view.findViewById<ChipGroup>(R.id.stressChips)
+        val stressToggle = view.findViewById<Button>(R.id.stressToggle)
+        val stressHint = view.findViewById<TextView>(R.id.stressHint)
         val regexSwitch = view.findViewById<MaterialSwitch>(R.id.regex)
+        val sampleLayout = view.findViewById<TextInputLayout>(R.id.sampleLayout)
+        val sampleToggle = view.findViewById<Button>(R.id.sampleToggle)
         val sampleField = view.findViewById<TextInputEditText>(R.id.sample)
         val sampleResult = view.findViewById<TextView>(R.id.sampleResult)
         var posButton: Button? = null
@@ -567,14 +572,54 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             if (valErr == null) valueLayout.helperText = getString(if (regex) R.string.replace_value_helper_regex else R.string.replace_value_helper)
             val ok = key.isNotBlank() && keyErr == null && valErr == null
             posButton?.isEnabled = ok
-            val sample = sampleField.text.toString()
+            val sampleOpen = prefs.replaceSampleOpen
+            sampleToggle.setText(if (sampleOpen) R.string.replace_sample_open else R.string.replace_sample_closed)
+            sampleLayout.visibility = if (sampleOpen) View.VISIBLE else View.GONE
+            val sample = if (sampleOpen) sampleField.text.toString() else ""
             sampleResult.text = if (ok && sample.isNotBlank()) getString(R.string.replace_arrow, Replacements.parse(listOf(currentLine())).apply(sample)) else ""
             sampleResult.visibility = if (sampleResult.text.isEmpty()) View.GONE else View.VISIBLE
         }
-        regexSwitch.setOnCheckedChangeListener { _, _ -> validate() }
-        keyField.doAfterTextChanged { validate() }
+
+        /** Спойлер «Ударение»: чипы по гласным слова под курсором; тап переставляет «+» в этом
+         * слове, повторный тап по отмеченному чипу снимает ударение. */
+        var rebuilding = false
+        fun rebuildStressChips() {
+            if (rebuilding) return
+            val open = prefs.replaceStressOpen
+            stressToggle.setText(if (open) R.string.replace_stress_open else R.string.replace_stress_closed)
+            // пустое «На что» и ключ-слово (не regex): чипы по ключу, тап заполняет замену им же
+            // с ударением — «замок = з+амок» без перепечатывания слова
+            val fromKey = valueField.text.isNullOrBlank() && !regexSwitch.isChecked
+            val text = if (fromKey) keyField.text.toString().trim() else valueField.text.toString()
+            val range = if (fromKey) DictLines.wordRangeAt(text, 0)?.takeIf { it == text.indices } else DictLines.wordRangeAt(text, valueField.selectionStart)
+            val bare = range?.let { text.substring(it).replace("+", "") }.orEmpty()
+            stressChips.removeAllViews()
+            stressChips.visibility = if (open && bare.isNotEmpty()) View.VISIBLE else View.GONE
+            stressHint.visibility = if (open && bare.isEmpty()) View.VISIBLE else View.GONE
+            if (!open || range == null) return
+            val stressed = text.substring(range).indexOf('+')
+            for (pos in DictLines.vowelPositions(bare)) {
+                val chip = LayoutInflater.from(ctx).inflate(R.layout.item_chip, stressChips, false) as Chip
+                chip.id = View.generateViewId()
+                chip.text = DictLines.accentDisplay(bare.substring(0, pos) + "+" + bare.substring(pos))
+                chip.isChecked = pos == stressed
+                chip.setOnClickListener {
+                    rebuilding = true
+                    valueField.setText(DictLines.setWordStress(text, range, pos.takeIf { chip.isChecked }))
+                    valueField.setSelection(range.first + pos + if (chip.isChecked) 1 else 0)
+                    rebuilding = false
+                    rebuildStressChips()
+                }
+                stressChips.addView(chip)
+            }
+        }
+        valueField.onCursorMoved = { rebuildStressChips() }
+        stressToggle.setOnClickListener { prefs.replaceStressOpen = !prefs.replaceStressOpen; rebuildStressChips() }
+        regexSwitch.setOnCheckedChangeListener { _, _ -> validate(); rebuildStressChips() }
+        keyField.doAfterTextChanged { validate(); rebuildStressChips() }
         valueField.doAfterTextChanged { validate() }
         sampleField.doAfterTextChanged { validate() }
+        sampleToggle.setOnClickListener { prefs.replaceSampleOpen = !prefs.replaceSampleOpen; validate() }
 
         view.findViewById<Button>(R.id.regexHelp).setOnClickListener {
             // справка длинная — HTML из assets, сообщение диалога само прокручивается

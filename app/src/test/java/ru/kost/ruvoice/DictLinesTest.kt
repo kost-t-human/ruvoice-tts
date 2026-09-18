@@ -81,4 +81,17 @@ class DictLinesTest {
             DictLines.formatReplace("""(\d+)\s*км""", "$1 километров", true)
         )
     }
+
+    @Test fun wordRangeAtFindsWordUnderCursorAndSticksLeftOnBoundary() {
+        assertEquals(7 until 13, DictLines.wordRangeAt("старый з+амок", 9))
+        assertEquals(0 until 6, DictLines.wordRangeAt("старый замок", 6))
+        assertEquals(null, DictLines.wordRangeAt("{pause:300} слово", 3))
+        assertEquals(null, DictLines.wordRangeAt("", 0))
+    }
+
+    @Test fun setWordStressMovesPlusAndClears() {
+        assertEquals("старый за+мок", DictLines.setWordStress("старый з+амок", 7 until 13, 2))
+        assertEquals("старый замок", DictLines.setWordStress("старый з+амок", 7 until 13, null))
+        assertEquals("прогр+амм*", DictLines.setWordStress("программ*", 0 until 8, 5))
+    }
 }

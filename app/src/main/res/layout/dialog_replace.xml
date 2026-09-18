@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Диалог добавления/редактирования правила замены: ключ, замена (helperText меняется от
-     режима regex), переключатель regex со справкой, поле «проверить на тексте» с результатом
-     применения правила; прослушать замену — иконка ▶ в поле «На что». Без лишней высоты: с
+     режима regex), переключатель regex со справкой, спойлер «проверить на тексте» с результатом
+     применения правила; прослушать замену — иконка ▶ в поле «На что», под ним чипы ударения по гласным слова у курсора. Без лишней высоты: с
      клавиатурой кнопки диалога иначе не влезают. ScrollView: с клавиатурой окно
      диалога сжимается, содержимое прокручивается, а кнопки остаются на экране. -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
@@ -39,12 +39,47 @@
         app:endIconMode="custom"
         app:endIconDrawable="@drawable/ic_play"
         app:endIconContentDescription="@string/preview">
-        <com.google.android.material.textfield.TextInputEditText
+        <ru.kost.ruvoice.CursorEditText
             android:id="@+id/value"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="text" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Спойлер «Ударение» (состояние в Prefs.replaceStressOpen): чипы по гласным слова под
+         курсором в поле «На что», как в диалоге ударений, тап ставит «+» перед гласной; пока
+         курсор не в русском слове — подсказка. Свёрнут по умолчанию, чтобы с клавиатурой
+         кнопки диалога не уезжали. -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="-8dp">
+        <Button
+            android:id="@+id/stressToggle"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/replace_stress_closed" />
+        <Button
+            android:id="@+id/sampleToggle"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/replace_sample_closed" />
+    </LinearLayout>
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/stressChips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:singleSelection="true" />
+    <TextView
+        android:id="@+id/stressHint"
+        style="@style/SectionHint"
+        android:layout_marginBottom="0dp"
+        android:visibility="gone"
+        android:text="@string/replace_stress_hint" />
 
     <LinearLayout
         android:orientation="horizontal"
@@ -66,11 +101,14 @@
             android:text="@string/regex_help_button" />
     </LinearLayout>
 
+    <!-- Спойлер «Проверить» (Prefs.replaceSampleOpen), тумблер рядом с «Ударение». -->
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/sampleLayout"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
+        android:visibility="gone"
         android:hint="@string/replace_sample">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/sample"

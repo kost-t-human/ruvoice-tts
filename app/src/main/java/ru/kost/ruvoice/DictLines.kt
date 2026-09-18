@@ -29,6 +29,26 @@ object DictLines {
     /** Позиции (индексы символов) гласных букв в слове — по ним строятся чипы диалога. */
     fun vowelPositions(word: String): List<Int> = word.indices.filter { word[it].lowercaseChar() in VOWELS }
 
+    /** Границы русского слова (буквы и «+») вокруг позиции курсора в свободном тексте замены;
+     * null, если курсор не касается слова. Курсор на границе прилипает к слову слева. */
+    fun wordRangeAt(text: String, cursor: Int): IntRange? {
+        fun isW(i: Int) = i in text.indices && (text[i].lowercaseChar() in 'а'..'я' || text[i] == 'ё' || text[i] == '+')
+        var start = cursor.coerceIn(0, text.length)
+        if (!isW(start) && !isW(start - 1)) return null
+        while (isW(start - 1)) start--
+        var end = start
+        while (isW(end)) end++
+        return start until end
+    }
+
+    /** Слово из [range] получает «+» перед гласной по индексу [vowelPos] внутри слова без «+»;
+     * прежний «+» в этом слове убирается, null — просто снять ударение. */
+    fun setWordStress(text: String, range: IntRange, vowelPos: Int?): String {
+        val bare = text.substring(range).replace("+", "")
+        val word = if (vowelPos == null) bare else bare.substring(0, vowelPos) + "+" + bare.substring(vowelPos)
+        return text.replaceRange(range, word)
+    }
+
     /** «твор+ог» → «творо́г»: «+» убирается, следующая за ним гласная получает
      * комбинируемое ударение U+0301. Без «+» слово возвращается как есть. Лишние «+» после
      * первого (не должны появляться в норме) молча вырезаются, а не превращаются в текст. */

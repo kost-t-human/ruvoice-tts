@@ -44,6 +44,9 @@ class Prefs(private val context: Context) {
         get() = p.getString("audit_dict_replace", Dicts.MAIN)!!
         set(v) = p.edit().putString("audit_dict_replace", v).apply()
     val audit: Audit get() = AUDIT ?: synchronized(Audit::class.java) { AUDIT ?: Audit(context.filesDir).also { AUDIT = it } }
+    /** Диалог замен: спойлер «Ударение» с чипами раскрыт; по умолчанию свёрнут. */
+    var replaceStressOpen: Boolean get() = p.getBoolean("replace_stress_open", false); set(v) = p.edit().putBoolean("replace_stress_open", v).apply()
+    var replaceSampleOpen: Boolean get() = p.getBoolean("replace_sample_open", false); set(v) = p.edit().putBoolean("replace_sample_open", v).apply()
     var focusLevel: Int get() = p.getInt("focus_level", Rules.FOCUS_DEFAULT); set(v) = p.edit().putInt("focus_level", v).apply()
 
     /** Правила для пайплайна: выключенные тумблеры плюс «прямая речь» с вкладки «Голос». */
