@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import android.os.Build
 import android.media.AudioFormat
 import android.os.Handler
 import android.os.Looper
@@ -331,7 +332,7 @@ class SileroTtsService : TextToSpeechService() {
                     for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
                     for (t in tokens) {
                         val j = matcher.next(t.key)
-                        if (j >= 0) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
+                        if (j >= 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
                     }
                     if (!write(callback, pcm)) return
                     written += pcm.size

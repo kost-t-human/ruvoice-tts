@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
-import android.text.Html
+import androidx.core.text.HtmlCompat
 import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -625,7 +625,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             // справка длинная — HTML из assets, сообщение диалога само прокручивается
             val html = ctx.assets.open("regex_help.html").bufferedReader().readText()
             MaterialAlertDialogBuilder(ctx).setTitle(R.string.regex_help_title)
-                .setMessage(Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT))
+                .setMessage(HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_COMPACT))
                 .setPositiveButton(android.R.string.ok, null).show()
         }
 

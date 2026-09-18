@@ -61,7 +61,7 @@ class Audit(private val dir: File) {
     /** Имена: слово с заглавной не первое в предложении и не из словарей. [known] — слова, которые словарь и так знает. */
     fun names(raw: String, accented: String, known: (String) -> Boolean) {
         val stressed = HashMap<String, String>()
-        for (m in wordRe.findAll(accented)) { val w = m.value; if ('+' in w) stressed.putIfAbsent(w.replace("+", ""), w) }
+        for (m in wordRe.findAll(accented)) { val w = m.value; if ('+' in w) stressed.getOrPut(w.replace("+", "")) { w } }
         for ((low, _) in candidates(raw, known)) stressed[low]?.let { add(Kind.NAMES, low, it, raw) }
     }
 

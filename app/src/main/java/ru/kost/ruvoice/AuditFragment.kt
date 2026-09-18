@@ -1,7 +1,7 @@
 package ru.kost.ruvoice
 
 import android.net.Uri
-import android.text.Html
+import androidx.core.text.HtmlCompat
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -42,7 +42,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         v.findViewById<MaterialSwitch>(R.id.namesOn).apply { isChecked = prefs.auditNames; setOnCheckedChangeListener { _, c -> prefs.auditNames = c } }
         v.findViewById<TextView>(R.id.help).setOnClickListener {
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_help_title)
-                .setMessage(Html.fromHtml(getString(R.string.audit_help).replace("\n", "<br>"), Html.FROM_HTML_MODE_LEGACY))
+                .setMessage(HtmlCompat.fromHtml(getString(R.string.audit_help).replace("\n", "<br>"), HtmlCompat.FROM_HTML_MODE_LEGACY))
                 .setPositiveButton(android.R.string.ok, null).show()
         }
         v.findViewById<CheckBox>(R.id.showHidden).setOnCheckedChangeListener { _, c -> hidden = c; refresh() }

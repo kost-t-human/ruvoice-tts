@@ -1282,7 +1282,7 @@ object Normalizer {
         // род перебираем: у формы-омонима двух лемм («стрелки» — стрелка и стрелок) он в таблице общий
         for (plural in listOf(false, true)) for (g in if (plural) listOf(null) else Morph.genders(tn)) for (c in Morph.nounCases(tn, plural)) {
             if (adjs.any { a -> Morph.adjCases(a, g, plural).let { c !in it && !(c == Case.ACC && anim && Case.GEN in it) } }) continue
-            forms.putIfAbsent(Declension.adjective(stem, g, plural, c, anim), c)
+            forms.getOrPut(Declension.adjective(stem, g, plural, c, anim)) { c }
         }
         val form = forms.keys.singleOrNull() ?: run {
             val prev = prevWordRe.find(s.substring(0, m.range.first)) ?: return@replace m.value

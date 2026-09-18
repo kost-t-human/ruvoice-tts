@@ -285,7 +285,7 @@ class Replacements private constructor(private val rules: List<Rule>, private va
                 while (i < key.length && wordChar(key[i])) i++
                 if (mask && ((start > 0 && key[start - 1] == '*') || (i < key.length && key[i] == '*'))) continue
                 val t = key.substring(start, i)
-                val c = canon.computeIfAbsent(t) { Tok(t) }
+                val c = canon.getOrPut(t) { Tok(t) }
                 if (c !in out) out += c
             }
             return out.toTypedArray()

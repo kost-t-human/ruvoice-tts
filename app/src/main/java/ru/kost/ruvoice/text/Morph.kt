@@ -6,6 +6,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.RandomAccessFile
 import java.nio.channels.FileChannel
 
 enum class Gender { M, F, N }
@@ -66,7 +67,7 @@ class Morph(private val buf: ByteBuffer) {
         }
 
         fun open(file: File): Morph =
-            Morph(FileChannel.open(file.toPath()).use { it.map(FileChannel.MapMode.READ_ONLY, 0, it.size()) }.order(ByteOrder.LITTLE_ENDIAN))
+            Morph(RandomAccessFile(file, "r").channel.use { it.map(FileChannel.MapMode.READ_ONLY, 0, it.size()) }.order(ByteOrder.LITTLE_ENDIAN))
 
         /** mmap ассета; если он сжат (build.gradle noCompress «bin» это исключает) — читаем целиком. */
         fun open(context: Context): Morph {
