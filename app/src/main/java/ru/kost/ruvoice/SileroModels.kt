@@ -18,34 +18,56 @@ class SileroModels(private val context: Context) : StressModels {
     val data: SileroData get() = data(context)
     // tts_mel (текст → мел) и head (голова вокодера, iSTFT) — TorchScript Lite; backbone (ConvNeXt вокодера,
     // 77 % времени forward) — ExecuTorch/XNNPACK, в 1,4 раза быстрее lite на A32 без потери точности.
+    // Тройка либо штатная из assets, либо из папки пака (Pack).
     private var mel: Module? = null
     private var head: Module? = null
     private var backbone: org.pytorch.executorch.Module? = null
     private var acc: Module? = null
     private var homo: Module? = null
+    /** Папка тройки mel/backbone/head: null — штатная из assets, иначе каталог пака. */
+    private var packDir: File? = null
+    /** id загруженного пака, null — штатная модель (или ничего не загружено). */
+    @Volatile var loadedPack: String? = null; private set
     val isLoaded get() = mel != null && head != null && backbone != null && acc != null && homo != null
 
-    @Synchronized fun ensureLoaded() {
-        if (isLoaded) return
+    /** Тройка синтеза — штатная (pack == null) или из папки пака — плюс акцентор и BERT. В памяти одна
+     * тройка: другой пак или переход на штатную выгружает прежнюю, акцентор/BERT живут до release(). */
+    @Synchronized fun ensureLoaded(pack: Pack? = null) {
         val t = System.currentTimeMillis()
         try {
-            mel = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/tts_mel.ptl")
-            head = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/head.ptl")
-            backbone = loadBackbone()
-            acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
-            homo = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/homo.ptl")
+            if (mel != null && loadedPack != pack?.id) releaseTts()
+            if (mel == null) {
+                packDir = pack?.dir
+                mel = loadLite(pack, "tts_mel.ptl")
+                head = loadLite(pack, "head.ptl")
+                backbone = loadBackbone()
+                loadedPack = pack?.id
+                Log.i(TAG, "модель ${pack?.id ?: "v5_5_ru"} загружена за ${System.currentTimeMillis() - t} мс")
+            }
+            ensureStress()
         } catch (e: Exception) {
             release()
             throw e
         }
-        Log.i(TAG, "модели загружены за ${System.currentTimeMillis() - t} мс")
     }
 
-    /** ExecuTorch грузит только с пути, ассет копируем в filesDir один раз (длина — признак той же версии). */
+    /** Акцентор и BERT — общие для штатной модели и паков; accentor()/homo() грузят только их,
+     * чтобы не трогать загруженную тройку синтеза. */
+    @Synchronized private fun ensureStress() {
+        if (acc == null) acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
+        if (homo == null) homo = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/homo.ptl")
+    }
+
+    private fun loadLite(pack: Pack?, name: String): Module =
+        if (pack == null) LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/$name") else LiteModuleLoader.load(File(pack.dir, name).path)
+
+    /** ExecuTorch грузит только с пути: ассет копируем в filesDir один раз (длина — признак той же версии),
+     * файл пака берём из его папки. */
     private fun loadBackbone(): org.pytorch.executorch.Module {
-        val f = File(context.filesDir, "backbone.pte")
-        val len = context.assets.openFd("silero/backbone.pte").use { it.length }
-        if (f.length() != len) context.assets.open("silero/backbone.pte").use { i -> f.outputStream().use { i.copyTo(it) } }
+        val f = packDir?.let { File(it, "backbone.pte") } ?: File(context.filesDir, "backbone.pte").also { f ->
+            val len = context.assets.openFd("silero/backbone.pte").use { it.length }
+            if (f.length() != len) context.assets.open("silero/backbone.pte").use { i -> f.outputStream().use { i.copyTo(it) } }
+        }
         return org.pytorch.executorch.Module.load(f.absolutePath, org.pytorch.executorch.Module.LOAD_MODE_MMAP, threads.takeIf { it > 0 } ?: fastCores)
     }
 
@@ -62,9 +84,14 @@ class SileroModels(private val context: Context) : StressModels {
             if (backbone != null) { backbone?.destroy(); backbone = loadBackbone() }
         }
 
+    private fun releaseTts() {
+        mel?.destroy(); head?.destroy(); backbone?.destroy()
+        mel = null; head = null; backbone = null; packDir = null; loadedPack = null
+    }
+
     @Synchronized fun release() {
-        mel?.destroy(); head?.destroy(); backbone?.destroy(); acc?.destroy(); homo?.destroy()
-        mel = null; head = null; backbone = null; acc = null; homo = null
+        releaseTts()
+        acc?.destroy(); homo?.destroy(); acc = null; homo = null
     }
 
     private fun softmaxRows(t: Tensor): Array<FloatArray> {
@@ -77,13 +104,13 @@ class SileroModels(private val context: Context) : StressModels {
     }
 
     override fun accentor(words: List<String>): Pair<Array<FloatArray>, Array<FloatArray>> {
-        ensureLoaded()
+        ensureStress()
         val out = acc!!.forward(IValue.listFrom(*words.map { IValue.from(it) }.toTypedArray())).toTuple()
         return Pair(softmaxRows(out[0].toTensor()), softmaxRows(out[1].toTensor()))
     }
 
     override fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray): FloatArray {
-        ensureLoaded()
+        ensureStress()
         if (ids.isEmpty()) return FloatArray(0)
         val b = ids.size; val len = ids.maxOf { it.size }
         val flat = LongArray(b * len) { data.bertPad.toLong() }
@@ -105,11 +132,12 @@ class SileroModels(private val context: Context) : StressModels {
      * длительность символа в кадрах (symb_durs: индекс в seq → кадры по 12.5 мс), паузы модели.
      */
     fun synthesize(seq: LongArray, speakerId: Int, sampleRate: Int, rates: FloatArray, pitches: FloatArray, typeIds: LongArray,
-                   focus: LongArray, symbDurs: Map<Long, Long>): Synth {
-        ensureLoaded()
+                   focus: LongArray, symbDurs: Map<Long, Long>, types: Boolean = true): Synth {
+        check(mel != null) { "модели не загружены" }   // ensureLoaded(pack) зовёт сервис — какой пак, знает только он
         val n = seq.size.toLong()
         val t = System.nanoTime()
-        val out = mel!!.forward(
+        // 11 аргументов как у v5_ru; type_ids и focus_mask (12-й и 13-й) есть только у v5_5_ru
+        val args = arrayListOf(
             IValue.from(Tensor.fromBlob(seq, longArrayOf(1, n))),
             IValue.from(Tensor.fromBlob(longArrayOf(speakerId.toLong()), longArrayOf(1))),
             IValue.from(sampleRate.toLong()),
@@ -120,10 +148,12 @@ class SileroModels(private val context: Context) : StressModels {
             IValue.optionalNull(),
             IValue.from("cpu"),
             IValue.from(-1L),
-            IValue.from(false),
-            IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n))),
-            if (focus.all { it == 0L }) IValue.optionalNull() else IValue.from(Tensor.fromBlob(focus, longArrayOf(1, n)))
-        ).toTuple()
+            IValue.from(false))
+        if (types) {
+            args += IValue.from(Tensor.fromBlob(typeIds, longArrayOf(1, n)))
+            args += if (focus.all { it == 0L }) IValue.optionalNull() else IValue.from(Tensor.fromBlob(focus, longArrayOf(1, n)))
+        }
+        val out = mel!!.forward(*args.toTypedArray()).toTuple()
         val melT = out[0].toTensor()
         val hid = backbone!!.forward(EValue.from(org.pytorch.executorch.Tensor.fromBlob(melT.dataAsFloatArray, melT.shape())))[0].toTensor()
         val audio = head!!.forward(IValue.from(Tensor.fromBlob(hid.dataAsFloatArray, hid.shape())), IValue.from(sampleRate.toLong()),

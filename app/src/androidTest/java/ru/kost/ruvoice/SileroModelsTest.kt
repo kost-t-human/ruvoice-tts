@@ -54,4 +54,36 @@ class SileroModelsTest {
         android.util.Log.i("RuVoiceTest", "stress: ${golden.length()} фраз, $chars симв., ${total} мс, самая долгая ${slowestMs} мс «$slowest»")
         assertTrue(bad.joinToString("\n"), bad.isEmpty())
     }
+
+    /** Пак cis_ru: zip заранее `adb push dist/ruvoice-pack-cis_ru.zip /data/local/tmp/` (без файла кейс пропускается).
+     * Ставит пак в filesDir приложения, грузит его тройку, синтезирует golden-фразу, возвращается к штатной. */
+    @Test fun packSynthesizesAndSwitchesBack() {
+        val zip = java.io.File("/data/local/tmp/ruvoice-pack-cis_ru.zip")
+        org.junit.Assume.assumeTrue("нет $zip", zip.isFile)
+        val pack = zip.inputStream().use { Packs.install(it, ctx.filesDir) }
+        val golden = org.json.JSONObject(testCtx.assets.open("golden_pack.json").bufferedReader().readText())
+        val m = SileroModels(ctx)
+        val t0 = System.currentTimeMillis(); m.ensureLoaded(pack); val loadMs = System.currentTimeMillis() - t0
+        assertEquals("cis_ru", m.loadedPack)
+        val seq = pack.sym.sequence(golden.getString("text"))
+        val ids = golden.getJSONArray("ids").let { a -> LongArray(a.length()) { a.getLong(it) } }
+        assertArrayEquals(ids, seq)
+        val n = seq.size
+        val t1 = System.currentTimeMillis()
+        val out = m.synthesize(seq, pack.speakers.getValue(golden.getString("speaker")), 48000, FloatArray(n) { 1f }, FloatArray(n) { 1f }, LongArray(n), LongArray(n), emptyMap(), types = false)
+        android.util.Log.i("RuVoiceTest", "pack load=${loadMs}ms synth=${System.currentTimeMillis() - t1}ms len=${out.audio.size / 48}ms")
+        assertTrue(out.audio.size > 48000 / 2)   // «привет, мир» — больше полсекунды
+        assertEquals(n, out.durs.size)
+        assertTrue(out.audio.any { Math.abs(it) > 0.05f })
+        // обратно на штатную: акцентор/BERT не перегружаются, тройка — штатная, эталон сходится
+        m.ensureLoaded()
+        assertNull(m.loadedPack)
+        val seqRu = m.data.sequence("прив+ет, м+ир.")
+        val ru = m.synthesize(seqRu, 4, 48000, FloatArray(seqRu.size) { 1f }, FloatArray(seqRu.size) { 1f }, LongArray(seqRu.size), LongArray(seqRu.size), emptyMap()).audio
+        val ref = testCtx.assets.open("golden_audio.f32").readBytes().let { b ->
+            FloatArray(b.size / 4).also { java.nio.ByteBuffer.wrap(b).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(it) } }
+        assertEquals(ref.size, ru.size)
+        m.release()
+        Packs.delete(ctx.filesDir, "cis_ru")
+    }
 }

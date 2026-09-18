@@ -66,7 +66,8 @@ if __name__ == '__main__':
             for n, p in (('tts_mel.ptl', mel_p), ('backbone.pte', bb_p), ('head.ptl', head_p)):
                 zf.write(p, n, compress_type=zipfile.ZIP_STORED)
     seq, _ = pk.preprocess_tacotron(TEXT)
-    with open(GOLDEN, 'w', encoding='utf-8') as f:
-        json.dump({'pack': pack, 'text': TEXT, 'speaker': SPEAKER, 'ids': seq.tolist()}, f, ensure_ascii=False, indent=1)
+    for p in (GOLDEN, os.path.join(ROOT, 'app/src/androidTest/assets/golden_pack.json')):
+        with open(p, 'w', encoding='utf-8') as f:
+            json.dump({'pack': pack, 'text': TEXT, 'speaker': SPEAKER, 'ids': seq.tolist()}, f, ensure_ascii=False, indent=1)
     print('verify: ok, pte maxdiff', d)
     print(out, round(os.path.getsize(out) / 1048576, 1), 'MB;', len(speakers), 'голосов')
