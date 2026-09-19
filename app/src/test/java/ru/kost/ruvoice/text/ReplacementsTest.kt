@@ -11,9 +11,15 @@ class ReplacementsTest {
     }
 
     @Test fun systemVowelInterjectionDoubled() {
-        val line = java.io.File(TestData.root(), "app/src/main/assets/dicts/replace/Системный.txt").readLines().single { it.startsWith("~(?<![") }
+        val line = java.io.File(TestData.root(), "app/src/main/assets/dicts/replace/Системный.txt").readLines().single { it.startsWith("~(?<![\\p{L}+-])([аоэу])") }
         val r = Replacements.parse(listOf(line))
         assertEquals("АА! Ну ОО? а ты, а он, ах! на!", r.apply("А! Ну О? а ты, а он, ах! на!"))
+    }
+
+    @Test fun systemReduplicationBeforeA() {
+        val line = java.io.File(TestData.root(), "app/src/main/assets/dicts/replace/Системный.txt").readLines().single { it.startsWith("~(?<![\\p{L}+-])(\\p{L}+)-") }
+        val r = Replacements.parse(listOf(line))
+        assertEquals("Что что, а драться он умел. Кто кто, а он знал. Кое-что, а чуть-чуть и что-то.", r.apply("Что-что, а драться он умел. Кто-кто, а он знал. Кое-что, а чуть-чуть и что-то."))
     }
 
     @Test fun phraseWithStressOnNeighbourWord() {
