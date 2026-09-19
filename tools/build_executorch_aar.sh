@@ -32,6 +32,9 @@ cmake . --preset android-arm64-v8a -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/andr
 cmake --build cmake-out-android-arm64-v8a -j "$(nproc)" --target install --config Release
 SO=$(ls cmake-out-android-arm64-v8a/extension/android/*.so)
 "$NDK"/toolchains/llvm/prebuilt/*/bin/llvm-strip "$SO"
+# minSdk 23: символ с версией LIBC_N/O/... (например __pwrite_chk@LIBC_N при ANDROID_PLATFORM=android-26) — dlopen на
+# Android 6 падает «cannot locate symbol», сервис вылетает на каждом синтезе.
+if "$NDK"/toolchains/llvm/prebuilt/*/bin/llvm-nm -D --undefined-only "$SO" | grep '@LIBC_'; then echo "импорт libc новее API 23" >&2; exit 1; fi
 # Готовый AAR минус его libexecutorch.so для arm64 (x86_64 остаётся из готового) плюс наш.
 rm -rf "$WORK/aar" && mkdir -p "$WORK/aar/jni/arm64-v8a" && cd "$WORK/aar" && unzip -q ../executorch.aar
 cp "$WORK/executorch/$SO" jni/arm64-v8a/libexecutorch.so
