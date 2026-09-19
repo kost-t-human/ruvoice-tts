@@ -15,8 +15,8 @@ android {
         applicationId = "ru.kost.ruvoice"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1404
-        versionName = "0.14.4"
+        versionCode = 1405
+        versionName = "0.14.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
