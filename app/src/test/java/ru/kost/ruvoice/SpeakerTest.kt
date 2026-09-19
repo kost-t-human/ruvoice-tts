@@ -6,6 +6,7 @@ import org.junit.Test
 import java.io.File
 
 class SpeakerTest {
+    init { Speaker.builtin = true }   // тесты считают сборку full, lite включается через lite {}; в testLite… BuildConfig даёт false
     private val d = TestData.data()
     private val pack = Pack(JSONObject(File(TestData.root(), "app/src/test/resources/golden_pack.json").readText()).getJSONObject("pack").toString(), File("."))
     // пак ru = штатная модель паком: та же таблица символов и голоса, что в silero_ru.json
