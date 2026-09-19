@@ -65,6 +65,31 @@
         app:singleSelection="true"
         app:selectionRequired="true" />
 
+    <!-- Как в dialog_stress.xml: «как модель» (вариант из проверки) и «с ударением» (выбранный чип). -->
+    <LinearLayout
+        android:id="@+id/listenRow"
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp">
+        <Button
+            android:id="@+id/listenModel"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="6dp"
+            android:text="@string/listen_as_model" />
+        <Button
+            android:id="@+id/listenStressed"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:layout_marginStart="6dp"
+            android:text="@string/listen_stressed" />
+    </LinearLayout>
+
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
         android:layout_width="match_parent"

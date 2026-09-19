@@ -38,6 +38,7 @@ class Prefs(private val context: Context) {
     fun auditDict(kind: Audit.Kind): String = p.getString("audit_dict_${kind.name}", if (kind == Audit.Kind.NAMES) Dicts.NAMES else Dicts.MAIN)!!
     fun setAuditDict(kind: Audit.Kind, name: String) = p.edit().putString("audit_dict_${kind.name}", name).apply()
     /** Диалог «Проверки»: слово в замены, а не в ударения (ёфикация имён), и список замен, куда. */
+    var auditSortAlpha: Boolean get() = p.getBoolean("audit_sort_alpha", false); set(v) = p.edit().putBoolean("audit_sort_alpha", v).apply()
     var auditReplace: Boolean
         get() = p.getBoolean("audit_replace", false)
         set(v) = p.edit().putBoolean("audit_replace", v).apply()

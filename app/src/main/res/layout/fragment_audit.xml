@@ -45,6 +45,13 @@
                 android:layout_height="wrap_content"
                 android:text="@string/audit_show_hidden" />
             <ImageButton
+                android:id="@+id/sortAlpha"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/audit_sort_alpha"
+                android:src="@drawable/ic_sort_by_alpha" />
+            <ImageButton
                 android:id="@+id/scan"
                 android:layout_width="48dp"
                 android:layout_height="48dp"

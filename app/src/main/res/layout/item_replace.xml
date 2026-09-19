@@ -45,10 +45,13 @@
             android:textColor="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
 
+    <!-- широкая зона нажатия во всю строку, чтобы не промахиваться в редактор -->
     <ImageButton
         android:id="@+id/play"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="64dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="-16dp"
+        android:scaleType="center"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/preview"
         android:src="@drawable/ic_play" />

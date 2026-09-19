@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.core.text.HtmlCompat
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.os.Bundle
 import android.view.View
+import android.widget.Button
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageButton
@@ -19,6 +21,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.chip.Chip
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -52,6 +55,10 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind, hidden); refresh() }
                 .setNegativeButton(R.string.cancel, null).show()
         }
+        val sortAlpha = v.findViewById<ImageButton>(R.id.sortAlpha)
+        fun tintSort() = sortAlpha.setColorFilter(MaterialColors.getColor(sortAlpha, if (prefs.auditSortAlpha) com.google.android.material.R.attr.colorPrimary else com.google.android.material.R.attr.colorControlNormal))
+        tintSort()
+        sortAlpha.setOnClickListener { prefs.auditSortAlpha = !prefs.auditSortAlpha; tintSort(); refresh() }
         v.findViewById<View>(R.id.scan).setOnClickListener {
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage(R.string.audit_scan_help)
                 .setPositiveButton(R.string.audit_scan_pick) { _, _ -> scanLauncher.launch(arrayOf("*/*")) }
@@ -141,7 +148,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private fun refresh() {
         val query = filterField.text?.toString()?.trim().orEmpty()
         items = prefs.audit.entries(kind, hidden).filter { query.isEmpty() || it.word.contains(query, ignoreCase = true) }
-            .sortedWith(compareByDescending<Audit.Entry> { it.count }.thenBy(Dicts.COLLATOR) { it.word })
+            .sortedWith(if (prefs.auditSortAlpha) compareBy(Dicts.COLLATOR) { it.word } else compareByDescending<Audit.Entry> { it.count }.thenBy(Dicts.COLLATOR) { it.word })
         emptyView.setText(if (hidden) R.string.audit_empty_hidden else R.string.audit_empty)
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         recycler.adapter?.notifyDataSetChanged()
@@ -184,6 +191,14 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         val valueField = view.findViewById<TextInputEditText>(R.id.value)
         valueField.setText(e.word)
         valueLayout.setEndIconOnClickListener { btn -> valueField.text.toString().takeIf { it.isNotBlank() }?.let { (activity as SettingsActivity).preview(btn, it) } }
+        fun selectedPos() = chips.checkedChipId.takeIf { it != View.NO_ID }?.let { chips.findViewById<Chip>(it)?.tag as? Int }
+        // без словаря, как в StressFragment: иначе Stress.userDictPass подменит выбранное ударение
+        val nodict = Bundle().apply { putString("ruvoice.nodict", "1") }
+        val listenRow = view.findViewById<View>(R.id.listenRow)
+        view.findViewById<Button>(R.id.listenModel).setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, e.variant, nodict) }
+        view.findViewById<Button>(R.id.listenStressed).setOnClickListener { btn ->
+            selectedPos()?.let { pos -> (activity as SettingsActivity).preview(btn, e.word.substring(0, pos) + "+" + e.word.substring(pos), nodict) }
+        }
         val target = view.findViewById<MaterialAutoCompleteTextView>(R.id.target)
         val mode = view.findViewById<MaterialButtonToggleGroup>(R.id.mode)
         fun replaceMode() = mode.checkedButtonId == R.id.modeReplace
@@ -191,6 +206,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         fun switchMode() {
             val replace = replaceMode()
             chips.visibility = if (replace) View.GONE else View.VISIBLE
+            listenRow.visibility = chips.visibility
             valueLayout.visibility = if (replace) View.VISIBLE else View.GONE
             val names = lists()
             target.setSimpleItems(names.toTypedArray())
@@ -208,7 +224,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                     prefs.auditReplaceDict = name
                     DictLines.formatReplace(e.word, value, false)
                 } else {
-                    val pos = chips.checkedChipId.takeIf { it != View.NO_ID }?.let { chips.findViewById<Chip>(it)?.tag as? Int } ?: return@setPositiveButton
+                    val pos = selectedPos() ?: return@setPositiveButton
                     prefs.setAuditDict(kind, name)
                     DictLines.formatStress(e.word, pos)
                 }
