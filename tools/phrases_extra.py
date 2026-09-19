@@ -174,7 +174,7 @@ def extra_pick(w, low):
     global _extra
     # «*» в фразе — маска словаря замен (буквы, в том числе ничего): «*ым потом» — любое слово на -ым
     if _extra is None: _extra = {w: [(re.compile(r'(?<![а-яё-])' + re.escape(p).replace(r'\*', '[а-яё-]*') + r'(?![а-яё-])'), v) for p, v in items] for w, items in load_extra().items()}
-    for rx, v in _extra.get(w, ()):
+    for rx, v in _extra.get(w.replace('ё', 'е'), ()):   # ключи через «е», а модель могла вернуть «л+ёту»
         if rx.search(low): return v
     return None
 

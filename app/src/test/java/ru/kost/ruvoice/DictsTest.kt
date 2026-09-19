@@ -62,9 +62,16 @@ class DictsTest {
         assertEquals("трёхс+от", stressMap["трёхсот"]); assertEquals("четырёхс+отый", stressMap["четырёхсотый"]); assertEquals("трехт+ысячного", stressMap["трехтысячного"])
         val replace = TestData.root().resolve("app/src/main/assets/dicts/replace/Системный.txt").readLines()
         val r = Replacements.parse(replace)
-        val pairs = replace.dropWhile { !it.startsWith("# Фразы-подсказки") }.mapNotNull { Replacements.split(it) } // выше — сложные слова и орфоэпия («гм = гмм»)
+        val phrases = replace.dropWhile { !it.startsWith("# Фразы-подсказки") }   // выше — сложные слова и орфоэпия («гм = гмм»)
+        val pairs = phrases.takeWhile { !it.startsWith("# Ударение на предлоге") }.mapNotNull { Replacements.split(it) }
         assertTrue(pairs.size > 5000)
         assertTrue(pairs.filter { '*' !in it.first }.all { (k, v) -> v.replace("+", "").replace('ё', 'е') == k.replace('ё', 'е').removePrefix("$") && v.count { it == '+' } in 1..2 })
+        // ударение на предлоге: предлог слеплен со следующим словом («н+абок»), иначе оба звучат ударно
+        val clitic = phrases.dropWhile { !it.startsWith("# Ударение на предлоге") }.mapNotNull { Replacements.split(it) }
+        assertTrue(clitic.size > 100)
+        assertTrue(clitic.all { (k, v) -> v.replace("+", "").replace(" ", "") == k.replace(" ", "") && v.split(" ").any { it.length > 1 && it.indexOf('+') in 0..3 && ' ' !in it } })
+        assertEquals("Он н+ебыл дома и ворочался с б+оку н+абок.", r.apply("Он не был дома и ворочался с боку на бок."))
+        assertEquals("Корабль спустили н+аводу, а он сидел н+огу н+аногу.", r.apply("Корабль спустили на воду, а он сидел ногу на ногу."))   // маска «*» в ключе и замене
         assertEquals("Амбарный зам+ок висел", r.apply("Амбарный замок висел"))
         assertEquals("опыт Толст+ого и толстого кота", r.apply("опыт Толстого и толстого кота")) // «$» — только с заглавной
         assertEquals("тёмно-зеленый и темно", r.apply("темно-зеленый и темно"))

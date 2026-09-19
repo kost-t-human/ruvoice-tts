@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Системный словарь приложения: tools/stress_fixes.txt, tools/wiki_names.txt и tools/phrases_extra.txt → assets/dicts/{stress,replace}/Системный.txt.
+"""Системный словарь приложения: tools/stress_fixes.txt, tools/wiki_names.txt, tools/phrases_extra.txt и tools/phrases_clitic.txt → assets/dicts/{stress,replace}/Системный.txt.
 В аппке это обычные списки «Системный» на вкладках «Ударения» и «Замены»: их нельзя удалить и править,
 но можно выключить; при старте файл в данных приложения обновляется из assets, если отличается.
 Запуск: python3 tools/system_dicts.py (export_silero_stress.py вызывает сам)."""
@@ -45,6 +45,9 @@ def main():
                 merged[phrase] = re.sub(r'(?<![а-яё])' + re.escape(w) + r'(?![а-яё])', var, merged.get(phrase, phrase), count=1)
         # «$Толстого» — регистровый ключ Демагога: «$» только в ключе, в замене его быть не должно
         for phrase, out in merged.items(): o.write(f'{phrase} = {out[1:] if phrase.startswith("$") and not phrase.startswith("$$") else out}\n'); n += 1
+        o.write('# Ударение на предлоге: слеплено в одно слово, «н+абок» (tools/phrases_clitic.txt)\n')
+        for line in open(os.path.join(HERE, 'phrases_clitic.txt'), encoding='utf-8'):
+            if '=' in line.split('#', 1)[0]: o.write(line.strip() + '\n'); n += 1
     print(f'системный словарь: ударений {len(fixes)}, имён {len(names)}, фраз {n} → {ASSETS}')
 
 
