@@ -44,6 +44,19 @@ class SpeakerTest {
         assertEquals("ru_alexandr (cis_ru)", Speaker.label("cis_ru/ru_alexandr"))
     }
 
+    @Test fun ttsNamesHaveNoSlashesAndRuOnce() {
+        assertEquals("ru-ru-xenia", Speaker.ttsName("xenia"))
+        assertEquals("ru-ru-xenia", Speaker.ttsName("ru/xenia"))   // lite: то же имя, что в full
+        assertEquals("ru-ru-cis-marat", Speaker.ttsName("cis_ru/ru_marat"))
+        val packs = listOf(pack)
+        assertEquals("cis_ru/ru_marat", Speaker.fromTtsName("ru-ru-cis-marat", d, packs))
+        assertEquals("cis_ru/ru_marat", Speaker.fromTtsName("ru-ru-cis_ru/ru_marat", d, packs))   // сохранённое читалкой до 0.15
+        assertEquals("xenia", Speaker.fromTtsName("ru-ru-xenia", d, packs))
+        assertNull(Speaker.fromTtsName(null, d, packs))
+        assertNull(Speaker.resolve(Speaker.fromTtsName("ru-ru-nobody", d, packs), d, packs))
+        lite { assertEquals("ru/xenia", Speaker.fromTtsName("ru-ru-xenia", d, listOf(ruPack))) }
+    }
+
     @Test fun liteWithoutPacksHasNoVoices() = lite {
         assertTrue(Speaker.names(d, emptyList()).isEmpty())
         assertNull(Speaker.default(d, emptyList()))

@@ -213,7 +213,6 @@ class SileroTtsService : TextToSpeechService() {
         return r
     }
 
-    private fun voiceName(speaker: String) = "ru-ru-$speaker"
     private fun packs() = Packs.installed(filesDir)
     /** Голос из настроек; голос удалённого пака — штатный по умолчанию; null — голосов нет (lite без пака). */
     private fun currentSpeaker(): Speaker? = Speaker.resolve(prefs.voice, models.data, packs()) ?: Speaker.default(models.data, packs())
@@ -230,12 +229,12 @@ class SileroTtsService : TextToSpeechService() {
     }
 
     override fun onGetVoices(): List<Voice> = Speaker.names(models.data, packs()).map {
-        Voice(voiceName(it), Locale("ru", "RU"), Voice.QUALITY_HIGH, Voice.LATENCY_NORMAL, false, emptySet())
+        Voice(Speaker.ttsName(it), Locale("ru", "RU"), Voice.QUALITY_HIGH, Voice.LATENCY_NORMAL, false, emptySet())
     }
     override fun onIsValidVoiceName(name: String?): Int =
-        if (Speaker.resolve(name?.removePrefix("ru-ru-"), models.data, packs()) != null) TextToSpeech.SUCCESS else TextToSpeech.ERROR
+        if (Speaker.resolve(Speaker.fromTtsName(name, models.data, packs()), models.data, packs()) != null) TextToSpeech.SUCCESS else TextToSpeech.ERROR
     override fun onLoadVoice(name: String?): Int = onIsValidVoiceName(name)
-    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = voiceName(currentSpeaker()?.name ?: Speaker.DEFAULT)
+    override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String = Speaker.ttsName(currentSpeaker()?.name ?: Speaker.DEFAULT)
 
     override fun onStop() { stopped = true }
 
@@ -246,7 +245,7 @@ class SileroTtsService : TextToSpeechService() {
         try {
             val d = models.data
             val sr = prefs.sampleRate
-            val voice = load(Speaker.resolve(request.voiceName?.removePrefix("ru-ru-"), d, packs()) ?: currentSpeaker() ?: run {
+            val voice = load(Speaker.resolve(Speaker.fromTtsName(request.voiceName, d, packs()), d, packs()) ?: currentSpeaker() ?: run {
                 Log.e(SileroModels.TAG, "голосов нет: сборка без модели и без пака"); callback.error(TextToSpeech.ERROR_NOT_INSTALLED_YET); return
             })
             val speakerId = voice.id

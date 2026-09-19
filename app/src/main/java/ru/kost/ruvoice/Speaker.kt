@@ -39,6 +39,13 @@ class Speaker(val name: String, val pack: Pack?, val id: Int, val sym: Symbols, 
         fun sameEngine(main: Speaker, d: SileroData, packs: List<Pack>): List<String> =
             main.pack?.let { p -> p.speakers.keys.sorted().map { packName(p, it) } } ?: d.speakers.keys.sorted()
 
+        /** Имя для TTS API читалок: «ru-ru-xenia», «ru-ru-cis-marat». Без «/» и «_» (AlReaderX
+         * такие не опознаёт), куски «ru» из id пака и имени голоса выкинуты, в lite «ru/xenia» — как в full. */
+        fun ttsName(name: String) = "ru-ru-" + name.split('/', '_').filter { it != "ru" }.joinToString("-")
+        /** Обратно из [ttsName]; имя в старой форме «ru-ru-cis_ru/ru_marat» (до 0.15) — тоже. */
+        fun fromTtsName(tts: String?, d: SileroData, packs: List<Pack>): String? =
+            tts?.let { t -> names(d, packs).firstOrNull { ttsName(it) == t } ?: t.removePrefix("ru-ru-") }
+
         /** Подпись в списке: «ru_alexandr (cis_ru)», штатные как есть. */
         fun label(name: String): String = name.indexOf('/').let { i -> if (i < 0) name else "${name.substring(i + 1)} (${name.substring(0, i)})" }
     }
