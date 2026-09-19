@@ -9,7 +9,8 @@ object Splitter {
     private val abbrevStopWords = setOf("оз", "гр", "гг", "вв", "стр", "св", "см", "др", "пр", "рис", "табл", "ср",
         "им", "ул", "корп", "кв", "проф", "акад", "чл", "мл", "ст", "изд", "тыс", "руб", "коп", "напр", "англ",
         "нем", "фр", "лат", "греч", "букв", "прим", "перев", "мин", "макс", "обл")
-    private val abbrevWordAtEndRe = Regex("""(?:^|\s)([а-яёa-z]+)\.$""", RegexOption.IGNORE_CASE)
+    // Перед сокращением может стоять скобка или кавычка («[прим. ред.]», «(см. ниже)»).
+    private val abbrevWordAtEndRe = Regex("""(?:^|[\s(\[«"])([а-яёa-z]+)\.$""", RegexOption.IGNORE_CASE)
 
     private fun endsWithAbbrev(piece: String) =
         abbrevWordAtEndRe.find(piece)?.groupValues?.get(1)?.lowercase() in abbrevStopWords

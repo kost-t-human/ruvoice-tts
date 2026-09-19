@@ -69,6 +69,8 @@ class SplitterTest {
         assertEquals(listOf("Смотри стр. 5 и рис. 2.", "Дальше идёт текст."),
             Splitter.sentences("Смотри стр. 5 и рис. 2. Дальше идёт текст."))
         assertEquals(listOf("Он ушёл.", "Она осталась."), Splitter.sentences("Он ушёл. Она осталась."))
+        // сокращение за скобкой — тоже не конец предложения
+        assertEquals(listOf("Текст [прим. ред.] конец."), Splitter.sentences("Текст [прим. ред.] конец."))
     }
 
     @Test fun okIsNotAnAbbreviationStopWord() {

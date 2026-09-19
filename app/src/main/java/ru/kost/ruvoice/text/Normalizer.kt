@@ -122,11 +122,11 @@ object Normalizer {
 
     // 0. Пунктуация (task 18 п.3): первый проход в prepare(), до чисел — приводим «шумную»
     // пунктуацию к одному варианту. Повторные «!»/«?» — к первому знаку, многоточие в любом
-    // виде («...», ". . .») — к «…», дефис/минус в пробелах — к тире, несколько тире подряд —
-    // к одному.
+    // виде («...», ". . .») — к «…», дефис/минус в пробелах (или в начале реплики «- Привет»)
+    // — к тире, несколько тире подряд — к одному.
     private val multiExclQuestRe = Regex("[!?]{2,}")
     private val ellipsisRe = Regex("""\.(?: ?\.){2,}""")
-    private val spacedDashRe = Regex("""(?<=[ ])[-−](?=[ ])""")
+    private val spacedDashRe = Regex("""(?<=^|[ ])[-−](?=[ ])""")
     private val multiDashRe = Regex("[–—]{2,}")
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text

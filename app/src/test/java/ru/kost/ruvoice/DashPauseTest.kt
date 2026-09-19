@@ -17,5 +17,8 @@ class DashPauseTest {
             assertEquals(t, "он замолчал — и вышел.", Normalizer.prepare(t, cisAllowed))
         }
         assertEquals("кто-то", Normalizer.prepare("кто-то", cisAllowed))
+        // ASCII-дефис в начале реплики — тоже тире с паузой; «-5» — минус, не трогаем
+        assertEquals("– как дела?", Normalizer.prepare("- Как дела?", d.sym.allowed))
+        assertEquals("минус пять", Normalizer.prepare("-5", d.sym.allowed))
     }
 }
