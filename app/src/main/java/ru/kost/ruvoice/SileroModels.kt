@@ -10,6 +10,7 @@ import org.pytorch.Tensor
 import org.pytorch.executorch.EValue
 import ru.kost.ruvoice.text.Morph
 import ru.kost.ruvoice.text.Normalizer
+import ru.kost.ruvoice.text.HardE
 import ru.kost.ruvoice.text.YoDict
 import ru.kost.ruvoice.text.StressModels
 import java.io.File
@@ -183,6 +184,7 @@ class SileroModels(private val context: Context) : StressModels {
                 // Морфология для нормализатора — mmap ассета, один раз на процесс.
                 Normalizer.morph = runCatching { Morph.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "morph.bin не открылся", e) }.getOrNull()
                 YoDict.shared = runCatching { YoDict.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "eyo_safe.txt не открылся", e) }.getOrNull()
+                HardE.shared = runCatching { HardE.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "hard_e.txt не открылся", e) }.getOrNull()
             }
         }
     }

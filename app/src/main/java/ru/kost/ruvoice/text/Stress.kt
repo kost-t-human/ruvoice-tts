@@ -10,7 +10,8 @@ interface StressModels {
 /** morph — таблица морфологии для согласования с прилагательным в gramPass; null — правило выключено. По умолчанию та же,
  * что у нормализатора (SileroModels.data() ставит её раз на процесс; в JVM-тестах без ассета — null). */
 class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
-             private val rules: Rules = Rules(), private val morph: Morph? = Normalizer.morph, private val yo: YoDict? = YoDict.shared) {
+             private val rules: Rules = Rules(), private val morph: Morph? = Normalizer.morph, private val yo: YoDict? = YoDict.shared,
+             private val hardE: HardE? = HardE.shared) {
     private val vowels = "аоуыэиеяёю"
     private val tok = BertTokenizer(d)
     private val homoWordRe = Regex("(?=.*[а-яё])[а-яё+]+", RegexOption.IGNORE_CASE)
@@ -29,7 +30,9 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         if (rules.on("gram")) s = gramPass(s)
         if (rules.on("homo")) s = homographPass(s)
         if (rules.on("accentor")) s = accentorPass(s)
-        return userDictPass(s, preset)
+        s = userDictPass(s, preset)
+        // твёрдое [э] в заимствованиях — после всех ударений, чтобы модель и словари видели обычное «е»
+        return if (rules.on("hard_e") && hardE != null) hardE.apply(s) else s
     }
 
     // ---- грамматика: падеж или часть речи по предыдущему слову ----
