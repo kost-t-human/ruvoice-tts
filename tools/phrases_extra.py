@@ -102,6 +102,11 @@ POSS_PL = set('глаза слова губы яйца окна ноги тру�
 POSS_PRON = set('его её ее их мои твои свои наши ваши чьи'.split())
 OBLIQUE_END = re.compile(r'[а-яё]+(ых|их|ого|его|ой|ей|ом|ем|ами|ями|ах|ях|ам|ям|ою|ею|ую|ов|ев)(ся)?$')
 # подлежащее через одно слово перед глаголом во мн. («глаза снова сверкнули»): ≥94 % по золоту только для этих слов
+# первое слово предложения — мн. (Stress.initPl, там ещё и с заглавной; тексты оценок в нижнем регистре): по золоту библиотеки ≥98 %, не перед «не/нет»
+INIT_PL = set('глаза руки слова губы ноги ворота стены лица окна дела тела облака горы ноздри войска стрелы письма копы яйца леса свечи толпы '
+              'цены пятна доски берега трубы семена реки семьи колокола'.split())
+# «самого» перед словом с заглавной — «самог+о», кроме «до/от/у/… самого» (место) и «того/этого самого» (Stress.samPlace)
+SAM_PLACE = set('до от у с со из к ко около возле подле мимо вокруг вплоть того этого самого'.split())
 SUBJ_ADV = set('глаза руки слова ноги цены войска губы яйца свечи'.split())
 NOT_ADVERB = set('и а но или же ли я ты он она оно мы вы они'.split())
 
@@ -195,13 +200,15 @@ def extra_pick(w, low):
     return None
 
 
-def app_pick(w, toks, i, low, gram, homo, morph, phrase_pick):
+def app_pick(w, toks, i, low, gram, homo, morph, phrase_pick, raw=None):
     """Зеркало порядка аппки для слова toks[i]: фразы системного словаря (phrases_extra.txt, замена текста до Stress) →
-    gramPass → фразы Silero. None — решает модель. phrase_pick(w, low) — вариант по фразам json или None."""
+    gramPass → фразы Silero. None — решает модель. phrase_pick(w, low) — вариант по фразам json или None.
+    raw — те же слова в исходном регистре (для «самого Зарецкого»); без них правило «самого» молчит."""
     ours = extra_pick(w, low)
     if ours: return ours
     nxt, nxt2 = (toks[i + 1] if i + 1 < len(toks) else None), (toks[i + 2] if i + 2 < len(toks) else None)
-    if w in gram and i == 0 and subj_pl(w, gram[w], '', nxt, morph, nxt2=nxt2): return gram[w]['p']
+    if w == 'самого' and raw and i + 1 < len(raw) and raw[i + 1][0].isupper() and (i == 0 or toks[i - 1] not in SAM_PLACE): return 'самог+о'
+    if w in gram and i == 0 and (subj_pl(w, gram[w], '', nxt, morph, nxt2=nxt2) or w in INIT_PL and 'p' in gram[w] and nxt not in NEG): return gram[w]['p']
     if w in gram and i > 0: ours = gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph,
                                             toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None, nxt, nxt2)
     if w == 'все' and i + 1 < len(toks): ours = vse_pick(toks[i + 1], morph, gram)

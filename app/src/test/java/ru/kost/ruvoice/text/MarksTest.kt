@@ -95,6 +95,8 @@ class MarksTest {
         assertEquals("Ты где?!", Marks.exclaim("Ты где?!"))
         assertEquals("*Бам*!", Marks.exclaim("*Бам*!"))
         assertEquals("Бам.", Marks.exclaim("Бам."))
+        assertEquals("Конечно, Андрей!", Marks.exclaim("Конечно, Андрей!"))
+        assertEquals("— *Андрей*!", Marks.exclaim("— Андрей!"))
         val p = Marks.parse(Marks.exclaim("Эй, вы!"))
         assertEquals(listOf(0, 3), p.words.map { it.second.focus })
     }

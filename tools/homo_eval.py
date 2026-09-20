@@ -40,13 +40,14 @@ for it in items:
     text = it['context'].lower()
     got = ss(text, put_yo=False, put_yo_homo=False)
     toks = [t.replace('+', '') for t in word_re.findall(got)]
+    raw = word_re.findall(it['context']); raw = raw if len(raw) == len(toks) else None   # исходный регистр («самого Зарецкого»)
     stressed = word_re.findall(got)
     if w not in toks: stat['слово не найдено'] += 1; continue
     idx = [k for k, t in enumerate(toks) if t == w]
     i = idx[min(it.get('occurrence', 0), len(idx) - 1)]   # narusco: цель может быть не первым вхождением формы
     base = stressed[i]
     # зеркало аппки: gramPass → фразы (наши и Silero) → BERT
-    ours = pe.app_pick(w, toks, i, text, gram, homo, morph, phrase_pick) or base
+    ours = pe.app_pick(w, toks, i, text, gram, homo, morph, phrase_pick, raw) or base
     if w in fixes and not pe.extra_pick(w, text): ours = fixes[w]
     stat['всего'] += 1
     # «ё» не сравниваем: модель в тесте работает без «ё» (put_yo=False), а золото narusco/Викисловаря её пишет

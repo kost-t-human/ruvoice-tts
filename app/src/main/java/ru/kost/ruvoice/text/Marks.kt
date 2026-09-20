@@ -34,13 +34,15 @@ object Marks {
     class Parsed(val text: String, val words: List<Pair<String, Mark>>)
 
     // Короткое восклицание («Эй, вы!», «Бам!») модель читает ровно и коротко; фокус на последнем
-    // слове это чинит (выбрано на слух, 16.09.2026). До двух слов, конец «!» (не «?!»).
+    // слове это чинит (выбрано на слух, 16.09.2026). До двух слов, конец «!» (не «?!»). Второе слово с заглавной — обращение
+    // («Конечно, Андрей!»): фокус делал паузу и восторг на имени, не трогаем.
     private val shortExclamRe = Regex("""^[^\p{L}]*\p{L}[\p{L}+-]*(?:[^\p{L}?]*\s\p{L}[\p{L}+-]*)?[^\p{L}?*]*!\W*$""")
     private val lastWordRe = Regex("""\p{L}[\p{L}+-]*(?=[^\p{L}]*$)""")
+    private val vocativeRe = Regex("""\p{L}[\p{L}+-]*\W+\p{Lu}[\p{L}+-]*\W*$""")
 
     /** «Эй, вы!» → «Эй, *вы*!»: логическое ударение на последнем слове короткого восклицания. */
     fun exclaim(text: String): String =
-        if (shortExclamRe.matches(text)) lastWordRe.replace(text) { "*${it.value}*" } else text
+        if (shortExclamRe.matches(text) && !vocativeRe.containsMatchIn(text)) lastWordRe.replace(text) { "*${it.value}*" } else text
 
     private val wordRe = Regex("""\p{L}[\p{L}+-]*""")
     /** «Вы барон Гордеев?», «— Барон Андрей Николаевич Гордеев?» → «… *Гордеев*?»: в общем вопросе модель ставит подъём на

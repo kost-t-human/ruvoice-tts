@@ -215,6 +215,18 @@ class StressTest {
         assertEquals("глаза мальчика блестели", s.gramPass("глаза мальчика блестели"))
         assertEquals("глаза и уши болели", s.gramPass("глаза и уши болели"))
         assertEquals("стены снова дрожали", s.gramPass("стены снова дрожали"))
+        // первое слово предложения из списка — мн.; не перед «не/нет», не вне списка, не в середине
+        assertEquals("Стр+елы, прочертив дугу, упали", s.gramPass("Стрелы, прочертив дугу, упали"))
+        assertEquals("— Стр+елы!", s.gramPass("— Стрелы!"))
+        assertEquals("Ушёл. Стр+елы летели", s.gramPass("Ушёл. Стрелы летели"))
+        assertEquals("Стрелы не было", s.gramPass("Стрелы не было"))
+        assertEquals("Дома, улицы", s.gramPass("Дома, улицы"))
+        assertEquals("Наконечник стрелы", s.gramPass("Наконечник стрелы"))
+        // «самого» перед словом с заглавной — «сам», кроме «до/от/у самого» и «того/этого самого»
+        assertEquals("атаковать самог+о Зарецкого", s.gramPass("атаковать самого Зарецкого"))
+        assertEquals("до самого Парижа", s.gramPass("до самого Парижа"))
+        assertEquals("того самого Зарецкого", s.gramPass("того самого Зарецкого"))
+        assertEquals("самого лучшего", s.gramPass("самого лучшего"))
     }
 
     @Test fun gramPassAgreesWithAdjective() {
