@@ -148,6 +148,16 @@ def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None, prev3=None, pre
     return None
 
 
+def init_gen(nxt, nxt2, toks, morph):
+    """Зеркало Stress.initGen: первое слово в род. ед. — отрицание дальше, глагол с родительным рядом, согласованное
+    прилагательное в ед. или существительное без родительного после."""
+    if any(t in NEG for t in toks[1:]) or nxt and GEN_VERB.match(nxt) or nxt2 and GEN_VERB.match(nxt2): return True
+    if not morph or not nxt: return False
+    t = morph.tags(nxt)
+    if morph.is_adjective(t) and not morph.is_noun(t): return not morph.adj_cases(t, None, True) & {'nom', 'acc'}
+    return morph.is_noun(t) and not (morph.noun_cases(t, False) | morph.noun_cases(t, True)) & {'gen'}
+
+
 def subj_pl(w, e, prev, nxt, morph, prev2=None, prev3=None, nxt2=None):
     verb_next = verb_like(nxt, morph) and VERB_PL_END.match(nxt) or w in SUBJ_ADV and adverb_like(nxt, morph) and verb_like(nxt2, morph) and VERB_PL_END.match(nxt2)
     return (w in VERB_PL and 'p' in e and verb_next and prev not in NEG
@@ -208,7 +218,7 @@ def app_pick(w, toks, i, low, gram, homo, morph, phrase_pick, raw=None):
     if ours: return ours
     nxt, nxt2 = (toks[i + 1] if i + 1 < len(toks) else None), (toks[i + 2] if i + 2 < len(toks) else None)
     if w == 'самого' and raw and i + 1 < len(raw) and raw[i + 1][0].isupper() and (i == 0 or toks[i - 1] not in SAM_PLACE): return 'самог+о'
-    if w in gram and i == 0 and (subj_pl(w, gram[w], '', nxt, morph, nxt2=nxt2) or w in INIT_PL and 'p' in gram[w] and nxt not in NEG): return gram[w]['p']
+    if w in gram and i == 0 and (subj_pl(w, gram[w], '', nxt, morph, nxt2=nxt2) or w in INIT_PL and 'p' in gram[w] and not init_gen(nxt, nxt2, toks, morph)): return gram[w]['p']
     if w in gram and i > 0: ours = gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph,
                                             toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None, nxt, nxt2)
     if w == 'все' and i + 1 < len(toks): ours = vse_pick(toks[i + 1], morph, gram)

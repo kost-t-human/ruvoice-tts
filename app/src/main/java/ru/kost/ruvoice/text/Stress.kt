@@ -63,13 +63,24 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val neg = setOf("не", "нет", "ни")
     /** Первое слово предложения — подлежащее во мн. («Стрелы, прочертив дугу, упали»; BERT без глагола рядом берёт род. ед.):
      * по золоту библиотеки ≥98 % для этих слов (глаза 15 613:24, стрелы 416:0), не «дома» (наречие, 57 %), «земли», «города»,
-     * «войны», «луны», не «воды» («Воды!» — родительный). Перед «не/нет» — род. ед. («Тела не было», «Луны не видно»).
+     * «войны», «луны», не «воды» («Воды!» — родительный). Исключения — [initGen].
      * Только с заглавной: обрывок «глаза мальчика блестели» из словаря фраз — не предложение (в зеркале phrases_extra текст
      * оценок в нижнем регистре, там просто первое слово). */
     private val initPl = setOf("глаза", "руки", "слова", "губы", "ноги", "ворота", "стены", "лица", "окна", "дела", "тела", "облака", "горы",
         "ноздри", "войска", "стрелы", "письма", "копы", "яйца", "леса", "свечи", "толпы", "цены", "пятна", "доски", "берега", "трубы",
         "семена", "реки", "семьи", "колокола")
     private val sentEnd = Regex("[.!?…]")
+    /** Первое слово всё же в род. ед. — молчим, решает BERT: отрицание дальше в предложении («Слова сочувствия не дождёшься»,
+     * «Ноги моей не будет», «Леса поблизости не было»), глагол с родительным рядом («Губы коснулся ветерок», «Стены замка
+     * коснулся луч»), согласованное прилагательное в ед. («Леса густого тень», «Цены высокой») или существительное без
+     * родительного («Свечи огарок», «Стрелы наконечник» — инверсия; «Глаза Анфертьева», «Стены домов» — род., мн.). */
+    private fun initGen(w: String, nxt: String, nxt2: String, words: List<MatchResult>, i: Int): Boolean {
+        if (words.drop(i + 1).any { it.value.lowercase() in neg } || genVerb.matches(nxt) || genVerb.matches(nxt2)) return true
+        if (morph == null || nxt.isEmpty()) return false
+        val t = morph.tags(nxt)
+        if (Morph.isAdjective(t) && !Morph.isNoun(t)) return Morph.adjCases(t, null, true).none { it == Case.NOM || it == Case.ACC }
+        return Morph.isNoun(t) && (Morph.nounCases(t, false) + Morph.nounCases(t, true)).none { it == Case.GEN }
+    }
     /** «самого» перед словом с заглавной — «сам»: «атаковать самог+о Зарецкого» (BERT: «с+амого»). По золоту библиотеки 4819:1565,
      * весь «с+амого» — «до/от/у/с/из самого Х» (место: «до с+амого Парижа» 1003:4) и «того/этого самого Х». Без них ~1600:20. */
     private val samPlace = setOf("до", "от", "у", "с", "со", "из", "к", "ко", "около", "возле", "подле", "мимо", "вокруг", "вплоть",
@@ -152,7 +163,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                 val subjPl = w in verbPl && "p" in e && verbNext && prev !in neg &&
                     prev !in dual && prev2 !in dual && prev3 !in dual && (morph == null || !Morph.isNoun(morph.tags(prev)))
                 val pick = when {
-                    !adjacent -> if (subjPl || w in initPl && "p" in e && nxt !in neg && m.value[0].isUpperCase() &&
+                    !adjacent -> if (subjPl || w in initPl && "p" in e && m.value[0].isUpperCase() && !initGen(w, nxt, nxt2, words, i) &&
                         (prevEnd < 0 || sentEnd.containsMatchIn(sentence.subSequence(prevEnd, m.range.first)))) e["p"] else null
                     "i" in e -> if (phaseRe.matches(prev)) e["i"] else null
                     // «её глаз+а», «в его глаз+а», «из его гл+аза»; за существительным или прилагательным в косвенном падеже
