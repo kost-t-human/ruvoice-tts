@@ -30,7 +30,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
         if (rules.on("gram")) s = gramPass(s)
         if (rules.on("homo")) s = homographPass(s)
         if (rules.on("accentor")) s = accentorPass(s)
-        s = userDictPass(s, preset)
+        s = userDictPass(s, sentence, preset)
         // твёрдое [э] в заимствованиях — после всех ударений, чтобы модель и словари видели обычное «е»
         return if (rules.on("hard_e") && hardE != null) hardE.apply(s) else s
     }
@@ -434,12 +434,18 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     }
 
     // ---- user dictionary ----
-    private fun userDictPass(sentence: String, preset: Set<String>): String {
+    private fun userDictPass(sentence: String, original: String, preset: Set<String>): String {
         if (userDict.isEmpty()) return sentence
+        // ключ — слово из исходного текста: проходы выше могли поставить «ё» («узна+ёт» из homodict, «бёдра» из gram-таблицы),
+        // и «узнает» из словаря не нашлось бы; авторское «ё» в тексте так и остаётся другим словом
+        val src = wordRe.findAll(original).map { it.value.replace("+", "").lowercase() }.toList()
+        var i = -1
         return wordRe.replace(sentence) { m ->
+            i++
             if (m.value.lowercase() in preset) return@replace m.value
             val orig = m.value.replace("+", "")
-            val value = userDict[orig.lowercase()] ?: return@replace m.value
+            val key = src.getOrNull(i)?.takeIf { it.replace('ё', 'е') == orig.lowercase().replace('ё', 'е') } ?: orig.lowercase()
+            val value = userDict[key] ?: return@replace m.value
             val stressIdx = value.indexOf('+')
             var cased = value.replace("+", "")
                 .mapIndexed { k, c -> if (k < orig.length && orig[k].isLowerCase()) c.lowercaseChar() else if (k < orig.length) c.uppercaseChar() else c }

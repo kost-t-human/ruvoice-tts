@@ -48,6 +48,16 @@ class StressTest {
         assertEquals("+обливаясь п+отом, +а пот+ом", s.apply("обливаясь п+отом, а потом"))
     }
 
+    @Test fun userDictWinsOverHomographYo() {
+        // homodict «узнает» → узна+ёт по BERT (0.9 → второй вариант): словарь с «е» должен найти слово и после подмены буквы;
+        // «узнаёт» в самом тексте — другое слово, словарь его не трогает
+        val s = Stress(d, firstVowel, mapOf("узнает" to "узн+ает"))
+        assertEquals("+он узн+ает, чт+о", s.apply("он узнает, что"))
+        assertEquals("+Он узн+ает", s.apply("Он узнает"))
+        assertEquals("+он узна+ёт", s.apply("он узнаёт"))
+        assertEquals("узна+ёт", Stress(d, firstVowel).apply("узнает"))
+    }
+
     @Test fun userDictKeepsOriginalCapitalization() {
         // словарное значение хранится строчными, регистр восстанавливаем по исходному слову
         val s = Stress(d, firstVowel, mapOf("мама" to "мам+а"))
