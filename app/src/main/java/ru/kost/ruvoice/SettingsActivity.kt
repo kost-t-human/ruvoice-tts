@@ -30,6 +30,10 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.Locale
+import ru.kost.ruvoice.text.Marks
+import ru.kost.ruvoice.text.Normalizer
+import ru.kost.ruvoice.text.SentenceType
+import ru.kost.ruvoice.text.Stress
 
 /**
  * Экран настроек: тулбар с меню (экспорт/импорт настроек, «О программе»), вкладки и
@@ -210,6 +214,54 @@ class SettingsActivity : AppCompatActivity() {
                 release(button)
             }
         }, ctx.packageName)
+    }
+
+    // «Разбор» с «Голоса» и из окна «Проверить» на вкладках списков: по сегментам — текст после
+    // замен и то, что уходит в модель после нормализации и всех ударений (→, ударения над
+    // буквой), тем же путём, что в SileroTtsService.synthSegment. Словари и модели читаются с диска — считаем в
+    // фоновом потоке, диалог показываем на UI-потоке.
+    fun analyze(text: String) {
+        val ctx = applicationContext
+        Thread {
+            val report = try {
+                val d = SileroModels.data(ctx)
+                val packs = Packs.installed(ctx.filesDir)
+                // фильтр символов — того движка, что озвучит: у cis-пака нет «!» и апострофа
+                val allowed = (Speaker.resolve(prefs.voice, d, packs) ?: Speaker.default(d, packs))?.sym?.allowed ?: d.sym.allowed
+                val rules = prefs.rules()
+                // те же акцентор и BERT, что у сервиса (SileroModels.shared); если сервис их выгрузил, Stress догрузит
+                val models = SileroModels.shared(ctx)
+                val stress = Stress(d, models, prefs.userDict(), rules)
+                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
+                buildString {
+                    for (seg in segments) {
+                        var marks = ""
+                        if (seg.speech) marks += " [речь]"
+                        if (seg.paragraph) marks += " [¶]"
+                        appendLine(seg.text + marks)
+                        var t = if (rules.on("exclaim")) Marks.exclaim(seg.text) else seg.text
+                        if (rules.on("question") && SentenceType.classify(t, d, rules) == "general_q") t = Marks.question(t)
+                        val prepared = Normalizer.prepare(Marks.parse(t, rules.focusLevel).text, allowed, rules)
+                        // монитор models — тот же, что у синтеза и выгрузки в сервисе: форварды не параллелим
+                        val accented = synchronized(models) { stress.apply(prepared) }
+                        appendLine("→ " + accented.split(' ').joinToString(" ") { DictLines.accentDisplay(it) })
+                        if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
+                        appendLine()
+                    }
+                }.trimEnd()
+            } catch (e: Exception) {
+                e.toString()
+            }
+            runOnUiThread {
+                // экран могли закрыть, пока считали — окно без Activity уронит show()
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.analyze_title)
+                    .setMessage(report)
+                    .setPositiveButton(R.string.close, null)
+                    .show()
+            }
+        }.start()
     }
 
     /** Разблокирует button, только если она всё ещё «занятая» — поздний callback от уже

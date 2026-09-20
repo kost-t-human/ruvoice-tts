@@ -165,6 +165,13 @@ class SileroModels(private val context: Context) : StressModels {
     }
 
     companion object {
+        /** Один экземпляр на процесс: сервис и настройки живут в одном процессе, и «Разбор» берёт те же
+         * акцентор и BERT, что синтез, а не вторую копию на 50 МБ. Жизнью управляет сервис (выгрузка по
+         * простою, onDestroy); release() лишь снимает модули, следующий ensure* грузит заново. */
+        @Volatile private var instance: SileroModels? = null
+        fun shared(context: Context): SileroModels =
+            instance ?: synchronized(this) { instance ?: SileroModels(context.applicationContext).also { instance = it } }
+
         /** Ядра быстрее самого медленного кластера (по cpuinfo_max_freq): 2 на A32, 4 на Dimensity 6080.
          * Все ядра, если кластер один или sysfs закрыт. Прибить потоки к ядрам из Java нельзя,
          * планировщик сам сажает тяжёлые потоки на быстрые. */

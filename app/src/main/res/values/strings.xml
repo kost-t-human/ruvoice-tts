@@ -73,6 +73,16 @@
     <!-- Словарь ударений и замены: списки записей -->
     <string name="filter_hint">Поиск</string>
     <string name="help_link">Как это работает</string>
+    <string name="check">Проверить</string>
+    <!-- область поиска: меню по кнопке в поле, выбранная — в подписи поля; порядок как в Dicts.Scope -->
+    <string name="search_scope">Где искать</string>
+    <string name="filter_scope_hint">Поиск · %s</string>
+    <string-array name="search_scopes">
+        <item>этот список</item>
+        <item>свои списки</item>
+        <item>все списки</item>
+        <item>системный</item>
+    </string-array>
     <string name="add">Добавить</string>
     <string name="save">Сохранить</string>
     <string name="deleted">Удалено</string>

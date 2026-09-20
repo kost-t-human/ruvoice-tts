@@ -1,11 +1,14 @@
 package ru.kost.ruvoice
 
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import androidx.core.text.HtmlCompat
+import androidx.core.text.buildSpannedString
+import androidx.core.text.color
 import android.text.InputFilter
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -23,6 +26,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -42,9 +46,11 @@ import ru.kost.ruvoice.text.Replacements
  * и порядок сортировки (order) считаются один раз при изменении lines: списки бывают на
  * десятки тысяч строк, разбирать и сортировать их на каждый символ фильтра нельзя. Видимый
  * список (shown — индексы в lines) пересчитывается при любом изменении lines/фильтра, без
- * DiffUtil. Свайп удаляет строку с Undo, FAB открывает диалог добавления. После каждой правки
- * и переключения списков кэш словарей (DictCache) греется в фоне; индикатор виден, только
- * если прогрев длится дольше 150 мс.
+ * DiffUtil. Поиск по умолчанию идёт и по другим спискам вида (область — меню в поле поиска):
+ * их строки (extra) идут после своих с подписью имени списка, тап открывает тот список и
+ * редактор строки. Свайп удаляет строку с Undo, FAB открывает диалог добавления. После каждой
+ * правки и переключения списков кэш словарей (DictCache) греется в фоне; индикатор виден,
+ * только если прогрев длится дольше 150 мс.
  */
 abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     protected abstract val kind: Dicts.Kind
@@ -55,7 +61,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     /** true — видимый список сортируется по sortKey (ударения, это словарь); false — порядок
      * файла важен и сохраняется как есть (замены: длинные ключи должны идти раньше). */
     protected open val sorted: Boolean = false
-    protected open fun sortKey(index: Int): String = ""
+    protected open fun sortKey(parsed: Any): String = ""
 
     /** Файл текущего списка. */
     protected val file: File get() = prefs.current(kind)
@@ -67,15 +73,36 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     private var order: List<Int>? = null
     /** Индексы строк в lines, которые сейчас показаны (после разбора, сортировки и фильтра). */
     protected var shown = listOf<Int>(); private set
+    /** Найденные поиском строки других списков (имя списка, разбор) — в адаптере после shown. */
+    private var extra = listOf<Pair<String, Any>>()
+    /** Разобранные строки других списков по имени, в порядке показа; читаются при первом поиске
+     * по ним и сбрасываются в loadLines. Системный — 100 тыс. строк, ~полсекунды один раз,
+     * столько же стоит открыть его самого. */
+    private val others = HashMap<String, List<Any>>()
 
     protected val lineCount get() = lines.size
     protected fun line(index: Int) = lines[index]
     /** Разобранная строка (результат parseLine), null — комментарий/пустая/битая. */
     protected fun parsedAny(index: Int): Any? = parsedLines[index]
     protected abstract fun parseLine(line: String): Any?
-    protected abstract fun matches(index: Int, query: String): Boolean
+    protected abstract fun matches(parsed: Any, query: String): Boolean
     protected abstract fun createAdapter(): RecyclerView.Adapter<*>
-    protected abstract fun showAddDialog()
+    /** Диалог строки: null — добавить новую. */
+    protected abstract fun showDialog(editIndex: Int?)
+
+    protected val rowCount get() = shown.size + extra.size
+    /** Позиция адаптера → (имя списка, null для открытого; разбор строки). */
+    protected fun item(position: Int): Pair<String?, Any> =
+        if (position < shown.size) null to parsedAny(shown[position])!! else extra[position - shown.size]
+    /** Тап по строке другого списка: открыть тот список (поиск остаётся) и редактор этой строки. */
+    protected fun openIn(name: String, parsed: Any) {
+        prefs.setCurrent(kind, name); loadLines()
+        if (!readOnly) (0 until lineCount).firstOrNull { parsedAny(it) == parsed }?.let { showDialog(it) }
+    }
+    /** Подпись строки из другого списка: «слово · Системный», имя приглушённым. */
+    protected fun labeled(text: CharSequence, list: String?, view: TextView): CharSequence = if (list == null) text else buildSpannedString {
+        append(text); color(MaterialColors.getColor(view, com.google.android.material.R.attr.colorOnSurfaceVariant)) { append(" · $list") }
+    }
 
     private lateinit var recycler: RecyclerView
     private lateinit var filterField: TextInputEditText
@@ -109,7 +136,26 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
             MaterialAlertDialogBuilder(requireContext()).setTitle(helpTitleRes).setMessage(helpRes)
                 .setPositiveButton(android.R.string.ok, null).show()
         }
+        v.findViewById<View>(R.id.check).setOnClickListener { showCheckDialog() }
         filterField = v.findViewById(R.id.filter)
+        // область поиска: меню по кнопке в конце поля, выбранная — в подписи поля («Поиск · все списки»),
+        // при не «этот список» кнопка цветом акцента
+        val filterLayout = v.findViewById<TextInputLayout>(R.id.filterLayout)
+        val scopeTitles = resources.getStringArray(R.array.search_scopes)
+        fun showScope() {
+            val scope = prefs.searchScope(kind)
+            filterLayout.hint = getString(R.string.filter_scope_hint, scopeTitles[scope.ordinal])
+            filterLayout.setEndIconTintList(ColorStateList.valueOf(MaterialColors.getColor(filterLayout,
+                if (scope == Dicts.Scope.CURRENT) com.google.android.material.R.attr.colorControlNormal else com.google.android.material.R.attr.colorPrimary)))
+        }
+        showScope()
+        filterLayout.setEndIconOnClickListener { anchor ->
+            val popup = PopupMenu(requireContext(), anchor)
+            for (s in Dicts.Scope.values()) popup.menu.add(0, s.ordinal, s.ordinal, scopeTitles[s.ordinal].replaceFirstChar { it.uppercase() }).isChecked = s == prefs.searchScope(kind)
+            popup.menu.setGroupCheckable(0, true, true)
+            popup.setOnMenuItemClickListener { prefs.setSearchScope(kind, Dicts.Scope.values()[it.itemId]); showScope(); refresh(); true }
+            popup.show()
+        }
         nameField = v.findViewById(R.id.dictName)
         nameField.setOnItemClickListener { _, _, pos, _ ->
             prefs.setCurrent(kind, Dicts.name(prefs.dictFiles(kind)[pos]))
@@ -127,7 +173,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
         filterField.doAfterTextChanged { refresh() }
-        addButton = v.findViewById<FloatingActionButton>(R.id.add).apply { setOnClickListener { showAddDialog() } }
+        addButton = v.findViewById<FloatingActionButton>(R.id.add).apply { setOnClickListener { showDialog(null) } }
         attachSwipeToDelete()
         // Файл могли поменять извне (импорт настроек + recreate, Task 25) — читаем заново,
         // не кэшируем между пересозданиями.
@@ -139,7 +185,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
 
     private fun loadLines() {
         val f = file
-        lines.clear(); parsedLines.clear()
+        lines.clear(); parsedLines.clear(); others.clear()
         if (f.exists()) lines.addAll(f.readLines())
         for (l in lines) parsedLines += parseLine(l)
         order = null
@@ -168,13 +214,40 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     /** Пересчитать видимый список после изменения lines или фильтра. */
     protected fun refresh() {
         val all = order ?: lines.indices.filter { parsedLines[it] != null }
-            .let { if (sorted) it.sortedWith(compareBy(Dicts.COLLATOR) { sortKey(it) }) else it }
+            .let { if (sorted) it.sortedWith(compareBy(Dicts.COLLATOR) { sortKey(parsedLines[it]!!) }) else it }
             .also { order = it }
         val query = filterField.text?.toString()?.trim().orEmpty()
-        shown = if (query.isEmpty()) all else all.filter { matches(it, query) }
-        emptyView.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
-        recycler.visibility = if (shown.isEmpty()) View.GONE else View.VISIBLE
+        val scope = prefs.searchScope(kind)
+        val name = Dicts.name(file)
+        shown = when {
+            query.isEmpty() -> all
+            scope == Dicts.Scope.CURRENT || scope.covers(name) -> all.filter { matches(parsedLines[it]!!, query) }
+            else -> emptyList()
+        }
+        extra = if (query.isEmpty()) emptyList() else prefs.dictFiles(kind).map { Dicts.name(it) to it }
+            .filter { (n, _) -> n != name && scope.covers(n) }
+            .flatMap { (n, f) ->
+                others.getOrPut(n) { f.readLines().mapNotNull { parseLine(it) }.let { if (sorted) it.sortedWith(compareBy(Dicts.COLLATOR) { sortKey(it) }) else it } }
+                    .filter { matches(it, query) }.map { n to it }
+            }
+        val empty = shown.isEmpty() && extra.isEmpty()
+        emptyView.visibility = if (empty) View.VISIBLE else View.GONE
+        recycler.visibility = if (empty) View.GONE else View.VISIBLE
         recycler.adapter?.notifyDataSetChanged()
+    }
+
+    /** «Проверить»: то же окно, что раздел «Проверка» на «Голосе», — послушать и разобрать фразу
+     * со словом из списка, не уходя с вкладки. Правки уже на диске (persist после каждой). */
+    private fun showCheckDialog() {
+        val ctx = requireContext()
+        val box = LayoutInflater.from(ctx).inflate(R.layout.preview_box, null)
+        val pad = (20 * resources.displayMetrics.density).toInt(); box.setPadding(pad, pad, pad, 0)
+        val field = box.findViewById<TextInputEditText>(R.id.previewText).apply { setText(prefs.dictPreviewText) }
+        // пустое поле — ничего: подставлять пример, как на «Голосе», здесь сбивает с толку
+        fun text() = field.text.toString().also { prefs.dictPreviewText = it }.takeIf { it.isNotBlank() }
+        box.findViewById<Button>(R.id.preview).setOnClickListener { btn -> text()?.let { (activity as SettingsActivity).preview(btn, it) } }
+        box.findViewById<Button>(R.id.analyze).setOnClickListener { text()?.let { (activity as SettingsActivity).analyze(it) } }
+        MaterialAlertDialogBuilder(ctx).setView(box).setPositiveButton(R.string.close, null).show()
     }
 
     /** Удаляет строку файла и даёт «Отменить» в снекбаре. */
@@ -323,7 +396,8 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         })
         ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
             override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
-            override fun getSwipeDirs(rv: RecyclerView, vh: RecyclerView.ViewHolder) = if (readOnly) 0 else super.getSwipeDirs(rv, vh)
+            override fun getSwipeDirs(rv: RecyclerView, vh: RecyclerView.ViewHolder) =
+                if (readOnly || vh.bindingAdapterPosition >= shown.size) 0 else super.getSwipeDirs(rv, vh)
             override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
                 val pos = vh.bindingAdapterPosition
                 if (pos !in shown.indices) { refresh(); return }
@@ -345,8 +419,10 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override fun parseLine(line: String) = DictLines.parseStress(line)
     @Suppress("UNCHECKED_CAST")
     private fun parsed(index: Int) = parsedAny(index) as Pair<String, String>?
-    override fun sortKey(index: Int) = parsed(index)!!.first
-    override fun matches(index: Int, query: String) = parsed(index)!!.first.contains(query, ignoreCase = true)
+    @Suppress("UNCHECKED_CAST")
+    private fun pair(parsed: Any) = parsed as Pair<String, String>
+    override fun sortKey(parsed: Any) = pair(parsed).first
+    override fun matches(parsed: Any, query: String) = pair(parsed).first.contains(query, ignoreCase = true)
 
     override fun createAdapter(): RecyclerView.Adapter<*> = Adapter()
 
@@ -359,23 +435,21 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
             VH(LayoutInflater.from(parent.context).inflate(R.layout.item_stress, parent, false))
 
-        override fun getItemCount() = shown.size
+        override fun getItemCount() = rowCount
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val index = shown[position]
-            val (_, variant) = parsed(index)!!
-            holder.word.text = DictLines.accentDisplay(variant)
-            holder.itemView.setOnClickListener { if (!readOnly) showDialog(index) }
+            val (list, p) = item(position)
+            val (_, variant) = pair(p)
+            holder.word.text = labeled(DictLines.accentDisplay(variant), list, holder.word)
+            holder.itemView.setOnClickListener { if (list != null) openIn(list, p) else if (!readOnly) showDialog(shown[position]) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, variant) }
         }
     }
 
-    override fun showAddDialog() = showDialog(null)
-
     private fun findLineIndexForWord(word: String): Int? =
         (0 until lineCount).firstOrNull { parsed(it)?.first?.equals(word, ignoreCase = true) == true }
 
-    private fun showDialog(editIndex: Int?) {
+    override fun showDialog(editIndex: Int?) {
         val ctx = requireContext()
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_stress, null)
         val wordField = view.findViewById<TextInputEditText>(R.id.word)
@@ -496,8 +570,10 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
     override fun parseLine(line: String) = DictLines.parseReplace(line)
     @Suppress("UNCHECKED_CAST")
     private fun parsed(index: Int) = parsedAny(index) as Triple<String, String, Boolean>?
-    override fun matches(index: Int, query: String): Boolean {
-        val (key, value, _) = parsed(index)!!
+    @Suppress("UNCHECKED_CAST")
+    private fun triple(parsed: Any) = parsed as Triple<String, String, Boolean>
+    override fun matches(parsed: Any, query: String): Boolean {
+        val (key, value, _) = triple(parsed)
         return key.contains(query, ignoreCase = true) || value.contains(query, ignoreCase = true)
     }
 
@@ -516,24 +592,22 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
             VH(LayoutInflater.from(parent.context).inflate(R.layout.item_replace, parent, false))
 
-        override fun getItemCount() = shown.size
+        override fun getItemCount() = rowCount
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val index = shown[position]
-            val (key, value, isRegex) = parsed(index)!!
-            holder.key.text = key
+            val (list, p) = item(position)
+            val (key, value, isRegex) = triple(p)
+            holder.key.text = labeled(key, list, holder.key)
             holder.regexTag.visibility = if (isRegex) View.VISIBLE else View.GONE
             val skip = isSkip(value)
             holder.value.text = if (skip) getString(R.string.replace_skip) else getString(R.string.replace_arrow, value)
             holder.play.visibility = if (skip) View.GONE else View.VISIBLE
-            holder.itemView.setOnClickListener { if (!readOnly) showDialog(index) }
+            holder.itemView.setOnClickListener { if (list != null) openIn(list, p) else if (!readOnly) showDialog(shown[position]) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, value) }
         }
     }
 
-    override fun showAddDialog() = showDialog(null)
-
-    private fun showDialog(editIndex: Int?) {
+    override fun showDialog(editIndex: Int?) {
         val ctx = requireContext()
         val view = LayoutInflater.from(ctx).inflate(R.layout.dialog_replace, null)
         val keyLayout = view.findViewById<TextInputLayout>(R.id.keyLayout)

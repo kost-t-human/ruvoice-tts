@@ -17,6 +17,13 @@ import java.util.Locale
 object Dicts {
     enum class Kind(val dir: String) { STRESS("stress"), REPLACE("replace") }
 
+    /** Где ищет поле «Поиск» на вкладке: только в открытом списке или ещё и в других (все / свои / системный). */
+    enum class Scope {
+        CURRENT, USER, ALL, SYSTEM;
+        /** Входит ли список с таким именем в область поиска (кроме CURRENT — там только открытый). */
+        fun covers(name: String) = when (this) { CURRENT -> false; ALL -> true; USER -> name != Dicts.SYSTEM; SYSTEM -> name == Dicts.SYSTEM }
+    }
+
     const val MAIN = "Основной"
     /** Встроенный список из assets/dicts/<вид>/Системный.txt: не удаляется и не правится, но выключается как остальные. */
     const val SYSTEM = "Системный"

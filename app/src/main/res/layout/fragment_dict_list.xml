@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Общий каркас вкладок «Ударения» и «Замены»: выбор именного списка с меню «⋮», ссылка на
-     справку (попап), поле фильтра, индикатор прогрева кэша (виден только если прогрев дольше
+     справку (попап) и кнопка «Проверить» (окно как раздел «Проверка» на «Голосе»), поле
+     поиска (кнопка в конце — область: этот список / свои / все / системный, выбранная видна в подписи поля), индикатор прогрева кэша (виден только если прогрев дольше
      150 мс), список на всю высоту (пустое состояние — центрированная подсказка) и FAB поверх. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -52,16 +53,33 @@
             android:paddingVertical="8dp"
             android:textAppearance="?attr/textAppearanceBodyMedium" />
 
-        <TextView
-            android:id="@+id/help"
-            style="@style/SectionHint"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginHorizontal="16dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginBottom="0dp"
-            android:paddingVertical="4dp"
-            android:textColor="?attr/colorPrimary"
-            android:text="@string/help_link" />
+            android:layout_marginTop="4dp">
+            <TextView
+                android:id="@+id/help"
+                style="@style/SectionHint"
+                android:layout_width="wrap_content"
+                android:layout_marginBottom="0dp"
+                android:paddingVertical="4dp"
+                android:textColor="?attr/colorPrimary"
+                android:text="@string/help_link" />
+            <Space
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="0dp" />
+            <Button
+                android:id="@+id/check"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="-12dp"
+                android:text="@string/check" />
+        </LinearLayout>
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/filterLayout"
@@ -70,7 +88,10 @@
             android:layout_height="wrap_content"
             android:layout_margin="16dp"
             android:hint="@string/filter_hint"
-            app:startIconDrawable="@android:drawable/ic_menu_search">
+            app:startIconDrawable="@android:drawable/ic_menu_search"
+            app:endIconMode="custom"
+            app:endIconDrawable="@drawable/ic_filter_list"
+            app:endIconContentDescription="@string/search_scope">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/filter"
                 android:layout_width="match_parent"

@@ -149,7 +149,7 @@ object Pipeline {
 
 class SileroTtsService : TextToSpeechService() {
     // by lazy: TextToSpeechService.onCreate() зовёт onLoadLanguage раньше тела нашего onCreate.
-    private val models: SileroModels by lazy { SileroModels(this) }
+    private val models: SileroModels by lazy { SileroModels.shared(this) }
     private val prefs: Prefs by lazy { Prefs(this) }
     private val handler = Handler(Looper.getMainLooper())
     private val synthPool = Executors.newSingleThreadExecutor()

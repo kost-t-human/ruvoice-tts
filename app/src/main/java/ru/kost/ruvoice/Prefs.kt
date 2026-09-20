@@ -70,6 +70,11 @@ class Prefs(private val context: Context) {
             ?: Dicts.file(context.filesDir, kind, Dicts.MAIN).also { it.parentFile!!.mkdirs(); it.writeText("") }
     }
     fun setCurrent(kind: Dicts.Kind, name: String) = p.edit().putString("dict_cur_${kind.dir}", name).apply()
+    /** Область поиска на вкладке; по умолчанию все списки — иначе слово из разбора приходится искать по каждому. */
+    fun searchScope(kind: Dicts.Kind): Dicts.Scope = Dicts.Scope.values().firstOrNull { it.name == p.getString("dict_scope_${kind.dir}", "") } ?: Dicts.Scope.ALL
+    fun setSearchScope(kind: Dicts.Kind, s: Dicts.Scope) = p.edit().putString("dict_scope_${kind.dir}", s.name).apply()
+    /** Текст окна «Проверить» на вкладках ударений и замен — свой, не с «Голоса»: тот фрагмент пишет своё поле в onPause и затёр бы. */
+    var dictPreviewText: String get() = p.getString("dict_preview_text", "")!!; set(v) = p.edit().putString("dict_preview_text", v).apply()
 
     fun dictFiles(kind: Dicts.Kind): List<File> = Dicts.files(context.filesDir, kind)
     fun enabledDictFiles(kind: Dicts.Kind): List<File> = off(kind).let { off -> dictFiles(kind).filter { Dicts.name(it) !in off } }

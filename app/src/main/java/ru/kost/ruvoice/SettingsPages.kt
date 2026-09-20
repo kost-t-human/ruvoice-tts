@@ -17,8 +17,6 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
-import ru.kost.ruvoice.text.Marks
-import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.Rules
 
 /**
@@ -102,7 +100,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.findViewById<Button>(R.id.analyze).setOnClickListener {
             if (voices.isEmpty()) return@setOnClickListener
             save(v)
-            analyze(previewText.str().ifBlank { getString(R.string.preview_text) })
+            (activity as SettingsActivity).analyze(previewText.str().ifBlank { getString(R.string.preview_text) })
         }
     }
 
@@ -156,45 +154,6 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             getString(R.string.sys_values, read("tts_default_rate"), read("tts_default_pitch"))
     }
 
-
-    // Разбор на сегменты и их нормализация читают словари с диска (SileroModels.data,
-    // Normalizer) — считаем в фоновом потоке, диалог показываем на UI-потоке.
-    private fun analyze(text: String) {
-        val ctx = requireContext().applicationContext
-        Thread {
-            val report = try {
-                val d = SileroModels.data(ctx)
-                val packs = Packs.installed(ctx.filesDir)
-                // фильтр символов — того движка, что озвучит: у cis-пака нет «!» и апострофа
-                val allowed = (Speaker.resolve(prefs.voice, d, packs) ?: Speaker.default(d, packs))?.sym?.allowed ?: d.sym.allowed
-                val rules = prefs.rules()
-                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
-                buildString {
-                    for (seg in segments) {
-                        var marks = ""
-                        if (seg.speech) marks += " [речь]"
-                        if (seg.paragraph) marks += " [¶]"
-                        appendLine(seg.text + marks)
-                        appendLine("→ " + Normalizer.prepare(Marks.parse(seg.text).text, allowed, rules))
-                        if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
-                        appendLine()
-                    }
-                }.trimEnd()
-            } catch (e: Exception) {
-                e.toString()
-            }
-            activity?.runOnUiThread {
-                // экран могли закрыть, пока считали — окно без Activity уронит show()
-                val a = activity ?: return@runOnUiThread
-                if (a.isFinishing || a.isDestroyed) return@runOnUiThread
-                MaterialAlertDialogBuilder(a)
-                    .setTitle(R.string.analyze_title)
-                    .setMessage(report)
-                    .setPositiveButton(R.string.close, null)
-                    .show()
-            }
-        }.start()
-    }
 }
 
 /** Паузы и выгрузка моделей. */
