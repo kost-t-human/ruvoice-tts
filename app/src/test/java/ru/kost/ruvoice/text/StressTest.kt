@@ -131,7 +131,8 @@ class StressTest {
         assertEquals("в учителя", s.gramPass("в учителя"))
         assertEquals("что за свиньи", s.gramPass("что за свиньи"))
         assertEquals("вдоль, стены", s.gramPass("вдоль, стены"))
-        assertEquals("стены", s.gramPass("стены"))
+        assertEquals("ст+ены", s.gramPass("стены"))   // одно слово — начало предложения, мн.
+        assertEquals("стены", s.gramPass("стены", start = false))
         // «самого» — прилагательное, кроме «у самого» («у него самого глаза вылезли»)
         assertEquals("до самого яйц+а", s.gramPass("до самого яйца"))
         assertEquals("у самого яйца", s.gramPass("у самого яйца"))
@@ -179,7 +180,7 @@ class StressTest {
         assertEquals("опустил р+уки", s.gramPass("опустил руки"))
         assertEquals("поднявший глаза", s.gramPass("поднявший глаза"))
         assertEquals("лишился глаза", s.gramPass("лишился глаза"))
-        assertEquals("руки или ноги", s.gramPass("руки или ноги"))
+        assertEquals("руки или ноги", s.gramPass("руки или ноги", start = false))
         assertEquals("не поднимал глаза", s.gramPass("не поднимал глаза"))
         assertEquals("боялся высоты", s.gramPass("боялся высоты"))
         // слово из списка перед глаголом во мн. — подлежащее, и в начале фразы, и после запятой; не после «оба/два» в трёх
@@ -212,11 +213,12 @@ class StressTest {
         // подлежащее через наречие перед глаголом во мн.; не через существительное, союз или местоимение
         assertEquals("Глаз+а снова сверкнули", s.gramPass("Глаза снова сверкнули"))
         assertEquals("р+уки его дрожали", s.gramPass("руки его дрожали"))
-        assertEquals("глаза мальчика блестели", s.gramPass("глаза мальчика блестели"))
-        assertEquals("глаза и уши болели", s.gramPass("глаза и уши болели"))
-        assertEquals("стены снова дрожали", s.gramPass("стены снова дрожали"))
+        assertEquals("глаз+а мальчика блестели", s.gramPass("глаза мальчика блестели"))   // первое слово предложения
+        assertEquals("глаза и уши болели", s.gramPass("глаза и уши болели", start = false))
+        assertEquals("стены снова дрожали", s.gramPass("стены снова дрожали", start = false))
         // первое слово предложения из списка — мн.; не перед «не/нет», не вне списка, не в середине
-        assertEquals("Стр+елы, прочертив дугу, упали", s.gramPass("Стрелы, прочертив дугу, упали"))
+        assertEquals("стр+елы, прочертив дугу, упали", s.gramPass("стрелы, прочертив дугу, упали"))
+        assertEquals("стрелы, прочертив дугу, упали", s.gramPass("стрелы, прочертив дугу, упали", start = false))
         assertEquals("— Стр+елы!", s.gramPass("— Стрелы!"))
         assertEquals("Ушёл. Стр+елы летели", s.gramPass("Ушёл. Стрелы летели"))
         assertEquals("Стрелы не было", s.gramPass("Стрелы не было"))
@@ -229,9 +231,10 @@ class StressTest {
         assertEquals("Свечи огарок", s.gramPass("Свечи огарок"))
         assertEquals("Ст+ены домов украсили", s.gramPass("Стены домов украсили"))
         // «самого» перед словом с заглавной — «сам», кроме «до/от/у самого» и «того/этого самого»
-        assertEquals("атаковать самог+о Зарецкого", s.gramPass("атаковать самого Зарецкого"))
-        assertEquals("до самого Парижа", s.gramPass("до самого Парижа"))
-        assertEquals("того самого Зарецкого", s.gramPass("того самого Зарецкого"))
+        assertEquals("атаковать самог+о зарецкого", s.gramPass("атаковать самого зарецкого", source = "Атаковать самого Зарецкого"))
+        assertEquals("атаковать самого зарецкого", s.gramPass("атаковать самого зарецкого"))
+        assertEquals("до самого парижа", s.gramPass("до самого парижа", source = "до самого Парижа"))
+        assertEquals("того самого зарецкого", s.gramPass("того самого зарецкого", source = "того самого Зарецкого"))
         assertEquals("самого лучшего", s.gramPass("самого лучшего"))
     }
 

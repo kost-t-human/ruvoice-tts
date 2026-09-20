@@ -34,12 +34,14 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val nonCyr = Regex("[^А-Яа-яёЁ]")
     private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
 
-    fun apply(sentence: String): String {
+    /** source — текст сегмента до нормализации: нормализатор опускает регистр, а правилу «самого + Имя» нужна заглавная
+     * следующего слова. По умолчанию — сам sentence (тесты, аудит). */
+    fun apply(sentence: String, source: String = sentence): String {
         var s = sentence
         // слова, пришедшие уже с «+» (фраза из словаря замен или ударение в самом тексте): словарь ударений их не трогает,
         // фраза конкретнее слова («обливаясь п+отом» против «потом = пот+ом»)
         val preset = wordRe.findAll(sentence).filter { '+' in it.value }.map { it.value.lowercase() }.toSet()
-        if (rules.on("gram")) s = gramPass(s)
+        if (rules.on("gram")) s = gramPass(s, source = source)
         if (rules.on("homo")) s = homographPass(s)
         if (rules.on("accentor")) s = accentorPass(s)
         s = userDictPass(s, sentence, preset)
@@ -64,8 +66,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     /** Первое слово предложения — подлежащее во мн. («Стрелы, прочертив дугу, упали»; BERT без глагола рядом берёт род. ед.):
      * по золоту библиотеки ≥98 % для этих слов (глаза 15 613:24, стрелы 416:0), не «дома» (наречие, 57 %), «земли», «города»,
      * «войны», «луны», не «воды» («Воды!» — родительный). Исключения — [initGen].
-     * Только с заглавной: обрывок «глаза мальчика блестели» из словаря фраз — не предложение (в зеркале phrases_extra текст
-     * оценок в нижнем регистре, там просто первое слово). */
+     * Регистра у Stress нет (нормализатор опускает), начало предложения — начало сегмента (start) или конец предложения перед словом. */
     private val initPl = setOf("глаза", "руки", "слова", "губы", "ноги", "ворота", "стены", "лица", "окна", "дела", "тела", "облака", "горы",
         "ноздри", "войска", "стрелы", "письма", "копы", "яйца", "леса", "свечи", "толпы", "цены", "пятна", "доски", "берега", "трубы",
         "семена", "реки", "семьи", "колокола")
@@ -142,8 +143,12 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
      * Ещё: после фазового глагола инфинитив несов. вида («начал обполз+ать»), после «лишённые/полные» род.
      * («полные вод+ы»), после «размером с» вин. мн. («с г+оры»), второй предложный после в/на/при («в глуш+и»).
      * На корпусе GramPassCorpusTest споров со словарями ноль (с поправками gram_pass_overrides.txt). */
-    internal fun gramPass(sentence: String): String {
+    private val samNameRe = Regex("самого\\s+(\\p{L})", RegexOption.IGNORE_CASE)
+    /** start — sentence начинается с начала предложения (сегменты конвейера — да; обрывки словарей в GramPassCorpusTest — нет). */
+    internal fun gramPass(sentence: String, start: Boolean = true, source: String = sentence): String {
         if (d.gram.isEmpty()) return sentence
+        // регистр слова после «самого» — из исходного текста, по порядку вхождений
+        val samCaps = samNameRe.findAll(source).map { it.groupValues[1][0].isUpperCase() }.toList(); var samI = 0
         val sb = StringBuilder(sentence)
         var prev = ""; var prev2 = ""; var prev3 = ""; var prev4 = ""; var prevStart = -1; var prevEnd = -1; var offset = 0
         var chainHead = ""   // слово перед цепочкой прилагательных во мн. ч., кончающейся на prev
@@ -163,8 +168,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                 val subjPl = w in verbPl && "p" in e && verbNext && prev !in neg &&
                     prev !in dual && prev2 !in dual && prev3 !in dual && (morph == null || !Morph.isNoun(morph.tags(prev)))
                 val pick = when {
-                    !adjacent -> if (subjPl || w in initPl && "p" in e && m.value[0].isUpperCase() && !initGen(w, nxt, nxt2, words, i) &&
-                        (prevEnd < 0 || sentEnd.containsMatchIn(sentence.subSequence(prevEnd, m.range.first)))) e["p"] else null
+                    !adjacent -> if (subjPl || w in initPl && "p" in e && !initGen(w, nxt, nxt2, words, i) &&
+                        (if (prevEnd < 0) start else sentEnd.containsMatchIn(sentence.subSequence(prevEnd, m.range.first)))) e["p"] else null
                     "i" in e -> if (phaseRe.matches(prev)) e["i"] else null
                     // «её глаз+а», «в его глаз+а», «из его гл+аза»; за существительным или прилагательным в косвенном падеже
                     // («хрусталик его глаза», «одного его слова») — молчим, там род. ед. и решают фразы Silero
@@ -202,8 +207,9 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                     if (prev == "все" && pick == e["p"]) vse = true   // «все окна»: слово согласовано с «все» во мн.
                 }
             }
-            if (e == null && w == "самого" && nxt.isNotEmpty() && nm!!.value[0].isUpperCase() && prev !in samPlace) {
-                sb.insert(m.range.first + offset + 5, '+'); offset++   // «самог+о Зарецкого»
+            if (e == null && w == "самого" && nxt.isNotEmpty()) {
+                val caps = samCaps.getOrNull(samI++) ?: false
+                if (caps && prev !in samPlace) { sb.insert(m.range.first + offset + 5, '+'); offset++ }   // «самог+о Зарецкого»
             }
             if (vse) { sb.insert(prevStart + prevOffset + 2, '+'); offset++ }
             chainHead = if (adjacent && adjPl.matches(w) && adjPl.matches(prev)) chainHead else prev

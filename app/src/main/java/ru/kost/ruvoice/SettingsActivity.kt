@@ -243,7 +243,7 @@ class SettingsActivity : AppCompatActivity() {
                         if (rules.on("question") && SentenceType.classify(t, d, rules) == "general_q") t = Marks.question(t)
                         val prepared = Normalizer.prepare(Marks.parse(t, rules.focusLevel).text, allowed, rules)
                         // монитор models — тот же, что у синтеза и выгрузки в сервисе: форварды не параллелим
-                        val accented = synchronized(models) { stress.apply(prepared) }
+                        val accented = synchronized(models) { stress.apply(prepared, t) }
                         appendLine("→ " + accented.split(' ').joinToString(" ") { DictLines.accentDisplay(it) })
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()

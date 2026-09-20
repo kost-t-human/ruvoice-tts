@@ -35,7 +35,7 @@ class GramPassCorpusTest {
             val key = p[0]
             val dictLine = if (key in overrides) overrides[key] ?: return@forEachLine else p[1]
             val dict = wordRe.findAll(dictLine).map { it.value }.toList()
-            val ours = wordRe.findAll(stress.gramPass(key)).map { it.value }.toList()
+            val ours = wordRe.findAll(stress.gramPass(key, start = false)).map { it.value }.toList()
             if (ours.size != dict.size) return@forEachLine
             for (i in ours.indices) {
                 if ('+' !in ours[i] || '+' !in dict[i] || ours[i].replace("+", "") != dict[i].replace("+", "")) continue
