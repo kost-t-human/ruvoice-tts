@@ -57,8 +57,11 @@ class DictsTest {
         val stress = TestData.root().resolve("app/src/main/assets/dicts/stress/Системный.txt").readLines()
         val parsed = stress.mapNotNull { DictLines.parseStress(it) }
         assertTrue(parsed.size > 20000)
-        assertTrue(parsed.all { (w, v) -> v.replace("+", "").replace('ё', 'е') == w.replace('ё', 'е') && v.count { it == '+' } == 1 }) // имена с «ё» и через «е»: «федоров ф+ёдоров»
+        // имена с «ё» и через «е»: «федоров ф+ёдоров»; из библиотеки — и твёрдое «э»: «малдер м+алдэр» (словарь подменяет буквы слова)
+        fun e(s: String) = s.replace('ё', 'е').replace('э', 'е')
+        assertTrue(parsed.all { (w, v) -> e(v.replace("+", "")) == e(w) && v.count { it == '+' } == 1 })
         val stressMap = parsed.toMap()   // выход нормализатора («около 300 рублей», «300-й»): модель читает «тр+ёхсот», норма «трёхс+от»
+        assertEquals("м+алдэр", stressMap["малдер"]); assertEquals("трёхк+омнатную", stressMap["трехкомнатную"]); assertEquals("трёхк+омнатную", stressMap["трёхкомнатную"])
         assertEquals("трёхс+от", stressMap["трёхсот"]); assertEquals("четырёхс+отый", stressMap["четырёхсотый"]); assertEquals("трехт+ысячного", stressMap["трехтысячного"])
         val replace = TestData.root().resolve("app/src/main/assets/dicts/replace/Системный.txt").readLines()
         val r = Replacements.parse(replace)

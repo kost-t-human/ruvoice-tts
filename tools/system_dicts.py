@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Системный словарь приложения: tools/stress_fixes.txt, tools/wiki_names.txt, tools/phrases_extra.txt и tools/phrases_clitic.txt → assets/dicts/{stress,replace}/Системный.txt.
+"""Системный словарь приложения: tools/stress_fixes.txt, tools/wiki_names.txt, tools/lib_names.txt, tools/phrases_extra.txt и tools/phrases_clitic.txt → assets/dicts/{stress,replace}/Системный.txt.
 В аппке это обычные списки «Системный» на вкладках «Ударения» и «Замены»: их нельзя удалить и править,
 но можно выключить; при старте файл в данных приложения обновляется из assets, если отличается.
 Запуск: python3 tools/system_dicts.py (export_silero_stress.py вызывает сам)."""
@@ -24,6 +24,19 @@ ORTHOEPY = [('гм', 'гмм'), ('хм', 'хмм'), ('тсс', 'тссс'), ('д
     [(r'~(?<![\p{L}+-])(\p{L}+)-(\1)(?=, а(?!\p{L}))', '$1 $2')]   # «что-что, а…»: с дефисом модель глотает первое «ч» посреди фразы («то-что»), на слух лучше всего пробел
 
 
+def load_lib(path, skip):
+    """«слово = сл+ово»: буквы значения могут отличаться от ключа на «ё»/«э» — словарь подменяет слово целиком (Stress.userDictPass)"""
+    out = {}
+    for line in open(path, encoding='utf-8'):
+        t = line.split('#', 1)[0].strip()
+        if '=' not in t: continue
+        k, v = (x.strip() for x in t.split('=', 1))
+        same = lambda a, b: len(a) == len(b) and all(x == y or {x, y} <= {'е', 'ё', 'э'} for x, y in zip(a, b))
+        assert v.count('+') == 1 and same(v.replace('+', ''), k), line
+        if k not in skip: out[k] = v
+    return out
+
+
 def main():
     import stress_fixes, phrases_extra
     fixes = stress_fixes.load_fixes()
@@ -31,11 +44,17 @@ def main():
     with open(os.path.join(ASSETS, 'stress', 'Системный.txt'), 'w', encoding='utf-8') as o:
         o.write('# Поправки ударений: модель ставит иначе, против неё словари AOT и Викисловаря вместе или словарь Демагога с одним из них (tools/stress_fixes.txt)\n')
         for w, v in sorted(fixes.items()): o.write(f'{w} {v}\n')
-        names = {w: v for w, v in stress_fixes.load_fixes(os.path.join(HERE, 'wiki_names.txt')).items() if w not in fixes}
+        lib = load_lib(os.path.join(HERE, 'lib_names.txt'), set(fixes))
+        names = {w: v for w, v in stress_fixes.load_fixes(os.path.join(HERE, 'wiki_names.txt')).items() if w not in fixes and w not in lib}
         o.write('# Имена и термины из первых абзацев Википедии, где модель ставит ударение иначе (tools/wiki_names.py); с «ё» — и через «е»\n')
         for w, v in sorted(names.items()):
             o.write(f'{w} {v}\n')
             if 'ё' in w: o.write(f'{w.replace("ё", "е")} {v}\n')
+        o.write('# Слова и имена из библиотеки книг, где модель ставит иначе (books/lib_names.py); значение может нести «ё» и твёрдое «э»\n')
+        for w, v in sorted(lib.items()):
+            o.write(f'{w} {v}\n')
+            yo = v.replace('+', '').replace('э', 'е')
+            if 'ё' in yo and yo != w: o.write(f'{yo} {v}\n')   # ключ через «е», в тексте может быть «ё»
     n = 0
     with open(os.path.join(ASSETS, 'replace', 'Системный.txt'), 'w', encoding='utf-8') as o:
         o.write('# Первые части сложных слов с «ё»: отдельно «темно» — наречие темн+о, и модель теряет «ё»\n')
@@ -52,7 +71,7 @@ def main():
         o.write('# Ударение на предлоге: слеплено в одно слово, «н+абок» (tools/phrases_clitic.txt)\n')
         for line in open(os.path.join(HERE, 'phrases_clitic.txt'), encoding='utf-8'):
             if '=' in line.split('#', 1)[0]: o.write(line.strip() + '\n'); n += 1
-    print(f'системный словарь: ударений {len(fixes)}, имён {len(names)}, фраз {n} → {ASSETS}')
+    print(f'системный словарь: ударений {len(fixes)}, имён {len(names)}, из библиотеки {len(lib)}, фраз {n} → {ASSETS}')
 
 
 if __name__ == '__main__':
