@@ -92,7 +92,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             setOnClickListener { (activity as? SettingsActivity)?.showSetupHelp() }
         }
         val previewText = v.findViewById<EditText>(R.id.previewText)
-        if (previewText.text.isEmpty()) previewText.setText(R.string.preview_text)
+        if (previewText.text.isEmpty()) previewText.setText(prefs.previewText.ifEmpty { getString(R.string.preview_text) })
 
         v.findViewById<Button>(R.id.preview).setOnClickListener { btn ->
             if (voices.isEmpty()) return@setOnClickListener
@@ -117,6 +117,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         prefs.quoteRate = v.findViewById<Slider>(R.id.quoteRate).value
         prefs.quotePitch = v.findViewById<Slider>(R.id.quotePitch).value
         prefs.quoteOn = v.findViewById<MaterialSwitch>(R.id.quoteOn).isChecked
+        prefs.previewText = v.findViewById<EditText>(R.id.previewText).str()
     }
 
     private fun TextView.str() = text.toString()
