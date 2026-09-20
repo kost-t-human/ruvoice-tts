@@ -197,6 +197,26 @@ class StressTest {
         assertEquals("много глаз", s.gramPass("много глаз"))
     }
 
+    @Test fun gramPassPossessiveAndSubjectThroughAdverb() {
+        val morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin"))
+        val s = Stress(d, firstVowel, morph = morph)
+        // притяжательное перед словом из короткого списка — мн.; после род. предлога или «оба/два» — род. ед.; вне списка молчим
+        assertEquals("её глаз+а снова сверкнули", s.gramPass("её глаза снова сверкнули"))
+        assertEquals("Его Глаз+а", s.gramPass("Его Глаза"))
+        assertEquals("мои слов+а", s.gramPass("мои слова"))
+        assertEquals("в его глаз+а", s.gramPass("в его глаза"))
+        assertEquals("оба его гл+аза", s.gramPass("оба его глаза"))
+        assertEquals("из его гл+аза", s.gramPass("из его глаза"))
+        assertEquals("его руки", s.gramPass("его руки"))
+        assertEquals("его голоса", s.gramPass("его голоса"))
+        // подлежащее через наречие перед глаголом во мн.; не через существительное, союз или местоимение
+        assertEquals("Глаз+а снова сверкнули", s.gramPass("Глаза снова сверкнули"))
+        assertEquals("р+уки его дрожали", s.gramPass("руки его дрожали"))
+        assertEquals("глаза мальчика блестели", s.gramPass("глаза мальчика блестели"))
+        assertEquals("глаза и уши болели", s.gramPass("глаза и уши болели"))
+        assertEquals("стены снова дрожали", s.gramPass("стены снова дрожали"))
+    }
+
     @Test fun gramPassAgreesWithAdjective() {
         val morph = Morph.open(File(TestData.root(), "app/src/main/assets/morph.bin"))
         val s = Stress(d, firstVowel, morph = morph)

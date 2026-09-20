@@ -98,4 +98,15 @@ class MarksTest {
         val p = Marks.parse(Marks.exclaim("Эй, вы!"))
         assertEquals(listOf(0, 3), p.words.map { it.second.focus })
     }
+
+    @Test fun verblessQuestionFocusesLastWord() {
+        assertEquals("Вы барон *Гордеев*?", Marks.question("Вы барон Гордеев?", null))
+        assertEquals("— Барон Андрей Николаевич *Гордеев*?»", Marks.question("— Барон Андрей Николаевич Гордеев?»", null))
+        assertEquals("Это *правда*?", Marks.question("Это правда?", null))
+        assertEquals("Вы *уверены*?", Marks.question("Вы уверены?", null))
+        // с глаголом (и в начале, с заглавной) — как есть; своё логическое ударение не трогаем
+        assertEquals("Ты пилила доску?", Marks.question("Ты пилила доску?", null))
+        assertEquals("Придёшь завтра?", Marks.question("Придёшь завтра?", null))
+        assertEquals("Вы *барон* Гордеев?", Marks.question("Вы *барон* Гордеев?", null))
+    }
 }

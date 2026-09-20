@@ -285,7 +285,9 @@ class SileroTtsService : TextToSpeechService() {
                 if (stopped) return null
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
                 // по этому же тексту — так и надо.
-                val marks = Marks.parse(if (rules.on("exclaim")) Marks.exclaim(seg.text) else seg.text, rules.focusLevel)
+                var text = if (rules.on("exclaim")) Marks.exclaim(seg.text) else seg.text
+                if (rules.on("question") && SentenceType.classify(text, d, rules) == "general_q") text = Marks.question(text)
+                val marks = Marks.parse(text, rules.focusLevel)
                 val prepared = Normalizer.prepare(marks.text, sym.allowed, rules)
                 if (prepared.none { it != '+' && it in sym.alphabet }) return null
                 // Монитор models — тот же, что у SileroModels.release()/ensureLoaded() (оба @Synchronized

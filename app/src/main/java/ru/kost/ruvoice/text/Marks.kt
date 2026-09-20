@@ -42,6 +42,18 @@ object Marks {
     fun exclaim(text: String): String =
         if (shortExclamRe.matches(text)) lastWordRe.replace(text) { "*${it.value}*" } else text
 
+    private val wordRe = Regex("""\p{L}[\p{L}+-]*""")
+    /** «Вы барон Гордеев?», «— Барон Андрей Николаевич Гордеев?» → «… *Гордеев*?»: в общем вопросе модель ставит подъём на
+     * первое-второе слово и роняет хвост; без глагола это звучит утверждением (по F0 эталонной модели, 20.09.2026), фокус на
+     * последнем слове переносит подъём туда. С глаголом («Ты придёшь завтра?») подъём и так на нём — не трогаем. Глагол — как
+     * в Stress.verbLike, но слово с заглавной не в начале — имя («Андрей»), не глагол. Тип предложения проверяет вызывающий. */
+    fun question(text: String, morph: Morph? = Normalizer.morph): String {
+        if ('*' in text) return text
+        val words = wordRe.findAll(text).map { it.value }.toList()
+        if (words.isEmpty() || words.withIndex().any { (i, w) -> (i == 0 || w[0].isLowerCase()) && verbLike(w.lowercase(), morph) }) return text
+        return lastWordRe.replace(text) { "*${it.value}*" }
+    }
+
     /** Снимает маркеры; words — ключ слова и его пометка, в порядке текста. [focus] — сила `*слова*`, 0 — не выделять. */
     fun parse(text: String, focus: Int = 3): Parsed {
         val focused = BooleanArray(text.length)

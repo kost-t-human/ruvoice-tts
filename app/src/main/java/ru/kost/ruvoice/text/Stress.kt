@@ -7,6 +7,18 @@ interface StressModels {
     fun homo(ids: List<LongArray>, starts: LongArray, ends: LongArray): FloatArray
 }
 
+private val verbEnd = Regex("[а-яё]+([её]т|ит|ут|ют|ат|ят|[её]шь|ишь|[её]м|им|[её]те|ите|л|ла|ло|ли|ть|ти|чь|ай|яй|уй|юй|ой|ей|йте|ся|сь)")
+/** Причастия и прилагательные, которых нет в таблице («сломанной», «кодвусийской»), и местоимения («одной», «той»). */
+private val participleAny = Regex("[а-яё]+((вш|ющ|ущ|ащ|ящ)[а-яё]+|(нн|н|т|ск|ш|щ)(ой|ей|ый|ий))")
+/** Глаголы, управляющие родительным: «достигли л+еса», «лишился гл+аза», «боимся л+еса», «попросил сл+ова». */
+private val genVerb = Regex("[а-яё]*(дости|косн|каса|лиш|бо[иея]|опас|избе|сторон|слуша|проси|спроси|требов|треб|доби|добе|дожид|было|прибыло)[а-яё]*")
+private val notVerb = setOf("ли", "или", "бы", "же", "уж", "ль", "ведь", "здесь", "хоть", "чуть", "пусть", "ей", "ней", "ею", "нею", "мной", "мною", "тобой", "тобою",
+    "собой", "собою", "ним", "нём", "нем", "тем", "всем", "этим", "одним", "своим", "моим", "твоим", "нашим", "вашим", "каким", "таким",
+    "самим", "кем", "чем", "ничем", "никем", "своей", "моей", "твоей", "нашей", "вашей", "всей", "чьей", "самой")
+/** Глаголов в таблице морфологии нет: слово (в нижнем регистре) не из таблицы с глагольным окончанием и не причастие. */
+internal fun verbLike(t: String, morph: Morph?) = t.isNotEmpty() && (morph == null || morph.tags(t) == 0) && verbEnd.matches(t) &&
+    !participleAny.matches(t) && !genVerb.matches(t) && t !in notVerb
+
 /** morph — таблица морфологии для согласования с прилагательным в gramPass; null — правило выключено. По умолчанию та же,
  * что у нормализатора (SileroModels.data() ставит её раз на процесс; в JVM-тестах без ассета — null). */
 class Stress(private val d: SileroData, private val models: StressModels, private val userDict: Map<String, String> = emptyMap(),
@@ -48,23 +60,25 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
      * «глагол + слово → мн.» держится лишь на 74 % («бояться высот+ы», «дай вод+ы»), поэтому список. */
     private val verbPl = setOf("глаза", "руки", "слова", "ноги", "цены", "голоса", "войска", "слезы", "губы", "звезды", "трубы", "окна",
         "стены", "яйца", "острова", "весла", "колеса", "леса", "ордена", "поля", "свечи", "судьбы")
-    private val verbEnd = Regex("[а-яё]+(ет|ит|ут|ют|ат|ят|ешь|ишь|ем|им|ете|ите|л|ла|ло|ли|ть|ти|чь|ай|яй|уй|юй|ой|ей|йте|ся|сь)")
-    /** Причастия и прилагательные, которых нет в таблице («сломанной», «кодвусийской»), и местоимения («одной», «той»). */
-    private val participleAny = Regex("[а-яё]+((вш|ющ|ущ|ащ|ящ)[а-яё]+|(нн|н|т|ск|ш|щ)(ой|ей|ый|ий))")
-    /** Глаголы, управляющие родительным: «достигли л+еса», «лишился гл+аза», «боимся л+еса», «попросил сл+ова». */
-    private val genVerb = Regex("[а-яё]*(дости|косн|каса|лиш|бо[иея]|опас|избе|сторон|слуша|проси|спроси|требов|треб|доби|добе|было|прибыло)[а-яё]*")
-    private val notVerb = setOf("ли", "или", "бы", "же", "уж", "ль", "ведь", "здесь", "хоть", "чуть", "пусть", "ей", "ней", "ею", "нею", "мной", "мною", "тобой", "тобою",
-        "собой", "собою", "ним", "нём", "нем", "тем", "всем", "этим", "одним", "своим", "моим", "твоим", "нашим", "вашим", "каким", "таким",
-        "самим", "кем", "чем", "ничем", "никем", "своей", "моей", "твоей", "нашей", "вашей", "всей", "чьей", "самой")
     private val neg = setOf("не", "нет", "ни")
     /** Слово из [verbPl] перед глаголом во мн. ч. — подлежащее: «глаза блестели», «Глаза выглядели» (BERT в начале фразы
      * берёт род. ед.). Не после «не», не после «два/оба» в трёх словах («две костлявые р+уки обняли» — счётная форма) и не
      * после существительного («створки окн+а распахнулись», «у края л+еса вели»). По narusco+Викисловарю+HomographEval 62:2. */
     private val verbPlEnd = Regex("[а-яё]+(ут|ют|ат|ят|ли)(ся|сь)?")
     private val dual = setOf("два", "две", "три", "четыре", "оба", "обе", "полтора")
-    /** Глаголов в таблице морфологии нет: слово не из таблицы с глагольным окончанием и не причастие. */
-    private fun verbLike(t: String) = t.isNotEmpty() && (morph == null || morph.tags(t) == 0) && verbEnd.matches(t) &&
-        !participleAny.matches(t) && !genVerb.matches(t) && t !in notVerb
+    /** После притяжательного эти слова во мн. в ≥92 % (золото библиотеки: «его глаза» 16 289:135, «мои слова» 99,3 %), а BERT
+     * на «его/её глаза» даёт род. ед. в 87 % случаев. Не «руки» (90 %, «коснулся его рук+и») и не «голоса» (48 %). После
+     * род. предлога или «оба/два» перед притяжательным — род. ед.: «из его гл+аза», «оба его гл+аза». */
+    private val possPl = setOf("глаза", "слова", "губы", "яйца", "окна", "ноги", "трубы", "войска")
+    private val possPron = setOf("его", "её", "ее", "их", "мои", "твои", "свои", "наши", "ваши", "чьи")
+    private val obliqueEnd = Regex("[а-яё]+(ых|их|ого|его|ой|ей|ом|ем|ами|ями|ах|ях|ам|ям|ою|ею|ую|ов|ев)(ся)?")
+    /** Подлежащее через одно слово перед глаголом во мн. («глаза снова сверкнули», «руки его дрожали»): по золоту ≥94 % для
+     * этих слов, для «стены», «окна», «леса» 50–70 % — молчим. Между — не существительное, не глагол, не союз и не местоимение. */
+    private val subjAdv = setOf("глаза", "руки", "слова", "ноги", "цены", "войска", "губы", "яйца", "свечи")
+    private val notAdverb = setOf("и", "а", "но", "или", "же", "ли", "я", "ты", "он", "она", "оно", "мы", "вы", "они")
+    private fun verbLike(t: String) = verbLike(t, morph)
+    private fun adverbLike(t: String) = t.isNotEmpty() && t !in notAdverb && t !in neg && t !in dual && !verbLike(t) &&
+        (morph == null || !Morph.isNoun(morph.tags(t)))
     private val prepOther = setOf("в", "во", "на", "за", "под", "подо", "через", "про", "сквозь", "о", "об", "обо", "по", "при",
         "к", "ко", "над", "надо", "перед", "передо", "между", "меж")
     /** Причастие в род. п. управляет винительным: «прикрывавшего ворота», «туманящего глаза». */
@@ -116,14 +130,22 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             val adjacent = prevEnd >= 0 && sentence.subSequence(prevEnd, m.range.first).all { it.isWhitespace() }
             val nm = words.getOrNull(i + 1)
             val nxt = if (nm != null && sentence.subSequence(m.range.last + 1, nm.range.first).all { it.isWhitespace() }) nm.value.lowercase() else ""
+            val nm2 = words.getOrNull(i + 2)
+            val nxt2 = if (nxt.isNotEmpty() && nm2 != null && sentence.subSequence(nm!!.range.last + 1, nm2.range.first).all { it.isWhitespace() }) nm2.value.lowercase() else ""
             var vse = adjacent && prev == "все" && morph != null && Morph.pluralOnly(morph.tags(w.replace("+", "")))
             val prevOffset = offset
             if (e != null) {
-                val subjPl = w in verbPl && "p" in e && verbLike(nxt) && verbPlEnd.matches(nxt) && prev !in neg &&
+                val verbNext = verbLike(nxt) && verbPlEnd.matches(nxt) || w in subjAdv && adverbLike(nxt) && verbLike(nxt2) && verbPlEnd.matches(nxt2)
+                val subjPl = w in verbPl && "p" in e && verbNext && prev !in neg &&
                     prev !in dual && prev2 !in dual && prev3 !in dual && (morph == null || !Morph.isNoun(morph.tags(prev)))
                 val pick = when {
                     !adjacent -> if (subjPl) e["p"] else null
                     "i" in e -> if (phaseRe.matches(prev)) e["i"] else null
+                    // «её глаз+а», «в его глаз+а», «из его гл+аза»; за существительным или прилагательным в косвенном падеже
+                    // («хрусталик его глаза», «одного его слова») — молчим, там род. ед. и решают фразы Silero
+                    prev in possPron && w in possPl -> if (prev2 in genGov || prev2 in dual || prev2 in quantGov || genVerb.matches(prev2) ||
+                        (prev2 == "под" || prev2 == "за") && prev3 == "из") e["g"]
+                        else if (obliqueEnd.matches(prev2) || morph != null && morph.tags(prev2) != 0) null else e["p"]
                     (prev == "под" || prev == "за") && prev2 == "из" -> e["g"] ?: e["n"]   // «из под», «из за» без дефиса
                     prev == "за" && prev2 == "что" -> null                                 // «что за свиньи» — именительный
                     prev == "с" && prev2 in sizeWords -> e["p"]

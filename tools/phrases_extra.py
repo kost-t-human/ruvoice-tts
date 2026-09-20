@@ -83,9 +83,9 @@ def chain_head(prev, prev2, prev3, prev4):
 # после глагола (не причастия) эти слова — им./вин. мн., а не род. ед.: «заблестели глаз+а», «поднял р+уки»; по narusco и
 # СинТагРусу ≥93 % при n≥6, а Silero тут ошибается («заблестели гл+аза»). Не после «не/нет» («не поднимал гл+аза» — род.).
 VERB_PL = set('глаза руки слова ноги цены голоса войска слезы губы звезды трубы окна стены яйца острова весла колеса леса ордена поля свечи судьбы'.split())
-VERB_END = re.compile(r'[а-яё]+(ет|ит|ут|ют|ат|ят|ешь|ишь|ем|им|ете|ите|л|ла|ло|ли|ть|ти|чь|ай|яй|уй|юй|ой|ей|йте|ся|сь)$')
+VERB_END = re.compile(r'[а-яё]+([её]т|ит|ут|ют|ат|ят|[её]шь|ишь|[её]м|им|[её]те|ите|л|ла|ло|ли|ть|ти|чь|ай|яй|уй|юй|ой|ей|йте|ся|сь)$')
 PARTICIPLE_ANY = re.compile(r'[а-яё]+((вш|ющ|ущ|ащ|ящ)[а-яё]+|(нн|н|т|ск|ш|щ)(ой|ей|ый|ий))$')
-GEN_VERB = re.compile(r'[а-яё]*(дости|косн|каса|лиш|бо[иея]|опас|избе|сторон|слуша|проси|спроси|требов|треб|доби|добе|было|прибыло)[а-яё]*$')
+GEN_VERB = re.compile(r'[а-яё]*(дости|косн|каса|лиш|бо[иея]|опас|избе|сторон|слуша|проси|спроси|требов|треб|доби|добе|дожид|было|прибыло)[а-яё]*$')
 NOT_VERB = set('ли или бы же уж ль ведь здесь хоть чуть пусть ей ней ею нею мной мною тобой тобою собой собою ним нём нем тем всем этим одним '
                'своим моим твоим нашим вашим каким таким самим кем чем ничем никем своей моей твоей нашей вашей всей чьей самой'.split())
 NEG = {'не', 'нет', 'ни'}
@@ -96,18 +96,33 @@ VERB_PL_END = re.compile(r'[а-яё]+(ут|ют|ат|ят|ли)(ся|сь)?$')
 DUAL = set('два две три четыре оба обе полтора'.split())
 # количество после слова: «воды нет», «времени мало» — род. ед. (narusco+СинТагРус 81:16)
 QUANT_NEXT = {'нет', 'мало', 'много', 'немного', 'достаточно', 'больше', 'меньше', 'немало', 'хватает', 'хватало', 'хватит'}
+# после притяжательного эти слова во мн. в ≥92 % (золото библиотеки); за род. предлогом, «оба/два», количественным или глаголом
+# с родительным — род. ед.; за существительным или прилагательным в косвенном падеже — молчим (см. Stress.possPl)
+POSS_PL = set('глаза слова губы яйца окна ноги трубы войска'.split())
+POSS_PRON = set('его её ее их мои твои свои наши ваши чьи'.split())
+OBLIQUE_END = re.compile(r'[а-яё]+(ых|их|ого|его|ой|ей|ом|ем|ами|ями|ах|ях|ам|ям|ою|ею|ую|ов|ев)(ся)?$')
+# подлежащее через одно слово перед глаголом во мн. («глаза снова сверкнули»): ≥94 % по золоту только для этих слов
+SUBJ_ADV = set('глаза руки слова ноги цены войска губы яйца свечи'.split())
+NOT_ADVERB = set('и а но или же ли я ты он она оно мы вы они'.split())
 
 
 def verb_like(t, morph):
     return bool(t) and (not morph or morph.tags(t) == 0) and VERB_END.match(t) and not PARTICIPLE_ANY.match(t) and not GEN_VERB.match(t) and t not in NOT_VERB
 
 
-def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None, prev3=None, prev4=None, nxt=None):
+def adverb_like(t, morph):
+    return bool(t) and t not in NOT_ADVERB and t not in NEG and t not in DUAL and not verb_like(t, morph) and not (morph and morph.is_noun(morph.tags(t)))
+
+
+def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None, prev3=None, prev4=None, nxt=None, nxt2=None):
     """Зеркало Stress.gramPass: что поставит грамматический проход, None — молчит. morph — aot_morph.Table для согласования
     с прилагательным (w — само слово, prev3/prev4 — для согласования через слово); без неё, как в Kotlin без Morph,
     это правило выключено."""
     prev2 = prev2 or ''
     if 'i' in e: return e['i'] if PHASE.fullmatch(prev) else None
+    if prev in POSS_PRON and w in POSS_PL:
+        if prev2 in GEN or prev2 in DUAL or prev2 in QUANT_GOV or GEN_VERB.match(prev2) or prev2 in ('под', 'за') and prev3 == 'из': return e['g']
+        return None if OBLIQUE_END.match(prev2) or morph and morph.tags(prev2) != 0 else e['p']
     if prev in ('под', 'за') and prev2 == 'из': return e.get('g') or e.get('n')
     if prev == 'за' and prev2 == 'что': return None
     if prev == 'с' and prev2 in SIZE: return e.get('p')
@@ -122,14 +137,15 @@ def gram_pick(prev, prev2, e, in_homo=False, w=None, morph=None, prev3=None, pre
         return None if prev in NOT_ADJ or prev.startswith('сам') and prev2 == 'у' or prev.startswith('котор') or prev.endswith(PARTICIPLE) else e.get('g') or e.get('n')
     if prev == 'все' and w == 'дома': return None
     if w in VERB_PL and 'p' in e and verb_like(prev, morph) and prev2 not in NEG and prev3 not in NEG and nxt not in NEG: return e['p']
-    if subj_pl(w, e, prev, nxt, morph, prev2, prev3): return e["p"]
+    if subj_pl(w, e, prev, nxt, morph, prev2, prev3, nxt2): return e["p"]
     if nxt in QUANT_NEXT and 'g' in e and 'p' in e: return e['g']
     if morph and w and ('g' in e or 'p' in e): return agree(morph, prev, prev2, w, e, prev3, prev4, chain_head(prev, prev2, prev3, prev4))
     return None
 
 
-def subj_pl(w, e, prev, nxt, morph, prev2=None, prev3=None):
-    return (w in VERB_PL and 'p' in e and verb_like(nxt, morph) and VERB_PL_END.match(nxt) and prev not in NEG
+def subj_pl(w, e, prev, nxt, morph, prev2=None, prev3=None, nxt2=None):
+    verb_next = verb_like(nxt, morph) and VERB_PL_END.match(nxt) or w in SUBJ_ADV and adverb_like(nxt, morph) and verb_like(nxt2, morph) and VERB_PL_END.match(nxt2)
+    return (w in VERB_PL and 'p' in e and verb_next and prev not in NEG
             and not {prev, prev2, prev3} & DUAL and not (prev and morph and morph.is_noun(morph.tags(prev))))
 
 
@@ -184,9 +200,10 @@ def app_pick(w, toks, i, low, gram, homo, morph, phrase_pick):
     gramPass → фразы Silero. None — решает модель. phrase_pick(w, low) — вариант по фразам json или None."""
     ours = extra_pick(w, low)
     if ours: return ours
-    if w in gram and i == 0 and subj_pl(w, gram[w], '', toks[1] if len(toks) > 1 else None, morph): return gram[w]['p']
+    nxt, nxt2 = (toks[i + 1] if i + 1 < len(toks) else None), (toks[i + 2] if i + 2 < len(toks) else None)
+    if w in gram and i == 0 and subj_pl(w, gram[w], '', nxt, morph, nxt2=nxt2): return gram[w]['p']
     if w in gram and i > 0: ours = gram_pick(toks[i - 1], toks[i - 2] if i > 1 else None, gram[w], w in homo, w, morph,
-                                            toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None, toks[i + 1] if i + 1 < len(toks) else None)
+                                            toks[i - 3] if i > 2 else None, toks[i - 4] if i > 3 else None, nxt, nxt2)
     if w == 'все' and i + 1 < len(toks): ours = vse_pick(toks[i + 1], morph, gram)
     if ours is None: ours = phrase_pick(w, low)
     return ours
