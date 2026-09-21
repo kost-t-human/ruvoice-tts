@@ -21,6 +21,12 @@ class AuditTest {
         assertEquals(2, a.entries(Audit.Kind.NAMES).first { it.word == "хагрид" }.count)
     }
 
+    @Test fun snippetIsShortAndAroundTheWord() {
+        val long = "Раз два три четыре пять шесть семь восемь девять десять одиннадцать Хагрид двенадцать тринадцать четырнадцать пятнадцать шестнадцать семнадцать"
+        assertEquals("десять одиннадцать Хагрид двенадцать тринадцать четырнадцать", Audit.snippet("хагрид", long))
+        assertEquals("Хагрид кивнул.", Audit.snippet("хагрид", "Хагрид\tкивнул."))   // короткая целиком, табы в пробелы
+    }
+
     @Test fun persistsAndCaps() {
         val a = Audit(tmp.root)
         a.add(Audit.Kind.NAMES, "творог", "тв+орог", "ел творог\tс молоком")

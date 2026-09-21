@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Слово из «Проверки» в словарь: ударение (чипы по гласным) или замена (поле «На что», для ёфикации); список назначения запоминается. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+<LinearLayout
     android:orientation="vertical"
-    android:paddingHorizontal="24dp"
+    android:paddingHorizontal="12dp"
     android:paddingTop="8dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
@@ -104,3 +107,4 @@
             android:saveEnabled="false" />
     </com.google.android.material.textfield.TextInputLayout>
 </LinearLayout>
+</ScrollView>

@@ -122,9 +122,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                     for ((w, range) in Audit.candidates(line, known)) {
                         val e = found[w]
                         if (e != null) { found[w] = Pair(e.first + 1, e.second); continue }
-                        val a = maxOf(0, range.first - 40); val b = minOf(line.length, range.last + 80)
-                        val ctxText = line.substring(a, b).let { if (a > 0) it.substringAfter(' ') else it }.let { if (b < line.length) it.substringBeforeLast(' ') else it }
-                        found[w] = Pair(1, ctxText)
+                        found[w] = Pair(1, line)   // цитату вырежет Audit.add
                     }
                 }
                 val batches = found.keys.chunked(SCAN_BATCH)

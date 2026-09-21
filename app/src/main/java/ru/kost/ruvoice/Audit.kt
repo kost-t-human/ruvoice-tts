@@ -24,7 +24,7 @@ class Audit(private val dir: File) {
         val f = File(dir, kind.file)
         if (f.exists()) for (line in f.readLines()) {
             val p = line.split('\t')
-            if (p.size >= 4) map[p[0]] = Entry(p[0], p[1], p[2].toIntOrNull() ?: 1, p[3], p.getOrNull(4) == "h")
+            if (p.size >= 4) map[p[0]] = Entry(p[0], p[1], p[2].toIntOrNull() ?: 1, snippet(p[0], p[3]), p.getOrNull(4) == "h")   // snippet — старые записи хранили до 120 знаков
         }
         map
     }
@@ -35,7 +35,7 @@ class Audit(private val dir: File) {
         val e = map[word]
         if (e != null) e.count += count
         else {
-            map[word] = Entry(word, variant, count, context.take(CONTEXT).replace('\t', ' ').replace('\n', ' '))
+            map[word] = Entry(word, variant, count, snippet(word, context))
             while (map.count { !it.value.hidden } > MAX) map.remove(map.entries.first { !it.value.hidden }.key)
         }
         dirty += kind
@@ -87,7 +87,16 @@ class Audit(private val dir: File) {
         fun known(d: SileroData, userDict: Map<String, String>): (String) -> Boolean =
             { w -> w in d.exceptions || w in d.homodict || w in d.gram || w in userDict || (Normalizer.morph?.tags(w) ?: 0) != 0 }
         const val MAX = 2000
-        const val CONTEXT = 120
+        private const val BEFORE = 24; private const val AFTER = 36
+
+        /** Цитата вокруг первого вхождения слова: ~BEFORE знаков до и AFTER после, по границам слов — в диалоге
+         * она соседствует с чипами ударений, длинная выталкивала их за экран. */
+        fun snippet(word: String, text: String): String {
+            val t = text.replace('\t', ' ').replace('\n', ' ')
+            val i = t.indexOf(word, ignoreCase = true).coerceAtLeast(0)
+            val a = maxOf(0, i - BEFORE); val b = minOf(t.length, i + word.length + AFTER)
+            return t.substring(a, b).let { if (a > 0) it.substringAfter(' ') else it }.let { if (b < t.length) it.substringBeforeLast(' ') else it }
+        }
         private const val VOWELS = "аеёиоуыэюя"
         private val wordRe = Regex("[а-яё+]+", RegexOption.IGNORE_CASE)
         private val tokenRe = Regex("\\S+")

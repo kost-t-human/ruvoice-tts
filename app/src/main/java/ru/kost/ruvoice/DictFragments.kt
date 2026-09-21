@@ -241,7 +241,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     private fun showCheckDialog() {
         val ctx = requireContext()
         val box = LayoutInflater.from(ctx).inflate(R.layout.preview_box, null)
-        val pad = (20 * resources.displayMetrics.density).toInt(); box.setPadding(pad, pad, pad, 0)
+        val pad = (12 * resources.displayMetrics.density).toInt(); box.setPadding(pad, pad, pad, 0)
         val field = box.findViewById<TextInputEditText>(R.id.previewText).apply { setText(prefs.dictPreviewText) }
         // пустое поле — ничего: подставлять пример, как на «Голосе», здесь сбивает с толку
         fun text() = field.text.toString().also { prefs.dictPreviewText = it }.takeIf { it.isNotBlank() }
@@ -344,7 +344,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         val ctx = requireContext()
         val layout = TextInputLayout(ctx, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
             hint = getString(R.string.dict_name_hint)
-            val pad = (20 * resources.displayMetrics.density).toInt(); setPadding(pad, pad / 2, pad, 0)
+            val pad = (12 * resources.displayMetrics.density).toInt(); setPadding(pad, pad / 2, pad, 0)
         }
         val field = TextInputEditText(layout.context).apply { setText(initial); setSelection(initial.length) }
         layout.addView(field)
