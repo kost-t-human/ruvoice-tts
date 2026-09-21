@@ -10,8 +10,13 @@
     <!-- Диалоги почти во всю ширину: у Material3 по 16dp от краёв экрана плюс 24dp внутри — на крупном шрифте
          чипы ударений не влезали. -->
     <style name="ThemeOverlay.RuVoice.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="backgroundInsetStart">4dp</item>
-        <item name="backgroundInsetEnd">4dp</item>
+        <item name="android:windowMinWidthMinor">100%</item>
+        <item name="alertDialogStyle">@style/RuVoice.Dialog</item>
+    </style>
+    <!-- backgroundInset* MaterialAlertDialogBuilder читает из alertDialogStyle, в теме их не видит. -->
+    <style name="RuVoice.Dialog" parent="MaterialAlertDialog.Material3">
+        <item name="backgroundInsetStart">2dp</item>
+        <item name="backgroundInsetEnd">2dp</item>
         <item name="backgroundInsetTop">16dp</item>
         <item name="backgroundInsetBottom">16dp</item>
     </style>
