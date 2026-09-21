@@ -2,6 +2,10 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/rules"
+        android:title="@string/rules_title"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/export_settings"
         android:title="@string/export_settings"
         app:showAsAction="never" />

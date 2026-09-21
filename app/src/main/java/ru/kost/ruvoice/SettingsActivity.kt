@@ -47,7 +47,6 @@ class SettingsActivity : AppCompatActivity() {
         R.string.tab_pauses to { PausesFragment() },
         R.string.tab_stress to { StressFragment() },
         R.string.tab_replace to { ReplaceFragment() },
-        R.string.tab_rules to { RulesFragment() },
         R.string.tab_audit to { AuditFragment() },
     )
     private val prefs by lazy { Prefs(this) }
@@ -99,6 +98,7 @@ class SettingsActivity : AppCompatActivity() {
             when (item.itemId) {
                 // как перед экспортом: refreshPages глушит save() старых фрагментов, правки вкладки иначе пропадут
                 R.id.voice_packs -> { saveAllVisiblePages(); showPacks(); true }
+                R.id.rules -> { startActivity(Intent(this, RulesActivity::class.java)); true }
                 R.id.setup_help -> { showSetupHelp(); true }
                 R.id.troubleshoot -> { startActivity(Intent(this, TroubleshootActivity::class.java)); true }
                 R.id.about -> { startActivity(Intent(this, AboutActivity::class.java)); true }
