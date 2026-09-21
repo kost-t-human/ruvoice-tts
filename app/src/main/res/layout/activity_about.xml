@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- «О программе»: тулбар с «назад», группа в Telegram, блок поддержки с кнопкой,
-     версия, исходники и лицензии. Ссылки кликабельны через autoLink. -->
+     карточка со ссылкой на релизы, версия, исходники и лицензии. Ссылки кликабельны через autoLink. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
@@ -46,6 +46,30 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/about_support_button" />
+
+            <!-- Отдельным блоком: где брать свежий релиз. -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Filled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp">
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        style="@style/SectionHint"
+                        android:textColor="?attr/colorOnSurface"
+                        android:text="@string/about_releases" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/releases"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/about_releases_button" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
             <TextView
                 android:id="@+id/body"
                 style="@style/SectionHint"

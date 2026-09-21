@@ -30,16 +30,19 @@ class AboutActivity : AppCompatActivity() {
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
         findViewById<TextView>(R.id.body).text = getString(R.string.about_body, packageManager.getPackageInfo(packageName, 0).versionName) +
             Packs.installed(filesDir).joinToString("") { getString(R.string.about_pack, it.title, it.source, it.license) }
-        findViewById<View>(R.id.support).setOnClickListener {
+        fun open(url: String) {
             try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SUPPORT_URL)))
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             } catch (e: ActivityNotFoundException) {
                 Snackbar.make(root, R.string.browser_missing, Snackbar.LENGTH_LONG).show()
             }
         }
+        findViewById<View>(R.id.support).setOnClickListener { open(SUPPORT_URL) }
+        findViewById<View>(R.id.releases).setOnClickListener { open(RELEASES_URL) }
     }
 
     companion object {
         const val SUPPORT_URL = "https://pay.cloudtips.ru/p/ddc25c30"
+        const val RELEASES_URL = "https://github.com/kost-t-human/ruvoice-tts/releases"
     }
 }

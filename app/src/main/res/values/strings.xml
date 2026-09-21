@@ -166,6 +166,8 @@
     <string name="about_telegram">Группа в Telegram, анонсы, вопросы и предложения:\nhttps://t.me/ruVoiceTTS</string>
     <string name="about_support">RuVoice бесплатный, без рекламы и таким останется. Если он вам пригодился и хочется сказать спасибо — можно угостить автора кофе. Это необязательно и ни на что в приложении не влияет.</string>
     <string name="about_support_button">Поддержать проект</string>
+    <string name="about_releases">Свежая версия всегда на странице релизов, в сторах бывает с задержкой.</string>
+    <string name="about_releases_button">Релизы на GitHub</string>
     <string name="browser_missing">Браузер не найден</string>
     <string name="about_body">RuVoice TTS %1$s\nИсходники и новые версии: https://github.com/kost-t-human/ruvoice-tts\n\nСинтез речи: Silero Models (github.com/snakers4/silero-models), модель v5_5_ru, лицензия CC BY-NC-SA 4.0. Только некоммерческое использование.\n\nУдарения: Silero Stress (github.com/snakers4/silero-stress), лицензия MIT.\n\nМорфологический словарь: AOT (github.com/sokirko74/morph_dict), лицензия LGPL.\n\nРастяжение темпа: Sonic, Bill Cox, Apache-2.0.</string>
 
