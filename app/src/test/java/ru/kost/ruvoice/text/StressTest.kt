@@ -230,6 +230,10 @@ class StressTest {
         assertEquals("Леса густого тень", s.gramPass("Леса густого тень"))
         assertEquals("Свечи огарок", s.gramPass("Свечи огарок"))
         assertEquals("Ст+ены домов украсили", s.gramPass("Стены домов украсили"))
+        // правило first_pl выключено — молчим, но «глаза блестели» (verbPl) остаётся
+        val noFirst = Stress(d, firstVowel, rules = Rules(setOf("first_pl")))
+        assertEquals("Стрелы, прочертив дугу, упали", noFirst.gramPass("Стрелы, прочертив дугу, упали"))
+        assertEquals("глаз+а блестели", noFirst.gramPass("глаза блестели"))
         // «самого» перед словом с заглавной — «сам», кроме «до/от/у самого» и «того/этого самого»
         assertEquals("атаковать самог+о зарецкого", s.gramPass("атаковать самого зарецкого", source = "Атаковать самого Зарецкого"))
         assertEquals("атаковать самого зарецкого", s.gramPass("атаковать самого зарецкого"))

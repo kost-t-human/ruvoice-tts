@@ -168,7 +168,7 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                 val subjPl = w in verbPl && "p" in e && verbNext && prev !in neg &&
                     prev !in dual && prev2 !in dual && prev3 !in dual && (morph == null || !Morph.isNoun(morph.tags(prev)))
                 val pick = when {
-                    !adjacent -> if (subjPl || w in initPl && "p" in e && !initGen(w, nxt, nxt2, words, i) &&
+                    !adjacent -> if (subjPl || rules.on("first_pl") && w in initPl && "p" in e && !initGen(w, nxt, nxt2, words, i) &&
                         (if (prevEnd < 0) start else sentEnd.containsMatchIn(sentence.subSequence(prevEnd, m.range.first)))) e["p"] else null
                     "i" in e -> if (phaseRe.matches(prev)) e["i"] else null
                     // «её глаз+а», «в его глаз+а», «из его гл+аза»; за существительным или прилагательным в косвенном падеже
