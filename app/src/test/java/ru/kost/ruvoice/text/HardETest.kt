@@ -19,6 +19,11 @@ class HardETest {
         assertEquals("т+есто, температ+ура, мист+ерия, м+истэр, т+эмп", h.apply("т+есто, температ+ура, мист+ерия, м+истер, т+емп"))
     }
 
+    @Test fun homographsOfNativeWordsSkipped() {
+        // «стен» (единица силы) — р. п. мн. ч. «стена», «форте» — «в форте», «стек» — «стёк» без ё: SKIP_FORMS в hard_e.py
+        assertEquals("ст+ен, ф+орте, ст+ек, б+ел, тир+е, +эре, ст+энд, из т+еста, т+эстами", h.apply("ст+ен, ф+орте, ст+ек, б+ел, тир+е, +эре, ст+енд, из т+еста, т+естами"))
+    }
+
     @Test fun stressAppliesItAfterDictionaries() {
         val d = TestData.data()
         val firstVowel = object : StressModels {
