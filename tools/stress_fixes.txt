@@ -452,6 +452,7 @@
 душна = душн+а  # 0, модель д+ушна, душный:ADJ_SHORT:qual,fem,sg,anim,inanim
 дыбам = д+ыбам  # 0, модель дыб+ам, дыба:N:inanim,fem,pl,dat
 дюжа = дюж+а  # 0, модель д+южа, дюжий:ADJ_SHORT:qual,fem,sg,anim,inanim
+ежа = еж+а  # 0, модель +ёжа, ёж:N:anim,mas,sg,gen
 ежат = еж+ат  # 0, модель +ежат, ежонок:N:anim,mas,pl,acc
 жененная = ж+ененная  # 0, модель жен+енная, женить:PARTICIPLE:perf,imperf,trans,anim,inanim,past,pass,sg,fem,nom
 жененное = ж+ененное  # 0, модель жен+енное, женить:PARTICIPLE:perf,imperf,trans,anim,inanim,past,pass,sg,neu,acc
