@@ -297,7 +297,7 @@ class SileroTtsService : TextToSpeechService() {
                         models.ensureLoaded(voice.pack)
                         val accented = stress.apply(prepared, marks.text)
                         if (auditNames) audit.names(seg.text, accented, known)
-                        val seq = sym.sequence(accented)
+                        val seq = sym.sequence(Stress.forModel(accented))
                         // интонация вопросов/восклицаний и логическое ударение есть только у v5_5_ru
                         val typeIds = if (voice.types) SentenceType.typeIds(prepared, SentenceType.classify(marks.text, d, rules), seq.size, d) else LongArray(seq.size)
                         val curSpeakerId = if (seg.speech) quoteSpeakerId ?: speakerId else speakerId

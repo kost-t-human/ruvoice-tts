@@ -122,4 +122,11 @@ class RulesOffTest {
             "punct", "ssml", "homo", "accentor", "intonation", "exclaim", "question", "pause_semicolon", "lead_in"))
             assertTrue(k, k in Rules.KEYS)
     }
+
+    /** Дефис после безударной приставки модель слышит пробелом; текст для подсветки не меняется. */
+    @Test fun prefixHyphenForModel() {
+        val accented = Stress(d, firstVowel, rules = off("homo", "gram")).apply("Из-под по-другому кто-то в+о-первых")
+        assertEquals("Из-п+од по-др+угому кт+о-то в+о-п+ервых", accented)
+        assertEquals("Из п+од по др+угому кт+о-то в+о-п+ервых", Stress.forModel(accented))
+    }
 }

@@ -406,6 +406,13 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
      * против 5 у «во-п+ервых»), у Silero Stress так же. «кто-нибудь», «кое-как» ударение на первой части держат. */
     private val hyphenPrefix = setOf("во", "по", "из")
 
+    companion object {
+        /** Дефис после такой приставки модель растягивает в паузу («из-п+од», «по-друг+ому» на слух хуже, чем через пробел).
+         * Подменяем только в символах для модели: длина та же, accented с дефисом остаётся для tokens/align/подсветки. */
+        private val prefixHyphenRe = Regex("(?<![а-яё+])(во|по|из)-(?=[а-яё])", RegexOption.IGNORE_CASE)
+        fun forModel(accented: String) = prefixHyphenRe.replace(accented, "$1 ")
+    }
+
     private fun tokenize(sentence: String): Triple<List<String>, List<String>, List<Boolean>> {
         val tokens = ArrayList<String>(); val inputs = ArrayList<String>(); val mask = ArrayList<Boolean>()
         for (word in splitKeep(sentence)) {

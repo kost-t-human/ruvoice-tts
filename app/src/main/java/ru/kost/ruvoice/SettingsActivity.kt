@@ -244,7 +244,7 @@ class SettingsActivity : AppCompatActivity() {
                         val prepared = Normalizer.prepare(Marks.parse(t, rules.focusLevel).text, allowed, rules)
                         // монитор models — тот же, что у синтеза и выгрузки в сервисе: форварды не параллелим
                         val accented = synchronized(models) { stress.apply(prepared, t) }
-                        appendLine("→ " + accented.split(' ').joinToString(" ") { DictLines.accentDisplay(it) })
+                        appendLine("→ " + Stress.forModel(accented).split(' ').joinToString(" ") { DictLines.accentDisplay(it) })
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()
                     }
