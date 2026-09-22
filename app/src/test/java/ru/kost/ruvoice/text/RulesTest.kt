@@ -340,8 +340,12 @@ class RulesTest {
 
     // Task 18 п.3: пунктуация — до чисел, первым проходом в prepare().
     @Test fun repeatedExclamationOrQuestionMarks() {
-        assertEquals("что?", p("Что?!"))
         assertEquals("ура!", p("Ура!!!"))
+        assertEquals("что?", p("Что?????"))
+        // смесь знаков — к «?!», оба знака идут в модель: на них держится акцент
+        assertEquals("что?!", p("Что?!"))
+        assertEquals("что?!", p("Что!?"))
+        assertEquals("что?!", p("Что?!?!"))
     }
 
     @Test fun ellipsisVariants() {

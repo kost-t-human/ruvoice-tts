@@ -124,13 +124,18 @@ object Normalizer {
     // пунктуацию к одному варианту. Повторные «!»/«?» — к первому знаку, многоточие в любом
     // виде («...», ". . .») — к «…», дефис/минус в пробелах (или в начале реплики «- Привет»)
     // — к тире, несколько тире подряд — к одному.
+    // Смесь знаков («?!», «!?», «?!?») — не шум, а вопрос с восклицанием: сводим к «?!» и оба
+    // знака отдаём модели. Оба есть в её алфавите, и на «что?!» против «что?» (wh_q, xenia,
+    // 22.09.2026) громкость выше в полтора раза, подъём F0 к концу 222 против 203 Гц — это и есть
+    // акцент, который терялся, когда от «?!» оставался один знак. Порядок знаков важен: у «что!?»
+    // модель роняет хвост до 130 Гц, а у пака cis «!» не в алфавите и остаётся чистый вопрос.
     private val multiExclQuestRe = Regex("[!?]{2,}")
     private val ellipsisRe = Regex("""\.(?: ?\.){2,}""")
     private val spacedDashRe = Regex("""(?<=^|[ ])[-−](?=[ ])""")
     private val multiDashRe = Regex("[–—]{2,}")
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text
-        var s = multiExclQuestRe.replace(text) { it.value.first().toString() }
+        var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
         s = ellipsisRe.replace(s, "…")
         s = spacedDashRe.replace(s, "–")
         s = multiDashRe.replace(s, "–")
