@@ -119,14 +119,16 @@ class RulesOffTest {
         for (k in listOf("numbers", "cases", "roman", "roman_name", "dates", "day_month", "years", "times",
             "units", "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands",
             "footnotes", "abbrev", "spell_cyr", "spell_lat", "latin", "homoglyphs", "dehyphen", "soft_break",
-            "punct", "ssml", "homo", "accentor", "intonation", "exclaim", "question", "pause_semicolon", "lead_in"))
+            "punct", "ssml", "homo", "accentor", "prefix_space", "intonation", "exclaim", "question", "pause_semicolon", "lead_in"))
             assertTrue(k, k in Rules.KEYS)
     }
 
     /** Дефис после безударной приставки модель слышит пробелом; текст для подсветки не меняется. */
     @Test fun prefixHyphenForModel() {
-        val accented = Stress(d, firstVowel, rules = off("homo", "gram")).apply("Из-под по-другому кто-то в+о-первых")
+        val stress = Stress(d, firstVowel, rules = off("homo", "gram"))
+        val accented = stress.apply("Из-под по-другому кто-то в+о-первых")
         assertEquals("Из-п+од по-др+угому кт+о-то в+о-п+ервых", accented)
-        assertEquals("Из п+од по др+угому кт+о-то в+о-п+ервых", Stress.forModel(accented))
+        assertEquals("Из п+од по др+угому кт+о-то в+о-п+ервых", stress.forModel(accented))
+        assertEquals(accented, Stress(d, firstVowel, rules = off("prefix_space")).forModel(accented))
     }
 }
