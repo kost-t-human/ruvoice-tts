@@ -106,4 +106,12 @@ class ReplacementsRegexTest {
         assertNotNull(Replacements.replacementError("x", "хвост\\"))
         assertNull(Replacements.replacementError("[(", "$1"))
     }
+
+    /** Длинная фраза перекрывает короткую: правила отсортированы по убыванию длины ключа,
+     * а после первой замены в тексте стоит «+», и короткий ключ своё вхождение уже не находит. */
+    @Test fun longerPhraseWins() {
+        val r = Replacements.parse(listOf("стены и = ст+ены и", "каменной стены и = каменной стен+ы и"))
+        assertEquals("вдоль каменной стен+ы и дальше", r.apply("вдоль каменной стены и дальше"))
+        assertEquals("сложены ст+ены и крыша", r.apply("сложены стены и крыша"))
+    }
 }
