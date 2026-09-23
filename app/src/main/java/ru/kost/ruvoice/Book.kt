@@ -17,7 +17,7 @@ object Book {
     private fun fb2(s: String) = strip(s.replace(fb2Skip, ""))
 
     /** Кодировка из заголовка XML (fb2 часто в cp1251), иначе как у словарей: UTF-8 или cp1251. */
-    private fun decode(bytes: ByteArray): String {
+    fun decode(bytes: ByteArray): String {
         val head = String(bytes, 0, minOf(bytes.size, 200), Charsets.ISO_8859_1)
         val enc = encRe.find(head)?.groupValues?.get(1)
         return try { if (enc != null) String(bytes, charset(enc)) else Dicts.decode(bytes) } catch (e: Exception) { Dicts.decode(bytes) }
@@ -35,21 +35,21 @@ object Book {
     }
 
     fun strip(html: String): String = html.replace(skipRe, "").replace(breakRe, "\n").replace(tagRe, "")
-        .replace(entityRe) { m ->
-            val e = m.groupValues[1]
-            when {
-                e.startsWith("#x") -> e.drop(2).toIntOrNull(16)?.let { String(Character.toChars(it)) } ?: m.value
-                e.startsWith("#") -> e.drop(1).toIntOrNull()?.let { String(Character.toChars(it)) } ?: m.value
-                else -> entities[e] ?: m.value
-            }
-        }
+        .replace(entityRe) { m -> entity(m.groupValues[1]) ?: m.value }
+
+    /** «#1103», «#x44f», «mdash» → символ; неизвестная сущность — null. */
+    fun entity(e: String): String? = when {
+        e.startsWith("#x") -> e.drop(2).toIntOrNull(16)?.let { String(Character.toChars(it)) }
+        e.startsWith("#") -> e.drop(1).toIntOrNull()?.let { String(Character.toChars(it)) }
+        else -> entities[e]
+    }
 
     private val encRe = Regex("encoding=[\"']([^\"']+)")
     private val fb2Skip = Regex("<(description|binary|body name=\"(notes|comments)\")[\\s\\S]*?</(description|binary|body)>")
     private val skipRe = Regex("<(head|style|script)\\b[\\s\\S]*?</\\1>|<!--[\\s\\S]*?-->", RegexOption.IGNORE_CASE)
     private val breakRe = Regex("</(p|v|div|h[1-6]|li|title|subtitle|text-author|tr)>|<br\\b[^>]*>", RegexOption.IGNORE_CASE)
     private val tagRe = Regex("<[^>]+>")
-    private val entityRe = Regex("&(#x?[0-9a-fA-F]+|[a-zA-Z]+);")
+    val entityRe = Regex("&(#x?[0-9a-fA-F]+|[a-zA-Z]+);")
     private val entities = mapOf("lt" to "<", "gt" to ">", "amp" to "&", "quot" to "\"", "apos" to "'", "nbsp" to " ",
         "mdash" to "—", "ndash" to "–", "laquo" to "«", "raquo" to "»", "hellip" to "…", "shy" to "")
 }

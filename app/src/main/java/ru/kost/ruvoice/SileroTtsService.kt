@@ -145,6 +145,14 @@ object Pipeline {
         out[i] = seg.copy(text = seg.text.substring(c + 1).trim())
         out.add(i, Segment(seg.text.substring(0, c + 1).trim().trimEnd(','), speech = seg.speech))
     }
+
+    /** Текст сегмента → слова для модели с ударениями (до Stress.forModel), тем же путём, что synthSegment. */
+    fun accent(text: String, d: SileroData, stress: Stress, allowed: String, rules: Rules): String {
+        var t = if (rules.on("exclaim")) Marks.exclaim(text) else text
+        if (rules.on("question") && SentenceType.classify(t, d, rules) == "general_q") t = Marks.question(t)
+        val marks = Marks.parse(t, rules.focusLevel)
+        return stress.apply(Normalizer.prepare(marks.text, allowed, rules), marks.text)
+    }
 }
 
 class SileroTtsService : TextToSpeechService() {

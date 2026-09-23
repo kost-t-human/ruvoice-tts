@@ -30,9 +30,6 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.Locale
-import ru.kost.ruvoice.text.Marks
-import ru.kost.ruvoice.text.Normalizer
-import ru.kost.ruvoice.text.SentenceType
 import ru.kost.ruvoice.text.Stress
 
 /**
@@ -239,11 +236,8 @@ class SettingsActivity : AppCompatActivity() {
                         if (seg.speech) marks += " [речь]"
                         if (seg.paragraph) marks += " [¶]"
                         appendLine(seg.text + marks)
-                        var t = if (rules.on("exclaim")) Marks.exclaim(seg.text) else seg.text
-                        if (rules.on("question") && SentenceType.classify(t, d, rules) == "general_q") t = Marks.question(t)
-                        val prepared = Normalizer.prepare(Marks.parse(t, rules.focusLevel).text, allowed, rules)
                         // монитор models — тот же, что у синтеза и выгрузки в сервисе: форварды не параллелим
-                        val accented = synchronized(models) { stress.apply(prepared, t) }
+                        val accented = synchronized(models) { Pipeline.accent(seg.text, d, stress, allowed, rules) }
                         appendLine("→ " + stress.forModel(accented).split(' ').joinToString(" ") { DictLines.accentDisplay(it) })
                         if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
                         appendLine()

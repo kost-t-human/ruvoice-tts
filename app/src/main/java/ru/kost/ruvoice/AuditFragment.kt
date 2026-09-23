@@ -1,6 +1,9 @@
 package ru.kost.ruvoice
 
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.view.WindowManager
 import androidx.core.text.HtmlCompat
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -9,6 +12,9 @@ import android.view.View
 import android.widget.Button
 import android.view.ViewGroup
 import android.widget.CheckBox
+import android.widget.RadioGroup
+import android.widget.RadioButton
+import android.widget.LinearLayout
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,7 +45,19 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private var items: List<Audit.Entry> = emptyList()
     private val scanLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) scan(uri) }
     @Volatile private var scanCancelled = false
-    private companion object { const val SCAN_BATCH = 64 }
+    // «Книга с ударениями»: режим знака и «э» (Prefs), затем исходник, затем куда сохранить
+    private var accentIn: Uri? = null
+    private val accentOutLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-fictionbook+xml")) { out ->
+        val src = accentIn
+        if (out != null && src != null) accentBook(src, out)
+    }
+    private val accentInLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { accentIn = uri; accentOutLauncher.launch(displayName(uri).replace(bookExt, "") + " (ударения).fb2") }
+    }
+    private companion object {
+        const val SCAN_BATCH = 64
+        val bookExt = Regex("\\.(fb2\\.zip|fb2|epub|txt|zip)$", RegexOption.IGNORE_CASE)
+    }
 
     override fun load(v: View) {
         v.findViewById<MaterialSwitch>(R.id.namesOn).apply { isChecked = prefs.auditNames; setOnCheckedChangeListener { _, c -> prefs.auditNames = c } }
@@ -62,6 +80,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         v.findViewById<View>(R.id.scan).setOnClickListener {
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage(R.string.audit_scan_help)
                 .setPositiveButton(R.string.audit_scan_pick) { _, _ -> scanLauncher.launch(arrayOf("*/*")) }
+                .setNeutralButton(R.string.accent_book) { _, _ -> accentDialog() }
                 .setNegativeButton(R.string.cancel, null).show()
         }
         filterField = v.findViewById(R.id.filter)
@@ -139,6 +158,62 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             activity?.runOnUiThread {
                 dialog.dismiss()
                 if (view != null) { refresh(); Snackbar.make(requireView(), result, Snackbar.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
+    private fun accentDialog() {
+        val ctx = requireContext()
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val acute = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_acute) }
+        val plus = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_plus) }
+        val group = RadioGroup(ctx).apply { addView(acute); addView(plus); check(if (prefs.accentBookPlus) plus.id else acute.id) }
+        val hardE = CheckBox(ctx).apply { setText(R.string.accent_book_hard_e); isChecked = prefs.accentBookHardE }
+        val abbr = CheckBox(ctx).apply { setText(R.string.accent_book_abbr); isChecked = prefs.accentBookAbbr }
+        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0); addView(group); addView(hardE); addView(abbr) }
+        MaterialAlertDialogBuilder(ctx).setTitle(R.string.accent_book).setMessage(R.string.accent_book_help).setView(box)
+            .setPositiveButton(R.string.audit_scan_pick) { _, _ ->
+                prefs.accentBookPlus = group.checkedRadioButtonId == plus.id
+                prefs.accentBookHardE = hardE.isChecked
+                prefs.accentBookAbbr = abbr.isChecked
+                accentInLauncher.launch(arrayOf("*/*"))
+            }
+            .setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun displayName(uri: Uri): String = runCatching {
+        requireContext().contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull() ?: "книга"
+
+    /** Книга целиком через конвейер сервиса (BookAccent), по абзацам; прервали или упало — недописанный файл удаляется. */
+    private fun accentBook(src: Uri, out: Uri) {
+        val ctx = requireContext().applicationContext
+        scanCancelled = false
+        val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.accent_book).setMessage("0 %")
+            .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
+        // на час работы экран не гасим: в фоне процесс могут прибить
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        Thread {
+            var ok = false
+            val result = try {
+                val bytes = ctx.contentResolver.openInputStream(src)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл")
+                var shown = -1
+                val done = BookAccent.make(ctx, bytes, displayName(src).replace(bookExt, "")) { i, n ->
+                    val pct = if (n == 0) 100 else i * 100 / n
+                    if (pct != shown) { shown = pct; activity?.runOnUiThread { dialog.setMessage(ctx.getString(R.string.accent_book_progress, pct, i, n)) } }
+                    !scanCancelled
+                }
+                if (done == null) ctx.getString(R.string.accent_book_cancelled) else {
+                    ctx.contentResolver.openOutputStream(out, "wt")?.use { it.write(done.toByteArray()) } ?: throw IllegalStateException("Не удалось записать файл")
+                    ok = true
+                    ctx.getString(R.string.accent_book_done)
+                }
+            } catch (e: Exception) { e.message ?: e.toString() }
+            if (!ok) runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, out) }
+            activity?.runOnUiThread {
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                dialog.dismiss()
+                if (view != null) Snackbar.make(requireView(), result, Snackbar.LENGTH_LONG).show()
             }
         }.start()
     }
