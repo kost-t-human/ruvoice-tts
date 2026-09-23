@@ -5,6 +5,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.divider.MaterialDivider
 import android.view.Gravity
 import android.content.Context
+import android.content.Intent
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.WindowManager
@@ -51,17 +52,41 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private var items: List<Audit.Entry> = emptyList()
     private val scanLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) scan(uri) }
     @Volatile private var scanCancelled = false
-    // «Книга с ударениями»: режим знака и «э» (Prefs), затем исходник, затем куда сохранить
+    // «Книга с ударениями»: режим знака и «э» (Prefs), затем исходник, затем куда сохранить. Пока открыт выбор
+    // «куда сохранить», Android может уничтожить экран или весь процесс: исходник переживает это через
+    // savedInstanceState и постоянное разрешение на чтение, иначе окно закрывалось и ничего не происходило
     private var accentIn: Uri? = null
     private val accentOutLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-fictionbook+xml")) { out ->
         val src = accentIn
-        if (out != null && src != null) accentBook(src, out)
+        when {
+            out == null -> src?.let { releaseRead(it) }
+            src == null -> {
+                runCatching { DocumentsContract.deleteDocument(requireContext().contentResolver, out) }
+                view?.let { Snackbar.make(it, R.string.accent_book_lost, Snackbar.LENGTH_LONG).show() }
+            }
+            else -> accentBook(src, out)
+        }
     }
     private val accentInLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) { accentIn = uri; accentOutLauncher.launch(displayName(uri).replace(bookExt, "") + " (ударения).fb2") }
+        if (uri != null) {
+            accentIn = uri
+            runCatching { requireContext().contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            accentOutLauncher.launch(displayName(uri).replace(bookExt, "") + " (ударения).fb2")
+        }
+    }
+    private fun releaseRead(uri: Uri) = runCatching { requireContext().contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        savedInstanceState?.getString(KEY_ACCENT_IN)?.let { accentIn = Uri.parse(it) }
+    }
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        accentIn?.let { outState.putString(KEY_ACCENT_IN, it.toString()) }
     }
     private companion object {
         const val SCAN_BATCH = 64
+        const val KEY_ACCENT_IN = "accent_in"
         val bookExt = Regex("\\.(fb2\\.zip|fb2|epub|txt|zip)$", RegexOption.IGNORE_CASE)
     }
 
@@ -279,6 +304,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 }
             } catch (e: Exception) { e.message ?: e.toString() }
             if (!ok) runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, out) }
+            runCatching { ctx.contentResolver.releasePersistableUriPermission(src, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             activity?.runOnUiThread {
                 activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 dialog.dismiss()

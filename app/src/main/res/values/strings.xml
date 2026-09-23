@@ -39,6 +39,7 @@
     <string name="accent_book_loading">Загружаются модели ударений, до полуминуты…</string>
     <string name="accent_book_progress">%1$d %% (абзац %2$d из %3$d)</string>
     <string name="accent_book_done">Книга с ударениями сохранена</string>
+    <string name="accent_book_lost">Выбранная книга потерялась, пока открывался выбор файла. Выберите её ещё раз</string>
     <string name="accent_book_cancelled">Прервано, файл не сохранён</string>
     <string name="audit_added">«%1$s» добавлено в «%2$s»</string>
 
