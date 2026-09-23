@@ -143,6 +143,16 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
      * Ещё: после фазового глагола инфинитив несов. вида («начал обполз+ать»), после «лишённые/полные» род.
      * («полные вод+ы»), после «размером с» вин. мн. («с г+оры»), второй предложный после в/на/при («в глуш+и»).
      * На корпусе GramPassCorpusTest споров со словарями ноль (с поправками gram_pass_overrides.txt). */
+    /** «все» + сравнительная степень → «вс+ё» («всё сильнее», «всё больше»): по книгам с честной «ё» 97,7 % из 12 тыс.
+     * «ранее/заранее» — нет («все ранее начатые»), «более-менее» с дефисом — тоже, «ее» — это «её». Зеркало — tools/phrases_extra.vse_yo. */
+    private val vseCmp = setOf("больше", "меньше", "лучше", "хуже", "чаще", "реже", "дальше", "ближе", "выше", "ниже", "громче", "тише",
+        "глубже", "короче", "дороже", "дешевле", "легче", "проще", "строже", "моложе", "старше", "позже", "раньше", "жарче", "ярче",
+        "крепче", "слаще", "жестче", "резче", "толще", "тоньше", "шире", "круче", "гуще", "мягче")
+    private val vseCmpNot = setOf("ее", "ранее", "заранее")
+    private fun vseYo(w: String): Boolean {
+        val v = w.replace("+", "").replace('ё', 'е')
+        return '-' !in v && v !in vseCmpNot && (v.endsWith("ее") || v in vseCmp)
+    }
     private val samNameRe = Regex("самого\\s+(\\p{L})", RegexOption.IGNORE_CASE)
     /** start — sentence начинается с начала предложения (сегменты конвейера — да; обрывки словарей в GramPassCorpusTest — нет). */
     internal fun gramPass(sentence: String, start: Boolean = true, source: String = sentence): String {
@@ -212,6 +222,10 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
                 if (caps && prev !in samPlace) { sb.insert(m.range.first + offset + 5, '+'); offset++ }   // «самог+о Зарецкого»
             }
             if (vse) { sb.insert(prevStart + prevOffset + 2, '+'); offset++ }
+            else if (adjacent && prev == "все" && vseYo(w)) {   // «все сильнее» → «вс+ё сильнее»
+                val k = prevStart + prevOffset + 2
+                sb.replace(k, k + 1, if (sb[k].isUpperCase()) "+Ё" else "+ё"); offset++
+            }
             chainHead = if (adjacent && adjPl.matches(w) && adjPl.matches(prev)) chainHead else prev
             prev4 = prev3; prev3 = prev2; prev2 = prev; prev = w; prevStart = m.range.first; prevEnd = m.range.last + 1
         }

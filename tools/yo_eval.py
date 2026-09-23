@@ -5,7 +5,7 @@
 однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Раньше модели — словарь eyo safe (как YoDict в аппке), поверх — наши фразы системного словаря
 (tools/phrases_extra.txt), как замены в аппке, и правило «все» + слово только мн. ч. из Stress.gramPass
 (tools/phrases_extra.vse_pick, таблица morph.bin). Промахи — app/build/yo_eval_miss.txt.
-Запуск: [ORIG_HOMO=1] <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений] [корпус.txt]
+Запуск: [ORIG_HOMO=1] [MARKED=1] <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений] [корпус.txt]
 Другой корпус — файл ёфицированных предложений по одному на строку, например ../narusco/yo_corpus.txt (фрагменты narusco с
 ручной «ё», промахи тогда в app/build/<имя>_miss.txt)."""
 import os, re, sys, json, collections, itertools
@@ -52,6 +52,7 @@ def kind(w_yo):
     return 'неизвестные'
 
 
+MARKED = os.environ.get('MARKED')   # 1 — слово промаха в предложении в [[…]] (для ручной проверки)
 ss = load_accentor()
 if not os.environ.get('ORIG_HOMO'):   # как в аппке: homo.ptl из ассетов (ветка «все/всё», маска); ORIG_HOMO=1 — пакетная модель
     from torch.jit.mobile import _load_for_lite_interpreter
@@ -72,15 +73,17 @@ for n, sent in enumerate(lines):
             hit = next((m for m in p.finditer(low) if starts.get(m.start() + off) == i), None)
             if hit: got[i] = v; break
         else:
-            if w == 'все' and i + 1 < len(orig) and not low[pos[i] + 3:pos[i + 1]].strip() and pe.vse_pick(orig[i + 1].replace('ё', 'е'), morph, gram): got[i] = 'все'
+            if w == 'все' and i + 1 < len(orig) and not low[pos[i] + 3:pos[i + 1]].strip() and pe.vse_yo(orig[i + 1], low[pos[i + 1] + len(orig[i + 1]):]): got[i] = 'всё'
+            elif w == 'все' and i + 1 < len(orig) and not low[pos[i] + 3:pos[i + 1]].strip() and pe.vse_pick(orig[i + 1].replace('ё', 'е'), morph, gram): got[i] = 'все'
     st['всего']['предложений'] += 1
-    for o, g in zip(orig, got):
+    for i, (o, g) in enumerate(zip(orig, got)):
+        at = sent[:pos[i]] + '[[' + sent[pos[i]:pos[i] + len(o)] + ']]' + sent[pos[i] + len(o):] if MARKED else sent
         if 'ё' in o:
             k = kind(o); st[k]['слов с ё'] += 1
             if g == o: st[k]['ё восстановлена'] += 1
-            else: st[k]['ё потеряна'] += 1; miss.append(('потеряна', o, g, sent))
+            else: st[k]['ё потеряна'] += 1; miss.append(('потеряна', o, g, at))
         elif 'ё' in g:
-            k = kind(g); st[k]['ё лишняя'] += 1; miss.append(('лишняя', o, g, sent))
+            k = kind(g); st[k]['ё лишняя'] += 1; miss.append(('лишняя', o, g, at))
     if n % 5000 == 0: print(n, len(lines), flush=True)
 for k in ('однозначные', 'неоднозначные', 'неизвестные'):
     c = st[k]; tot = c['слов с ё']
