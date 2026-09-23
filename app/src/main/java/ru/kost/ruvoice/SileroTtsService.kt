@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.ServiceInfo
+import android.os.PowerManager
 import android.os.Build
 import android.media.AudioFormat
 import android.os.Handler
@@ -176,16 +177,19 @@ class SileroTtsService : TextToSpeechService() {
     /** Тестовая сборка: пока идёт чтение, сервис — foreground. Без этого при погасшем экране процесс
      * уезжает в sched group Restricted (cpuset может не включать быстрые ядра), forward замедляется в разы
      * и паузы между предложениями растут. Снимается вместе с выгрузкой моделей по простою. */
+    private fun screenOff() = !getSystemService(PowerManager::class.java).isInteractive
+
     private fun enterForeground() {
         if (foreground) return
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL) == null)
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.app_name), NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.app_name), NotificationManager.IMPORTANCE_MIN))
         val n: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.fg_reading))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
             .setOngoing(true)
             .build()
         // Android 12+ запрещает старт foreground-сервиса из фона: если читалка сама не на виду, ловим
@@ -225,7 +229,11 @@ class SileroTtsService : TextToSpeechService() {
 
     /** Снятие foreground после простоя — отдельно от выгрузки моделей: та может быть выключена
      * в настройках, а уведомление «идёт чтение» висеть вечно не должно. */
-    private val fgOff = Runnable { leaveForeground() }
+    private val fgOff: Runnable = Runnable {
+        // При погасшем экране снимать нельзя: поднять обратно система уже не даст, а после паузы
+        // чтение продолжат в том же фоне. Ждём, пока на телефон посмотрят.
+        if (screenOff()) handler.postDelayed(fgOff, FG_IDLE_MS) else leaveForeground()
+    }
 
     private fun scheduleUnload() {
         handler.removeCallbacks(unload)
@@ -287,6 +295,9 @@ class SileroTtsService : TextToSpeechService() {
         stopped = false
         handler.removeCallbacks(unload)
         handler.removeCallbacks(fgOff)
+        // Поднимаем сразу: при погасшем экране система запрещает старт foreground-сервиса из фона
+        // (Background started FGS: Disallowed), а нужен он именно тогда — там процесс уводят
+        // в Restricted и синтез перестаёт успевать за воспроизведением.
         handler.post { enterForeground() }
         val t0 = System.currentTimeMillis()
         try {
