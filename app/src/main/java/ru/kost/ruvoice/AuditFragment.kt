@@ -1,6 +1,10 @@
 package ru.kost.ruvoice
 
 import android.net.Uri
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.divider.MaterialDivider
+import android.view.Gravity
+import android.content.Context
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.view.WindowManager
@@ -15,6 +19,8 @@ import android.widget.CheckBox
 import android.widget.RadioGroup
 import android.widget.RadioButton
 import android.widget.LinearLayout
+import androidx.core.widget.NestedScrollView
+import androidx.core.widget.TextViewCompat
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -78,10 +84,9 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         tintSort()
         sortAlpha.setOnClickListener { prefs.auditSortAlpha = !prefs.auditSortAlpha; tintSort(); refresh() }
         v.findViewById<View>(R.id.scan).setOnClickListener {
-            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage(R.string.audit_scan_help)
-                .setPositiveButton(R.string.audit_scan_pick) { _, _ -> scanLauncher.launch(arrayOf("*/*")) }
-                .setNeutralButton(R.string.accent_book) { _, _ -> accentDialog() }
-                .setNegativeButton(R.string.cancel, null).show()
+            bodyDialog(R.string.audit_scan, getString(R.string.audit_scan_help), emptyList(),
+                R.string.cancel to {}, R.string.audit_scan_pick to { scanLauncher.launch(arrayOf("*/*")) },
+                extra = Triple(R.string.accent_book_caption, R.string.accent_book_go) { accentDialog() })
         }
         filterField = v.findViewById(R.id.filter)
         filterField.doAfterTextChanged { refresh() }
@@ -164,21 +169,80 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
 
     private fun accentDialog() {
         val ctx = requireContext()
-        val pad = (20 * resources.displayMetrics.density).toInt()
         val acute = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_acute) }
         val plus = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_plus) }
         val group = RadioGroup(ctx).apply { addView(acute); addView(plus); check(if (prefs.accentBookPlus) plus.id else acute.id) }
         val hardE = CheckBox(ctx).apply { setText(R.string.accent_book_hard_e); isChecked = prefs.accentBookHardE }
         val abbr = CheckBox(ctx).apply { setText(R.string.accent_book_abbr); isChecked = prefs.accentBookAbbr }
-        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0); addView(group); addView(hardE); addView(abbr) }
-        MaterialAlertDialogBuilder(ctx).setTitle(R.string.accent_book).setMessage(R.string.accent_book_help).setView(box)
-            .setPositiveButton(R.string.audit_scan_pick) { _, _ ->
-                prefs.accentBookPlus = group.checkedRadioButtonId == plus.id
-                prefs.accentBookHardE = hardE.isChecked
-                prefs.accentBookAbbr = abbr.isChecked
-                accentInLauncher.launch(arrayOf("*/*"))
+        bodyDialog(R.string.accent_book, getString(R.string.accent_book_help), listOf(group, hardE, abbr), R.string.cancel to {}, R.string.audit_scan_pick to {
+            prefs.accentBookPlus = group.checkedRadioButtonId == plus.id
+            prefs.accentBookHardE = hardE.isChecked
+            prefs.accentBookAbbr = abbr.isChecked
+            accentInLauncher.launch(arrayOf("*/*"))
+        })
+    }
+
+    /**
+     * Диалог, где кнопки, поля и текст справки — одна прокручиваемая область. Штатные кнопки при крупном шрифте
+     * уезжали за экран или прокручивались отдельной полосой; здесь они сверху, [extra] (подпись, кнопка) — под чертой.
+     */
+    private fun bodyDialog(title: Int, message: String, views: List<View>, vararg buttons: Pair<Int, () -> Unit>, extra: Triple<Int, Int, () -> Unit>? = null) {
+        val ctx = requireContext()
+        val pad = (24 * resources.displayMetrics.density).toInt()
+        lateinit var dialog: androidx.appcompat.app.AlertDialog
+        val text = TextView(ctx).apply {
+            TextViewCompat.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            setTextColor(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant))
+            this.text = message
+        }
+        // последняя кнопка — основное действие, с заливкой; остальные с рамкой
+        val row = ButtonRow(ctx).apply {
+            gravity = Gravity.END
+            for ((i, b) in buttons.withIndex()) {
+                val style = if (i == buttons.lastIndex) com.google.android.material.R.attr.materialButtonStyle else com.google.android.material.R.attr.materialButtonOutlinedStyle
+                addView(MaterialButton(ctx, null, style).apply { setText(b.first); setOnClickListener { dialog.dismiss(); b.second() } },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = pad / 3 })
             }
-            .setNegativeButton(R.string.cancel, null).show()
+        }
+        val wide = { LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) }
+        // сверху кнопки и отдельное действие, под ними поля, потом черта и справка: действия видны сразу
+        val box = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(pad, 0, pad / 2, pad / 2)
+            addView(row, wide())
+            // отдельное действие — под чертой, с подписью, чтобы не путалось с кнопками выше
+            extra?.let { (caption, label, action) ->
+                addView(MaterialDivider(ctx), wide().apply { setMargins(0, pad / 2, pad / 2, pad / 3) })
+                addView(TextView(ctx).apply {
+                    TextViewCompat.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+                    setText(caption)
+                })
+                addView(MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                    setText(label); setOnClickListener { dialog.dismiss(); action() }
+                }, wide().apply { marginEnd = pad / 2 })
+            }
+            views.forEach { addView(it) }
+            addView(MaterialDivider(ctx), wide().apply { setMargins(0, pad / 2, pad / 2, pad / 2) })
+            addView(text)
+        }
+        // что ниже есть ещё: полоса прокрутки не гаснет, край текста внизу затухает
+        // стиль scrollViewStyle — чтобы полоса прокрутки была инициализирована: у вида из кода без него
+        // isScrollbarFadingEnabled = false падает NPE в ScrollBarDrawable при первой отрисовке
+        val scroll = NestedScrollView(ctx, null, android.R.attr.scrollViewStyle).apply {
+            isVerticalScrollBarEnabled = true; isScrollbarFadingEnabled = false
+            isVerticalFadingEdgeEnabled = true; setFadingEdgeLength(pad * 2)
+            addView(box)
+        }
+        dialog = MaterialAlertDialogBuilder(ctx).setTitle(title).setView(scroll).show()
+    }
+
+    /** Кнопки в строку, а если не влезают — столбиком, как у кнопок диалога. */
+    private class ButtonRow(ctx: Context) : LinearLayout(ctx) {
+        override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+            orientation = HORIZONTAL
+            super.onMeasure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED), heightSpec)
+            orientation = if (measuredWidth <= MeasureSpec.getSize(widthSpec)) HORIZONTAL else VERTICAL
+            super.onMeasure(widthSpec, heightSpec)
+        }
     }
 
     private fun displayName(uri: Uri): String = runCatching {
