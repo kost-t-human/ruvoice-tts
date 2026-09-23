@@ -5,7 +5,7 @@
 однозначные (е→ё всегда), неоднозначные (все/всё) и неизвестные. Раньше модели — словарь eyo safe (как YoDict в аппке), поверх — наши фразы системного словаря
 (tools/phrases_extra.txt), как замены в аппке, и правило «все» + слово только мн. ч. из Stress.gramPass
 (tools/phrases_extra.vse_pick, таблица morph.bin). Промахи — app/build/yo_eval_miss.txt.
-Запуск: <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений] [корпус.txt]
+Запуск: [ORIG_HOMO=1] <venv с silero-stress>/bin/python tools/yo_eval.py [макс_предложений] [корпус.txt]
 Другой корпус — файл ёфицированных предложений по одному на строку, например ../narusco/yo_corpus.txt (фрагменты narusco с
 ручной «ё», промахи тогда в app/build/<имя>_miss.txt)."""
 import os, re, sys, json, collections, itertools
@@ -53,6 +53,9 @@ def kind(w_yo):
 
 
 ss = load_accentor()
+if not os.environ.get('ORIG_HOMO'):   # как в аппке: homo.ptl из ассетов (ветка «все/всё», маска); ORIG_HOMO=1 — пакетная модель
+    from torch.jit.mobile import _load_for_lite_interpreter
+    ss.homosolver.model = _load_for_lite_interpreter(os.path.join(os.path.dirname(HERE), 'app/src/main/assets/silero/homo.ptl'))
 lines = [l.strip() for l in open(CORPUS, encoding='utf-8') if l.strip()]
 if LIMIT: lines = lines[:LIMIT]
 st = collections.defaultdict(collections.Counter); miss = []
@@ -61,7 +64,7 @@ for n, sent in enumerate(lines):
     deyo = sent.replace('ё', 'е').replace('Ё', 'Е')
     got = [w.replace('+', '') for w in re.findall(r'[а-яё+]+', ss(deyo, put_yo=True, put_yo_homo=True).lower())]
     if len(got) != len(orig): st['всего']['предложений не сравнить'] += 1; continue
-    low = deyo.lower(); starts = {m.start(): i for i, m in enumerate(word_re.finditer(low))}
+    low = deyo.lower(); pos = [m.start() for m in word_re.finditer(low)]; starts = {p: i for i, p in enumerate(pos)}
     for i, w in enumerate(orig):
         w = w.replace('ё', 'е')
         if w in yo_dict: got[i] = yo_dict[w]
@@ -69,7 +72,7 @@ for n, sent in enumerate(lines):
             hit = next((m for m in p.finditer(low) if starts.get(m.start() + off) == i), None)
             if hit: got[i] = v; break
         else:
-            if w == 'все' and i + 1 < len(orig) and pe.vse_pick(orig[i + 1].replace('ё', 'е'), morph, gram): got[i] = 'все'
+            if w == 'все' and i + 1 < len(orig) and not low[pos[i] + 3:pos[i + 1]].strip() and pe.vse_pick(orig[i + 1].replace('ё', 'е'), morph, gram): got[i] = 'все'
     st['всего']['предложений'] += 1
     for o, g in zip(orig, got):
         if 'ё' in o:

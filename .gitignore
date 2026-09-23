@@ -7,6 +7,7 @@ app/src/main/assets/silero/*.ptl
 app/src/main/assets/silero/*.pte
 app/src/full/assets/silero/
 tools/*.pt
+!tools/vse_top3.pt
 .kotlin/
 ruvoice-listen/
 app/src/test/resources/local/

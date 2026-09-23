@@ -95,6 +95,8 @@ python3 tools/export_silero.py
 pip install silero-stress
 python3 tools/export_silero_stress.py
 #     Заодно собирает системный словарь из tools/stress_fixes.txt и tools/phrases_extra.txt (tools/system_dicts.py).
+#     В homo.ptl добавляется своя ветка для «все/всё» (tools/vse_top3.pt, дообучена на книгах с честной «ё»):
+#     ошибок на ручной «ё» narusco вдвое меньше, остальные омографы решаются исходной моделью без изменений.
 
 # 2б. Бэкбон вокодера (ConvNeXt, три четверти времени синтеза) — в ExecuTorch с XNNPACK: backbone.pte,
 #     тоже в app/src/full/assets/silero/ (только full).
