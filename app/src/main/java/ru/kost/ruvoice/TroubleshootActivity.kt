@@ -47,6 +47,10 @@ class TroubleshootActivity : AppCompatActivity() {
                     runCatching { e.traceInputStream?.bufferedReader()?.use { it.readText() } }.getOrNull()?.let { sb.append("\n").append(it.take(4000)) }
             }
         } else sb.append("\n(записи о завершениях есть только с Android 11)")
+        val journal = SileroTtsService.journal()
+        sb.append("\n\n--- журнал запросов (${journal.size}) ---")
+        if (journal.isEmpty()) sb.append("\n(пусто: движок в этом процессе ещё не читал)")
+        for (l in journal) sb.append("\n").append(l)
         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("RuVoice", sb))
         Snackbar.make(anchor, R.string.ts_crash_copied, Snackbar.LENGTH_LONG).show()
     }

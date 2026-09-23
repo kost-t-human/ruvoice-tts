@@ -1,5 +1,10 @@
 package ru.kost.ruvoice
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.ServiceInfo
+import android.os.PowerManager
 import android.os.Build
 import android.media.AudioFormat
 import android.os.Handler
@@ -13,6 +18,9 @@ import android.util.Log
 import ru.kost.ruvoice.audio.Pcm
 import ru.kost.ruvoice.audio.Tempo
 import ru.kost.ruvoice.text.*
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -162,6 +170,7 @@ class SileroTtsService : TextToSpeechService() {
     private val handler = Handler(Looper.getMainLooper())
     private val synthPool = Executors.newSingleThreadExecutor()
     @Volatile private var stopped = false
+    private var foreground = false
     // Аудиовыход телефона уходит в standby через ~3 с тишины, а после пробуждения HAL плавно
     // поднимает громкость — первое слово фразы выходит тихим. Если с прошлого звука прошло
     // больше LEAD_GAP_MS, начинаем с LEAD_IN_MS тишины, чтобы подъём пришёлся на неё (правило lead_in).
@@ -171,6 +180,40 @@ class SileroTtsService : TextToSpeechService() {
     // release() просто дождётся текущего forward, а не заблокирует main на его время.
     private val unload = Runnable {
         Thread { models.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }.start()
+    }
+
+    /** Пока идёт чтение, сервис — foreground. Без этого при погасшем экране процесс
+     * уезжает в sched group Restricted (cpuset может не включать быстрые ядра), forward замедляется в разы
+     * и паузы между предложениями растут. Снимается вместе с выгрузкой моделей по простою. */
+    private fun screenOff() = !getSystemService(PowerManager::class.java).isInteractive
+
+    private fun enterForeground() {
+        if (foreground) return
+        val nm = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL) == null)
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.app_name), NotificationManager.IMPORTANCE_MIN))
+        val n: Notification = NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.fg_reading))
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
+            .setOngoing(true)
+            .build()
+        // Android 12+ запрещает старт foreground-сервиса из фона: если читалка сама не на виду, ловим
+        // исключение и читаем как раньше.
+        foreground = runCatching {
+            ServiceCompat.startForeground(this, FG_ID, n,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0)
+            true
+        }.onFailure { note("startForeground не дали: ${it.javaClass.simpleName}") }.getOrDefault(false)
+        note(if (foreground) "foreground включён" else "foreground не включён")
+    }
+
+    private fun leaveForeground() {
+        if (!foreground) return
+        foreground = false
+        runCatching { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) }
     }
 
     override fun onCreate() {
@@ -192,12 +235,22 @@ class SileroTtsService : TextToSpeechService() {
         scheduleUnload()
     }
 
+    /** Снятие foreground после простоя — отдельно от выгрузки моделей: та может быть выключена
+     * в настройках, а уведомление «идёт чтение» висеть вечно не должно. */
+    private val fgOff: Runnable = Runnable {
+        // При погасшем экране снимать нельзя: поднять обратно система уже не даст, а после паузы
+        // чтение продолжат в том же фоне. Ждём, пока на телефон посмотрят.
+        if (screenOff()) handler.postDelayed(fgOff, FG_IDLE_MS) else leaveForeground()
+    }
+
     private fun scheduleUnload() {
         handler.removeCallbacks(unload)
+        handler.removeCallbacks(fgOff)
+        handler.postDelayed(fgOff, FG_IDLE_MS)
         if (prefs.idleOn) handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
-    override fun onDestroy() { handler.removeCallbacks(unload); stopped = true; synthPool.shutdownNow(); models.release(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(unload); handler.removeCallbacks(fgOff); leaveForeground(); stopped = true; synthPool.shutdownNow(); models.release(); super.onDestroy() }
 
     // Binder-loadLanguage у TextToSpeechService отдаёт клиенту именно этот ответ (onLoadLanguage
     // в очереди, его результат выбрасывается), поэтому «голосов нет» (lite без пака) — здесь.
@@ -249,6 +302,11 @@ class SileroTtsService : TextToSpeechService() {
     override fun onSynthesizeText(request: SynthesisRequest, callback: SynthesisCallback) {
         stopped = false
         handler.removeCallbacks(unload)
+        handler.removeCallbacks(fgOff)
+        // Поднимаем сразу: при погасшем экране система запрещает старт foreground-сервиса из фона
+        // (Background started FGS: Disallowed), а нужен он именно тогда — там процесс уводят
+        // в Restricted и синтез перестаёт успевать за воспроизведением.
+        handler.post { enterForeground() }
         val t0 = System.currentTimeMillis()
         try {
             val d = models.data
@@ -286,11 +344,17 @@ class SileroTtsService : TextToSpeechService() {
             val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), it.range.first, it.range.last + 1) }.toList()
             val matcher = Marks.Matcher(srcWords.map { it.first })
             var written = 0L // сэмплов отдано читалке — точка отсчёта markerInFrames
+            var audioMs = 0L // длительность отданного звука — для журнала
+            // Чистое время синтеза: в него не входит ожидание плеера (audioAvailable блокирует, пока
+            // непроигранного больше 500 мс), поэтому RTF = синтез / звук показывает, успевает ли телефон.
+            val synthMs = java.util.concurrent.atomic.AtomicLong()
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
             // Звук сегмента и токены для подсветки; null — нечего читать или синтез упал.
             fun synthSegment(seg: Segment): Pair<SileroModels.Synth, List<Marks.Token>>? {
                 if (stopped) return null
+                val tSeg = System.currentTimeMillis()
+                try {
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
                 // по этому же тексту — так и надо.
                 var text = if (rules.on("exclaim")) Marks.exclaim(seg.text) else seg.text
@@ -325,6 +389,7 @@ class SileroTtsService : TextToSpeechService() {
                         Log.e(SileroModels.TAG, "синтез не удался: «${seg.text.take(60)}»", e); null
                     }
                 }
+                } finally { synthMs.addAndGet(System.currentTimeMillis() - tSeg) }
             }
             // Сегмент N+1 считается, пока звук сегмента N уходит плееру: audioAvailable блокирует,
             // пока непроигранного звука больше 500 мс (SynthesisPlaybackQueueItem), и без опережения
@@ -352,13 +417,17 @@ class SileroTtsService : TextToSpeechService() {
                     }
                     if (!write(callback, pcm)) return
                     written += pcm.size
+                    audioMs += pcm.size * 1000L / sr
                     Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                 }
                 if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
             }
             callback.done()
             audit.flush()
-            Log.i(SileroModels.TAG, "запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., ${System.currentTimeMillis() - t0} мс")
+            val ms = System.currentTimeMillis() - t0
+            note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс, звук $audioMs мс, синтез ${synthMs.get()} мс" +
+                (if (audioMs > 0) ", RTF %.2f".format(synthMs.get().toDouble() / audioMs) else "") +
+                (if (!foreground) ", без foreground" else ""))
         } catch (e: Exception) {
             Log.e(SileroModels.TAG, "onSynthesizeText", e)
             callback.error()
@@ -384,5 +453,20 @@ class SileroTtsService : TextToSpeechService() {
     companion object {
         const val LEAD_GAP_MS = 2500L
         const val LEAD_IN_MS = 300
+        private const val CHANNEL = "synth"
+        /** Простой, после которого снимаем foreground: больше паузы между главами, меньше времени
+         * висения уведомления после того, как читалку закрыли. */
+        private const val FG_IDLE_MS = 60_000L
+        private const val FG_ID = 1
+        /** Последние запросы — в «Решение проблем» кнопкой «Скопировать отчёт». Сервис и настройки
+         * в одном процессе, файл не нужен. */
+        private val journal = ArrayDeque<String>()
+        private val stamp = SimpleDateFormat("HH:mm:ss", Locale.US)
+        fun note(line: String) = synchronized(journal) {
+            Log.i(SileroModels.TAG, line)
+            journal.addLast("${stamp.format(System.currentTimeMillis())} $line")
+            while (journal.size > 200) journal.removeFirst()
+        }
+        fun journal(): List<String> = synchronized(journal) { journal.toList() }
     }
 }
