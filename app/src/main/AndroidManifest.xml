@@ -4,6 +4,11 @@
     <!-- androidx.core объявляет служебное разрешение для динамических ресиверов; их у нас нет -->
     <permission android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" tools:node="remove" />
     <uses-permission android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" tools:node="remove" />
+    <!-- Тестовая сборка: сервис на время чтения становится foreground, иначе при погасшем экране
+         система уводит процесс в sched group Restricted и синтез не успевает за воспроизведением. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
@@ -16,6 +21,7 @@
         <service
             android:name=".SileroTtsService"
             android:exported="true"
+            android:foregroundServiceType="mediaPlayback"
             android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.TTS_SERVICE" />
