@@ -219,6 +219,8 @@ class SileroTtsService : TextToSpeechService() {
     override fun onCreate() {
         super.onCreate()
         Thread { runCatching { warmUp() }.onFailure { Log.e(SileroModels.TAG, "прогрев", it) } }.start()
+        // 0.14.18 по ошибке ушёл с отладочной записью всего звука в files/tee/*.pcm — вычищаем
+        Thread { runCatching { getExternalFilesDir(null)?.let { java.io.File(it, "tee").deleteRecursively() } } }.start()
     }
 
     private fun warmUp() {
