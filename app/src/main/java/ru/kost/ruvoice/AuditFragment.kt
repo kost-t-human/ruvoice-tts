@@ -253,7 +253,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     private fun accentBook(src: Uri, out: Uri) {
         val ctx = requireContext().applicationContext
         scanCancelled = false
-        val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.accent_book).setMessage("0 %")
+        val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.accent_book).setMessage(R.string.accent_book_loading)
             .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
         // на час работы экран не гасим: в фоне процесс могут прибить
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -261,10 +261,15 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             var ok = false
             val result = try {
                 val bytes = ctx.contentResolver.openInputStream(src)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл")
-                var shown = -1
+                // абзацы идут быстрее процента: счётчик обновляем и по времени, чтобы было видно, что работа идёт
+                var shownAt = 0L; var shownPct = -1
                 val done = BookAccent.make(ctx, bytes, displayName(src).replace(bookExt, "")) { i, n ->
                     val pct = if (n == 0) 100 else i * 100 / n
-                    if (pct != shown) { shown = pct; activity?.runOnUiThread { dialog.setMessage(ctx.getString(R.string.accent_book_progress, pct, i, n)) } }
+                    val now = System.currentTimeMillis()
+                    if (pct != shownPct || now - shownAt >= 400) {
+                        shownPct = pct; shownAt = now
+                        activity?.runOnUiThread { dialog.setMessage(ctx.getString(R.string.accent_book_progress, pct, i, n)) }
+                    }
                     !scanCancelled
                 }
                 if (done == null) ctx.getString(R.string.accent_book_cancelled) else {

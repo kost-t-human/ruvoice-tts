@@ -255,6 +255,8 @@ object BookAccent {
             val rules = Rules(r.off.set("hard_e", hardE).let { if (abbr) it else it.set("spell_cyr", false).set("spell_lat", false) }, r.maxLen, r.focus)
             val stress = Stress(d, models, prefs.userDict(), rules)
             val replacements = prefs.replacements()
+            // модели — до первого абзаца: иначе 10–30 с загрузки висят на «0 %», будто всё застыло
+            models.ensureStress()
             return fb2(source(bytes, title), if (prefs.accentBookPlus) Mode.PLUS else Mode.ACUTE, hardE, prefs.accentBookAbbr, progress) { p ->
                 Pipeline.plan(p, d, 0, 0, replacements, rules).map { Pipeline.accent(it.text, d, stress, allowed, rules) }
             }

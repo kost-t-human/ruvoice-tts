@@ -54,8 +54,8 @@ class SileroModels(private val context: Context) : StressModels {
     }
 
     /** Акцентор и BERT — общие для штатной модели и паков; accentor()/homo() грузят только их,
-     * чтобы не трогать загруженную тройку синтеза. */
-    @Synchronized private fun ensureStress() {
+     * чтобы не трогать загруженную тройку синтеза. «Книга с ударениями» зовёт заранее, пока в окне «загрузка». */
+    @Synchronized fun ensureStress() {
         if (acc == null) acc = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/accentor.ptl")
         if (homo == null) homo = LiteModuleLoader.loadModuleFromAsset(context.assets, "silero/homo.ptl")
     }
