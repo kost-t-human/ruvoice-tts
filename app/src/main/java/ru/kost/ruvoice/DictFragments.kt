@@ -183,6 +183,12 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
 
     override fun save(v: View) = persist()
 
+    /** «Проверка» дописывает слова прямо в файл списка; устаревшие lines затёрли бы их первым же
+     * persist (переименование, onPause). Правки вкладки пишутся сразу, так что перечитать безопасно. */
+    override fun onResume() { super.onResume(); if (view != null && diskStamp() != stamp) loadLines() }
+    private var stamp = ""
+    private fun diskStamp() = file.let { "${it.path}|${it.lastModified()}|${it.length()}" }
+
     private fun loadLines() {
         val f = file
         lines.clear(); parsedLines.clear(); others.clear()
@@ -198,12 +204,13 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         onSwitch.setText(if (name in off) R.string.dict_off else R.string.dict_on)
         addButton.visibility = if (readOnly) View.GONE else View.VISIBLE
         refresh()
+        stamp = diskStamp()
     }
 
     /** Пишет lines в файл напрямую, без View — вызывается и из onPause/save (где view есть),
      * и из действий над списком (свайп, Undo, диалог), где к моменту записи view уже могло
      * не быть (например, Undo в Snackbar сработал после ухода со страницы). */
-    protected fun persist() { file.writeText(lines.joinToString("\n")); warm() }
+    protected fun persist() { file.writeText(lines.joinToString("\n")); stamp = diskStamp(); warm() }
 
     // ---- правки lines: только через эти методы, чтобы разбор и порядок не разъехались ----
     protected fun setLine(index: Int, line: String) { lines[index] = line; parsedLines[index] = parseLine(line); order = null }
