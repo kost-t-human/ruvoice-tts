@@ -45,7 +45,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         val KEYS = listOf(
             "sr_symbols", "sr_quote_off", "sr_lead_in_off", "sr_pauses_off", "sr_keep_loaded",
             "symbol_names", "emoji", "letter_name", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
-            "phones", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
+            "phones", "codes", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
             "dehyphen", "soft_break", "punct", "ssml",

@@ -1878,6 +1878,40 @@ object Normalizer {
     }
     private fun phones(text: String) = phoneRe.replace(text) { m -> phoneCandidate(m.value) }
 
+    // Коды из СМС, пароли, PIN, номера карт — по цифрам, группами через запятую: их набирают на
+    // клавиатуре, «четыреста восемьдесят две тысячи…» пришлось бы переводить обратно в цифры.
+    // Код узнаётся по слову рядом («код», «пароль», «PIN», «CVC», «code» — до или сразу после
+    // числа), карта — по виду: 4 группы по 4 цифры (Visa/Мир/MasterCard) или маска «•• 1234».
+    private val codeWord = """(?:пин-?код|код|пароль|одноразовый пароль|pin|cvc2?|cvv2?|otp|code|passcode)"""
+    private val codeWordForms = """(?:пин-?код(?:а|у|ом|е|ы|ов)?|код(?:а|у|ом|е|ы|ов)?|парол(?:ь|я|ю|ем|е|и|ей)|pin|cvc2?|cvv2?|otp|code|passcode)"""
+    private val codeDigits = """\d{2,4}(?:[ -]\d{2,4}){1,2}|\d{3,8}"""
+    private val codeNotAfter = """(?!\d|[.,:]\d|\s*(?:%|₽|\$|€|°|руб|р\.|г\.|год|лет|шт|мин|сек|час|раз|км|м\b|кг))"""
+    private val codeAfterWordRe = Regex("""(?<![\p{L}\d])($codeWordForms)(?!\p{L})([^\d.!?\n]{0,40}?)(?<![\p{L}\d,.])($codeDigits)$codeNotAfter""", RegexOption.IGNORE_CASE)
+    private val codeBeforeWordRe = Regex("""(?<![\p{L}\d,.+])(\d{4,8})(?!\d|[.,]\d)(?=\s*[-–—:]?\s*(?:это\s+)?(?:ваш[аеи]?\s+)?$codeWord(?!\p{L}))""", RegexOption.IGNORE_CASE)
+    private val cardRe = Regex("""(?<![\d.,])(\d{4})([ -])(\d{4})\2(\d{4})\2(\d{4})(?:\2(\d{1,3}))?(?![\d.,]\d|\d)""")
+    private val cardMaskRe = Regex("""(?<![\p{L}\d])[*•·xх]{1,12}\s?(\d{4})(?!\d)""")
+    private val digitNames = arrayOf("ноль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять")
+
+    /** «482913» → «четыре восемь два, девять один три»; группы как написаны, сплошное число — по три
+     * (4 цифры — две пары, остаток в одну цифру склеивается с соседней группой: 7 → 3-2-2). */
+    internal fun spellDigits(v: String, whole: Boolean = false): String {
+        val written = v.split(Regex("""\D+""")).filter { it.isNotEmpty() }
+        if (written.isEmpty()) return v
+        val groups = if (written.size > 1 || whole) written else when (written.single().length) {
+            4 -> written.single().chunked(2)
+            else -> written.single().chunked(3).let { c -> if (c.size > 1 && c.last().length == 1) c.dropLast(2) + c[c.size - 2].let { p -> listOf(p.take(2), p.drop(2) + c.last()) } else c }
+        }
+        return groups.joinToString(", ") { g -> g.map { digitNames[it - '0'] }.joinToString(" ") }
+    }
+
+    private fun codes(text: String): String {
+        var s = cardRe.replace(text) { m -> spellDigits(listOf(1, 3, 4, 5, 6).mapNotNull { m.groups[it]?.value }.joinToString(" ")) }
+        s = cardMaskRe.replace(s) { m -> spellDigits(m.groupValues[1], whole = true) }
+        s = codeAfterWordRe.replace(s) { m -> m.groupValues[1] + m.groupValues[2] + spellDigits(m.groupValues[3]) }
+        s = codeBeforeWordRe.replace(s) { m -> spellDigits(m.groupValues[1]) }
+        return s
+    }
+
     private fun numbersInner(text: String, rules: Rules): String {
         // Каждый проход — под своим ключом Rules (вкладка «Правила»); выключенный просто пропускаем.
         fun step(key: String, f: (String) -> String): (String) -> String = if (rules.on(key)) f else { t -> t }
@@ -1890,6 +1924,7 @@ object Normalizer {
         s = combiningAcuteRe.replace(s) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
         // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
         s = step("phones", ::phones)(s)
+        s = step("codes", ::codes)(s)
         // «+15%», «+5 °C» — «плюс»; «5 + 3» и «5+3» остаются arithmetic().
         if (rules.on("numbers")) s = unaryPlusRe.replace(s, "плюс ")
         // «5−2» (настоящий минус между числами) — «минус»; остальные «−» — как дефис для numberRe.
