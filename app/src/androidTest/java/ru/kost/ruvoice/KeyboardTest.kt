@@ -12,6 +12,7 @@ import androidx.test.espresso.action.ViewActions.pressKey
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
+import androidx.test.espresso.matcher.ViewMatchers.isClickable
 import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.isFocusable
 import androidx.test.espresso.matcher.ViewMatchers.isNotChecked
@@ -21,6 +22,7 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.android.material.slider.Slider
+import ru.kost.ruvoice.text.Rules
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.any
@@ -54,7 +56,7 @@ class KeyboardTest {
 
     @Test fun screenReaderSection() {
         ActivityScenario.launch(RulesActivity::class.java).use {
-            val row = onView(allOf(isFocusable(), hasDescendant(withText(R.string.rule_sr_symbols))))
+            val row = onView(allOf(isFocusable(), isClickable(), hasDescendant(withText(R.string.rule_sr_symbols))))
             val wasOn = Rules(Prefs(ctx).rulesOff).on("sr_symbols")
             val on = if (wasOn) isChecked() else isNotChecked()
             val off = if (wasOn) isNotChecked() else isChecked()
