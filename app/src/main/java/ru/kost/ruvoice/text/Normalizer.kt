@@ -1775,9 +1775,9 @@ object Normalizer {
     private val precomposedBase = mapOf('á' to 'а', 'é' to 'е', 'ó' to 'о', 'ý' to 'у', 'à' to 'а', 'è' to 'е', 'ò' to 'о',
         'Á' to 'А', 'É' to 'Е', 'Ó' to 'О', 'Ý' to 'У', 'À' to 'А', 'È' to 'Е', 'Ò' to 'О', 'ѐ' to 'е', 'ѝ' to 'и', 'Ѐ' to 'Е', 'Ѝ' to 'И')
     private val zeroWidthRe = Regex("""[\u200B-\u200D\uFEFF]""")
-    // Названия с устоявшимся чтением, которое правилами не вывести: «4PDA» — «четыре пэ дэ а» (буквы по-русски, как
-    // говорят на самом форуме), а не «четыре пи ди эй». И в тексте, и в адресе («4pda.to»).
-    private val namedReadings = listOf(Regex("""(?<![\p{L}\d])4pda(?![\p{L}\d])""", RegexOption.IGNORE_CASE) to "четыре пэ дэ а")
+    // Названия, чтение которых правилами не вывести: «4PDA» — «четыре пи ди эй» (правила дали бы «четыре пда»:
+    // «PDA» с гласной читается словом). И в тексте, и в адресе («4pda.to»).
+    private val namedReadings = listOf(Regex("""(?<![\p{L}\d])4pda(?![\p{L}\d])""", RegexOption.IGNORE_CASE) to "четыре пи ди эй")
     private fun namedReadings(text: String) = namedReadings.fold(text) { t, (re, v) -> re.replace(t, v) }
     // Текстовые смайлы — словами, как эмодзи (правило emoji): «:D» — «смеётся» (было «двоеточие д»), «:)» — «улыбается».
     // Только отдельным словом; русские «))» после текста — не смайл-слово, их съедает пауза скобки.
