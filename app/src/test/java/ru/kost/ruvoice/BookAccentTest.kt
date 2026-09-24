@@ -73,4 +73,11 @@ class BookAccentTest {
         assertEquals(true, "<book-title>Книга</book-title>" in x)
         assertEquals(true, "<p>Раз &amp; два</p>\n<p>&lt;Три&gt;</p>" in x)
     }
+
+    @Test fun homographsOnly() {
+        val src = "Старый замок стоял все лето, 5 домов."
+        val acc = listOf("ст+арый з+амок сто+ял всё л+ето, пять дом+ов.")
+        val homo = { w: String -> w in setOf("замок", "все", "домов") }
+        assertEquals("Старый з+амок стоял всё лето, пять дом+ов.", BookAccent.apply(src, BookAccent.edits(src, acc, homo = homo), BookAccent.Mode.PLUS))
+    }
 }

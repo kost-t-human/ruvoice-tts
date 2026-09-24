@@ -82,6 +82,7 @@ class Prefs(private val context: Context) {
     var accentBookPlus: Boolean get() = p.getBoolean("accent_book_plus", false); set(v) = p.edit().putBoolean("accent_book_plus", v).apply()
     var accentBookHardE: Boolean get() = p.getBoolean("accent_book_hard_e", false); set(v) = p.edit().putBoolean("accent_book_hard_e", v).apply()
     var accentBookAbbr: Boolean get() = p.getBoolean("accent_book_abbr", true); set(v) = p.edit().putBoolean("accent_book_abbr", v).apply()
+    var accentBookHomoOnly: Boolean get() = p.getBoolean("accent_book_homo_only", false); set(v) = p.edit().putBoolean("accent_book_homo_only", v).apply()
     var auditReplace: Boolean
         get() = p.getBoolean("audit_replace", false)
         set(v) = p.edit().putBoolean("audit_replace", v).apply()
