@@ -100,7 +100,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         v.findViewById<CheckBox>(R.id.showHidden).setOnCheckedChangeListener { _, c -> hidden = c; refresh() }
         v.findViewById<View>(R.id.clear).setOnClickListener {
             val name = getString(R.string.audit_tab_names) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
-            MaterialAlertDialogBuilder(requireContext()).setMessage(getString(R.string.audit_clear_confirm, name))
+            MaterialAlertDialogBuilder(requireContext()).setTitle(getString(R.string.audit_clear_confirm, name))
                 .setPositiveButton(R.string.delete) { _, _ ->
                     val before = prefs.audit.text(kind)
                     prefs.audit.clear(kind, hidden); refresh()

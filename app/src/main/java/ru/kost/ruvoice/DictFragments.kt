@@ -257,7 +257,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         fun text() = field.text.toString().also { prefs.dictPreviewText = it }.takeIf { it.isNotBlank() }
         box.findViewById<Button>(R.id.preview).setOnClickListener { btn -> text()?.let { (activity as SettingsActivity).preview(btn, it) } }
         box.findViewById<Button>(R.id.analyze).setOnClickListener { text()?.let { (activity as SettingsActivity).analyze(it) } }
-        MaterialAlertDialogBuilder(ctx).setView(box).setPositiveButton(R.string.close, null).show()
+        MaterialAlertDialogBuilder(ctx).setTitle(R.string.check).setView(box).setPositiveButton(R.string.close, null).show()
     }
 
     /** TalkBack: подпись двойного тапа («Изменить» / «Открыть в своём списке») и «Удалить» в меню
@@ -329,6 +329,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                 R.id.dict_delete -> {
                     val count = parsedLines.count { it != null }
                     MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.dict_delete_title)
                         .setMessage(getString(R.string.dict_delete_confirm, name, count))
                         .setPositiveButton(R.string.delete) { _, _ ->
                             file.delete()
@@ -344,6 +345,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                     val (text, skipped) = Dicts.toDemagog(lines, kind)
                     launchExport("$name.txt", Dicts.demagogBytes(text)) {
                         if (skipped.isNotEmpty()) MaterialAlertDialogBuilder(requireContext())
+                            .setTitle(R.string.dict_regex_title)
                             .setMessage(getString(R.string.dict_regex_skipped, skipped.size))
                             .setPositiveButton(R.string.dict_regex_save) { _, _ ->
                                 launchExport("$name-regex.txt", skipped.joinToString("\n", postfix = "\n").toByteArray())
@@ -553,6 +555,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
         }
 
         val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle(if (editIndex == null) R.string.add_stress else R.string.edit_stress)
             .setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
                 val word = wordField.text.toString().trim()
@@ -753,6 +756,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
         }
 
         val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle(if (editIndex == null) R.string.add_replace else R.string.edit_replace)
             .setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
                 if (keyField.text?.isNotBlank() == true) {

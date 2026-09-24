@@ -130,6 +130,8 @@
     </string-array>
     <string name="add">Добавить</string>
     <string name="add_stress">Добавить слово</string>
+    <string name="edit_stress">Изменить слово</string>
+    <string name="edit_replace">Изменить замену</string>
     <string name="add_replace">Добавить замену</string>
     <string name="save">Сохранить</string>
     <string name="deleted">Удалено</string>
@@ -151,6 +153,8 @@
     <string name="dict_name_hint">Имя списка</string>
     <string name="dict_name_taken">Такое имя уже есть</string>
     <string name="dict_name_bad">Без «/» и «\\», не длиннее 60 символов</string>
+    <string name="dict_delete_title">Удалить список?</string>
+    <string name="dict_regex_title">Regex-правила не вошли</string>
     <string name="dict_delete_confirm">Удалить список «%1$s» (записей: %2$d)? Отменить нельзя.</string>
     <string name="dict_cache">Кэш словаря: %d %%</string>
     <string name="dict_imported">Список «%s» импортирован</string>
@@ -186,7 +190,8 @@
     <!-- Меню, экспорт/импорт и о программе -->
     <string name="export_settings">Экспорт настроек…</string>
     <string name="import_settings">Импорт настроек…</string>
-    <string name="import_confirm">Заменить текущие настройки, словарь ударений и замены содержимым файла?</string>
+    <string name="import_title">Импорт настроек</string>
+    <string name="import_confirm">Заменить текущие настройки, словарь ударений и замены содержимым файла? Сразу после импорта это можно отменить.</string>
     <string name="import_confirm_yes">Заменить</string>
     <string name="cancel">Отмена</string>
     <string name="export_done">Настройки экспортированы</string>
@@ -233,6 +238,7 @@
     <string name="pack_info">%1$d голосов · %2$d МБ · %3$s</string>
     <string name="pack_delete">Удалить</string>
     <string name="pack_delete_named">Удалить «%s»</string>
+    <string name="pack_delete_title">Удалить пак?</string>
     <string name="pack_delete_confirm">Удалить пак «%1$s»? Файлы модели будут стёрты; если его голос был выбран, голос сбросится.</string>
     <string name="pack_deleted">Пак удалён</string>
     <string name="about_pack">\n\nПак «%1$s»: %2$s, лицензия %3$s.</string>

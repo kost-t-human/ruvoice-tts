@@ -161,6 +161,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.import_title)
             .setMessage(R.string.import_confirm)
             .setPositiveButton(R.string.import_confirm_yes) { _, _ ->
                 try {
@@ -352,7 +353,7 @@ class SettingsActivity : AppCompatActivity() {
             // TalkBack: у каждого пака своя «Удалить» — без имени их не различить
             row.findViewById<Button>(R.id.delete).contentDescription = getString(R.string.pack_delete_named, p.title)
             row.findViewById<Button>(R.id.delete).setOnClickListener {
-                MaterialAlertDialogBuilder(this).setMessage(getString(R.string.pack_delete_confirm, p.title))
+                MaterialAlertDialogBuilder(this).setTitle(R.string.pack_delete_title).setMessage(getString(R.string.pack_delete_confirm, p.title))
                     .setPositiveButton(R.string.pack_delete) { _, _ ->
                         Packs.delete(filesDir, p.id)
                         // голос удалённого пака — на штатный; save фрагмента после этого его не вернёт (окно пересоздаётся).
@@ -373,7 +374,7 @@ class SettingsActivity : AppCompatActivity() {
 
     /** Копирование ~90 МБ идёт в фоне под неотменяемым индикатором. */
     private fun installPack(uri: Uri) {
-        val progress = MaterialAlertDialogBuilder(this).setMessage(R.string.packs_installing).setCancelable(false).show()
+        val progress = MaterialAlertDialogBuilder(this).setTitle(R.string.packs_installing).setCancelable(false).show()
         Thread {
             val result = runCatching {
                 contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException("Не удалось открыть файл")
