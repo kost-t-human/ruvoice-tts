@@ -1127,9 +1127,11 @@ object Normalizer {
     private val sentenceEndRe = Regex("""^\s*(?:[»"]\s*)?[А-ЯЁA-Z]""")
     private fun dotAfter(s: String, m: MatchResult) =
         if (m.value.endsWith('.') && sentenceEndRe.containsMatchIn(s.substring(m.range.last + 1))) "." else ""
-    private val dollarPrefixRe = Regex("""\$\s?($moneyNumRe)""")
+    // Знак перед числом — только если перед знаком не число: в «1 $ 99 центов» «$» относится к «1»,
+    // иначе «$ 99» забирал префикс и выходило «один девяносто девять долларов центов».
+    private val dollarPrefixRe = Regex("""(?<!\d)(?<!\d )\$\s?($moneyNumRe)""")
     private val dollarSuffixRe = Regex("""($moneyNumRe)\s?(?:\$|долл\.)""", RegexOption.IGNORE_CASE)
-    private val euroPrefixRe = Regex("""€($moneyNumRe)""")
+    private val euroPrefixRe = Regex("""(?<!\d)(?<!\d )€($moneyNumRe)""")
     private val euroSuffixRe = Regex("""($moneyNumRe)\s?€""")
     private val rubleSuffixRe = Regex("""($moneyNumRe)\s?(?:₽|руб\.|р\.)""", RegexOption.IGNORE_CASE)
     private val kopeckSuffixRe = Regex("""($moneyNumRe)\s?коп\.""", RegexOption.IGNORE_CASE)
