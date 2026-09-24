@@ -43,8 +43,8 @@ class SpanSayTest {
         // PhoneNumberUtils.createTtsSpan: код страны отдельно, части номера через пробел
         assertEquals("плюс семь, девятьсот двенадцать, триста сорок пять, шестьдесят семь, восемьдесят девять",
             say("telephone", "country_code" to "7", "number_parts" to "912 345 67 89"))
-        assertEquals("восемь, девятьсот, ноль восемьдесят три, ноль девять, девяносто три",
-            say("telephone", "number_parts" to "89000830993"))
+        assertEquals("восемь, ноль двенадцать, триста сорок пять, ноль шесть, семьдесят восемь",
+            say("telephone", "number_parts" to "80123450678"))
         assertEquals("сто двадцать три, сорок пять, шестьдесят семь, добавочный двенадцать",
             say("telephone", "number_parts" to "123-45-67", "extension" to "12"))
     }
