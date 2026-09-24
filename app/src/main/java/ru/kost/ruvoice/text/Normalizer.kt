@@ -1775,6 +1775,10 @@ object Normalizer {
     private val precomposedBase = mapOf('á' to 'а', 'é' to 'е', 'ó' to 'о', 'ý' to 'у', 'à' to 'а', 'è' to 'е', 'ò' to 'о',
         'Á' to 'А', 'É' to 'Е', 'Ó' to 'О', 'Ý' to 'У', 'À' to 'А', 'È' to 'Е', 'Ò' to 'О', 'ѐ' to 'е', 'ѝ' to 'и', 'Ѐ' to 'Е', 'Ѝ' to 'И')
     private val zeroWidthRe = Regex("""[\u200B-\u200D\uFEFF]""")
+    // Названия с устоявшимся чтением, которое правилами не вывести: «4PDA» — «четыре пэ дэ а» (буквы по-русски, как
+    // говорят на самом форуме), а не «четыре пи ди эй». И в тексте, и в адресе («4pda.to»).
+    private val namedReadings = listOf(Regex("""(?<![\p{L}\d])4pda(?![\p{L}\d])""", RegexOption.IGNORE_CASE) to "четыре пэ дэ а")
+    private fun namedReadings(text: String) = namedReadings.fold(text) { t, (re, v) -> re.replace(t, v) }
     // Текстовые смайлы — словами, как эмодзи (правило emoji): «:D» — «смеётся» (было «двоеточие д»), «:)» — «улыбается».
     // Только отдельным словом; русские «))» после текста — не смайл-слово, их съедает пауза скобки.
     private val asciiSmileyRe = Regex("""(?<![\p{L}\d:;=])(?::-?\)+|:-?D+|[xX]D+|;-?\)+|:-?\(+|:-?[pPрР]|=\)+)(?![\p{L}\d])""")
@@ -1804,7 +1808,7 @@ object Normalizer {
     private val urlSingleLetterRe = Regex("""(?<![\p{L}])[a-z](?![\p{L}])""")
     private fun spellUrl(url: String): String {
         val sb = StringBuilder()
-        for (c in url.lowercase().removePrefix("https://").removePrefix("http://")) when {
+        for (c in namedReadings(url.lowercase().removePrefix("https://").removePrefix("http://"))) when {
             c.isDigit() -> sb.append(' ').append(cardinal((c - '0').toLong())).append(' ')
             c in urlSeparators -> sb.append(' ').append(urlSeparators[c]).append(' ')
             else -> sb.append(c)
@@ -2005,6 +2009,7 @@ object Normalizer {
         // соединители (U+200B–U+200D, U+FEFF) выкидываем — иначе слово рвётся на куски.
         // Эмодзи — до выкидывания соединителей: «👨‍👩‍👧» держится на U+200D, а «1️⃣» ушёл бы в числа.
         var s = Emoji.shared?.takeIf { rules.on("emoji") }?.apply(text) ?: text
+        s = namedReadings(s)
         if (rules.on("emoji")) s = asciiSmileyRe.replace(s) { m -> ", " + asciiSmileys.getValue(asciiSmileyKey(m.value)) + ", " }
         s = precomposedStressRe.replace(s) { "" + precomposedBase.getValue(it.value[0]) + '\u0301' }
         s = combiningAcuteRe.replace(s) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
@@ -2139,7 +2144,8 @@ object Normalizer {
         "ruvoice" to "ру войс", "talkback" to "токбэк", "huawei" to "хуавэй", "xiaomi" to "сяоми", "txt" to "тэ икс тэ",
         "sqlite" to "эс кью лайт", "mp" to "эм пэ", "fb" to "эф бэ", "epub" to "и паб", "lite" to "лайт", "edge" to "эдж",
         "edition" to "эдишн", "engine" to "энджин", "ui" to "ю ай", "etc" to "эт сетера", "pro" to "про", "max" to "макс",
-        "ultra" to "ультра", "note" to "ноут", "reader" to "ридер", "voice" to "войс")
+        "ultra" to "ультра", "note" to "ноут", "reader" to "ридер", "voice" to "войс",
+        "to" to "ту", "forum" to "форум")
     private val latinWordRe = Regex("[a-z]+")
     private val softVowels = setOf('e', 'i', 'y')
 

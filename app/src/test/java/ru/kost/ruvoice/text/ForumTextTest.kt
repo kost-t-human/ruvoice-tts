@@ -26,7 +26,8 @@ class ForumTextTest {
     }
 
     @Test fun latinAtDigits() {
-        assertEquals("четыре пда", p("4PDA"))
+        assertEquals("четыре пэ дэ а", p("4PDA"))
+        assertEquals("официальная группа четыре пэ дэ а", p("Официальная группа 4pda"))
         assertEquals("редми ноут тринадцать про", p("Redmi Note 13pro"))
         assertEquals("самсунг галакси эс двадцать фе", p("Samsung Galaxy S20 FE"))
         assertEquals("поко экс три про", p("POCO X3 Pro"))
