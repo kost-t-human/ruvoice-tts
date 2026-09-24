@@ -13,6 +13,7 @@ import android.widget.TextView
 import java.util.Locale
 import androidx.fragment.app.Fragment
 import androidx.core.widget.doAfterTextChanged
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
@@ -254,7 +255,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                     rateSlider(R.id.srPitch, R.id.srPitchValue, prefs.srPitch, getString(R.string.sr_pitch))
                     rateSlider(R.id.srVolume, R.id.srVolumeValue, prefs.srVolume, getString(R.string.sr_volume))
                 }, getString(R.string.sr_rate) + " " + getString(R.string.sr_pitch) + " " + getString(R.string.sr_volume) + " " + getString(R.string.sr_sliders_hint))
-                extra(callersBlock(inflater, list), getString(R.string.callers_hint) + " " + prefs.recentCallers().joinToString(" ") { it.first.label + " " + it.first.pkg })
+                extra(callersBlock(inflater, list), getString(R.string.callers_title) + " " + getString(R.string.callers_hint) + " " + prefs.recentCallers().joinToString(" ") { it.first.label + " " + it.first.pkg })
             }
             // поле силы ударения — сразу под своим тумблером
             if (key == "focus") extra(inflater.inflate(R.layout.item_focus_level, list, false).apply {
@@ -293,10 +294,19 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     }
 
     /** «Кто читает через движок»: последние отправители запросов, у каждого тумблер «экранный чтец».
-     * По умолчанию — как решила автоматика (ScreenReaders), переключение запоминается для пакета. */
+     * По умолчанию — как решила автоматика (ScreenReaders), переключение запоминается для пакета.
+     * В рамке и со своим заголовком: глазами видно, что строки — не правила, TalkBack доходит жестом «заголовки». */
     private fun callersBlock(inflater: LayoutInflater, parent: LinearLayout): View {
         val ctx = parent.context
-        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val dp = resources.displayMetrics.density
+        val card = MaterialCardView(ctx, null, com.google.android.material.R.attr.materialCardViewOutlinedStyle).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = (16 * dp).toInt(); bottomMargin = (8 * dp).toInt() }
+        }
+        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; val p = (16 * dp).toInt(); setPadding(p, p, p, p / 2) }
+        card.addView(box)
+        box.addView(TextView(ctx, null, 0, R.style.Section).apply { setText(R.string.callers_title); asHeading() },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         box.addView(TextView(ctx, null, 0, R.style.SectionHint).apply { setText(R.string.callers_hint) })
         val callers = prefs.recentCallers()
         if (callers.isEmpty()) box.addView(TextView(ctx, null, 0, R.style.SectionHint).apply { setText(R.string.callers_empty) })
@@ -319,7 +329,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             row.asSwitchRow(toggle)
             box.addView(row)
         }
-        return box
+        return card
     }
 
     override fun save(v: View) {

@@ -52,8 +52,9 @@ object ScreenReaders {
         val spoken = context.getSystemService(AccessibilityManager::class.java)
             ?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN)
             ?.mapNotNull { it.resolveInfo?.serviceInfo?.packageName }?.toSet().orEmpty()
-        // общий uid на несколько пакетов — берём тот, что похож на чтеца
-        val pkg = pkgs.firstOrNull { it in KNOWN || it in spoken } ?: pkgs.first()
+        // общий uid на несколько пакетов — берём тот, что похож на чтеца; системный uid 1000 делят
+        // «Настройки» и десятки служб, первым там попадался RilErrorNotifier с подписью «Ошибка»
+        val pkg = pkgs.firstOrNull { it in KNOWN || it in spoken } ?: if ("android" in pkgs) "android" else pkgs.first()
         val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
         return Caller(pkg, label, pkg in KNOWN || pkg in spoken)
     }
