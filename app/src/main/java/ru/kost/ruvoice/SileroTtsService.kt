@@ -341,7 +341,13 @@ class SileroTtsService : TextToSpeechService() {
             val pitch = (request.pitch / 100f * prefs.pitch).coerceIn(0.5f, 2f)
             // настройки слушают слово «как модель», без пользовательского словаря
             val noDict = request.params?.getString("ruvoice.nodict") == "1"
-            val rules = prefs.rules()
+            // Экранный чтец (TalkBack и др.) — свои правила поверх общих (секция «Для TalkBack»)
+            val caller = ScreenReaders.caller(this, request.callerUid)
+            val screenReader = caller != null && ScreenReaders.isScreenReader(prefs, caller)
+            caller?.let { prefs.rememberCaller(it) }
+            val baseRules = prefs.rules()
+            val rules = if (screenReader) baseRules.screenReader() else baseRules
+            val noPauses = screenReader && baseRules.on("sr_pauses_off")
             models.threads = if (rules.on("fast_cores")) SileroModels.fastCores else Runtime.getRuntime().availableProcessors()
             val stress = Stress(d, models, if (noDict) emptyMap() else prefs.userDict(), rules)
             // вкладка «Проверка»: имена — по исходному тексту сегмента
@@ -353,7 +359,7 @@ class SileroTtsService : TextToSpeechService() {
             val quotePitch = prefs.quotePitch
             // TtsSpan (пунктуация TalkBack «Все») — текстом; смещения rangeStart считаются по нему же
             val reqText = spokenText(request.charSequenceText)
-            val segments = Pipeline.plan(reqText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
+            val segments = Pipeline.plan(reqText, d, if (noPauses) 0 else prefs.sentencePauseMs, if (noPauses) 0 else prefs.paragraphPauseMs, replacements, rules)
             // Паузы после запятой и на тире — явная длительность самого знака в кадрах модели (Marks.frames);
             // ноль — как решит модель. Дефис/минус в пробелах Normalizer.punctuation уже свёл к «–».
             val pauseFrames = HashMap<Int, Long>()
@@ -450,7 +456,8 @@ class SileroTtsService : TextToSpeechService() {
             val ms = System.currentTimeMillis() - t0
             note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс, звук $audioMs мс, синтез ${synthMs.get()} мс" +
                 (if (audioMs > 0) ", RTF %.2f".format(synthMs.get().toDouble() / audioMs) else "") +
-                (if (!foreground) ", без foreground" else ""))
+                (if (!foreground) ", без foreground" else "") +
+                (caller?.let { ", от ${it.pkg}" + if (screenReader) " (экранный чтец)" else "" } ?: ""))
         } catch (e: Exception) {
             Log.e(SileroModels.TAG, "onSynthesizeText", e)
             callback.error()

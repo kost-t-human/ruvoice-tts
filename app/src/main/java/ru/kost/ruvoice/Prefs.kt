@@ -16,6 +16,30 @@ class Prefs(private val context: Context) {
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
     /** Выгружать модели по простою; выключено — держать в памяти, пока жив сервис. */
     var idleOn: Boolean get() = p.getBoolean("idle_on", true); set(v) = p.edit().putBoolean("idle_on", v).apply()
+    /** Пакеты, которые пользователь сам отметил экранным чтецом / не чтецом (ScreenReaders). В экспорт
+     * настроек не идут — это про приложения конкретного телефона. */
+    var srForce: Set<String> get() = p.getStringSet("sr_force", emptySet())!!.toSet(); set(v) = p.edit().putStringSet("sr_force", v).apply()
+    var srNever: Set<String> get() = p.getStringSet("sr_never", emptySet())!!.toSet(); set(v) = p.edit().putStringSet("sr_never", v).apply()
+
+    /** Последние отправители запросов (до 8): пакет, подпись, решение автоматики, время — видно на
+     * вкладке правил, чтобы на телефоне проверить, кто читает через движок и кем он признан. */
+    fun recentCallers(): List<Pair<ScreenReaders.Caller, Long>> =
+        p.getString("recent_callers", "")!!.split('\n').mapNotNull { l ->
+            val f = l.split('\t'); if (f.size < 4) null else ScreenReaders.Caller(f[0], f[1], f[2] == "1") to (f[3].toLongOrNull() ?: 0L)
+        }
+
+    /** Запомнить отправителя; пишем, только если он новый, автоматика передумала или прошёл час —
+     * TalkBack шлёт запрос на каждый свайп, писать prefs каждый раз незачем. */
+    fun rememberCaller(c: ScreenReaders.Caller) {
+        val now = System.currentTimeMillis()
+        val list = recentCallers()
+        val old = list.firstOrNull { it.first.pkg == c.pkg }
+        if (old != null && old.first == c && now - old.second < 3_600_000L) return
+        val next = (listOf(c to now) + list.filter { it.first.pkg != c.pkg }).take(8)
+        p.edit().putString("recent_callers", next.joinToString("\n") { (k, t) ->
+            listOf(k.pkg, k.label.replace('\t', ' ').replace('\n', ' '), if (k.auto) "1" else "0", t.toString()).joinToString("\t") }).apply()
+    }
+
     /** Справка «Как включить» показана при первом запуске. */
     var setupShown: Boolean get() = p.getBoolean("setup_shown", false); set(v) = p.edit().putBoolean("setup_shown", v).apply()
     /** Множители темпа/высоты поверх того, что просит читалка; 1 — без изменений. */

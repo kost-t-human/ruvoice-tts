@@ -211,6 +211,8 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             toggle.isChecked = rules.on(key)
             row.asSwitchRow(toggle)
             list.addView(row)
+            // кто обращался к движку и кем признан — под правилами «Для TalkBack»
+            if (key == "sr_pauses_off") list.addView(callersBlock(inflater, list))
             // поле силы ударения — сразу под своим тумблером
             if (key == "focus") list.addView(inflater.inflate(R.layout.item_focus_level, list, false).apply {
                 findViewById<EditText>(R.id.focusLevel).setText(prefs.focusLevel.toString())
@@ -219,9 +221,41 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         v.findViewById<EditText>(R.id.maxLen).setText(prefs.maxLen.toString())
     }
 
+    /** «Кто читает через движок»: последние отправители запросов, у каждого тумблер «экранный чтец».
+     * По умолчанию — как решила автоматика (ScreenReaders), переключение запоминается для пакета. */
+    private fun callersBlock(inflater: LayoutInflater, parent: LinearLayout): View {
+        val ctx = parent.context
+        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(TextView(ctx, null, 0, R.style.SectionHint).apply { setText(R.string.callers_hint) })
+        val callers = prefs.recentCallers()
+        if (callers.isEmpty()) box.addView(TextView(ctx, null, 0, R.style.SectionHint).apply { setText(R.string.callers_empty) })
+        for ((c, _) in callers) {
+            val row = inflater.inflate(R.layout.item_rule, box, false)
+            val hint = row.findViewById<TextView>(R.id.hint)
+            val toggle = row.findViewById<MaterialSwitch>(R.id.toggle)
+            row.findViewById<TextView>(R.id.title).text = c.label
+            fun describe() {
+                val manual = c.pkg in prefs.srForce || c.pkg in prefs.srNever
+                hint.text = getString(if (manual) R.string.caller_manual else if (c.auto) R.string.caller_auto_sr else R.string.caller_auto_app, c.pkg)
+            }
+            toggle.isChecked = ScreenReaders.isScreenReader(prefs, c)
+            describe()
+            toggle.setOnCheckedChangeListener { _, on ->
+                prefs.srForce = if (on && !c.auto) prefs.srForce + c.pkg else prefs.srForce - c.pkg
+                prefs.srNever = if (!on && c.auto) prefs.srNever + c.pkg else prefs.srNever - c.pkg
+                describe()
+            }
+            row.asSwitchRow(toggle)
+            box.addView(row)
+        }
+        return box
+    }
+
     override fun save(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
+        // тумблеры правил помечены ключом; у строк «Кто читает через движок» тега нет
         prefs.rulesOff = (0 until list.childCount).mapNotNull { list.getChildAt(it).findViewById<MaterialSwitch>(R.id.toggle) }
+            .filter { it.tag is String }
             .filter { it.isChecked == (it.tag in Rules.DEFAULT_OFF) }.map { it.tag as String }.toSet()
         prefs.maxLen = (v.findViewById<EditText>(R.id.maxLen).str().toIntOrNull() ?: Rules.MAX_LEN_DEFAULT)
             .coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX)

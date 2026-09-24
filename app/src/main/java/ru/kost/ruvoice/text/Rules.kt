@@ -11,6 +11,21 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
     /** Сила логического ударения `*слово*` для focus_mask модели; 0 — правило выключено. */
     val focusLevel get() = if (on("focus")) focus.coerceIn(FOCUS_MIN, FOCUS_MAX) else 0
 
+    /** Те же правила с [key] во включённом или выключенном состоянии. */
+    fun with(key: String, on: Boolean): Rules =
+        if (on(key) == on) this else Rules(if (key in off) off - key else off + key, maxLen, focus)
+
+    /** Правила для запроса экранного чтеца (TalkBack и др.) — секция «Для TalkBack» поверх общих:
+     * служебные символы словами, без голоса прямой речи и без тишины перед фразой. Паузы между
+     * предложениями (sr_pauses_off) — не правило, их обнуляет сервис. */
+    fun screenReader(): Rules {
+        var r = this
+        if (on("sr_symbols")) r = r.with("symbol_names", true)
+        if (on("sr_quote_off")) r = r.with("speech", false)
+        if (on("sr_lead_in_off")) r = r.with("lead_in", false)
+        return r
+    }
+
     companion object {
         const val MAX_LEN_DEFAULT = 400
         const val MAX_LEN_MIN = 100
@@ -25,8 +40,10 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         /** Правила, выключенные по умолчанию. */
         val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails")
 
-        /** Порядок списка = порядок на экране. Секция «Разное» вверху — для настроек без своего раздела. */
+        /** Порядок списка = порядок на экране. Вверху «Для TalkBack» (только запросы экранного чтеца),
+         * за ней «Разное» — для настроек без своего раздела. */
         val KEYS = listOf(
+            "sr_symbols", "sr_quote_off", "sr_lead_in_off", "sr_pauses_off",
             "symbol_names", "emoji", "letter_name", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
             "phones", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
@@ -36,7 +53,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "pause_semicolon", "pause_parens", "fast_cores",
         )
         /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */
-        val SECTIONS = mapOf("symbol_names" to "misc", "phones" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
+        val SECTIONS = mapOf("sr_symbols" to "talkback", "symbol_names" to "misc", "phones" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
             "gram" to "stress", "pause_semicolon" to "audio")
     }
 }
