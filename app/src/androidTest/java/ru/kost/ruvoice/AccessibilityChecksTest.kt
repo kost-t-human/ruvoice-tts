@@ -29,7 +29,8 @@ import org.junit.runner.RunWith
 class AccessibilityChecksTest {
     companion object {
         @BeforeClass @JvmStatic fun enableChecks() {
-            AccessibilityChecks.enable().setRunChecksFromRootView(true)
+            // второй enable() в том же процессе (после LargeTextTest) бросает исключение
+            runCatching { AccessibilityChecks.enable().setRunChecksFromRootView(true) }
         }
     }
 
