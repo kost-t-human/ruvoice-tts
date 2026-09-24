@@ -234,6 +234,7 @@
     <string name="packs_none">Голосов нет: в этой версии приложения модель не встроена. Установите пак ruvoice-pack-ru.zip (штатные голоса, около 85 МБ) или любой другой пак.</string>
     <string name="packs_install">Установить из файла…</string>
     <string name="packs_installing">Установка пака…</string>
+    <string name="packs_installing_hint">Голоса копируются в память телефона, это может занять до минуты. Окно закроется само.</string>
     <string name="pack_installed">Пак установлен: %1$s</string>
     <string name="pack_info">%1$d голосов · %2$d МБ · %3$s</string>
     <string name="pack_delete">Удалить</string>

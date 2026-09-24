@@ -73,6 +73,7 @@ class TroubleshootActivity : AppCompatActivity() {
         for (item in items) {
             val row = inflater.inflate(R.layout.item_trouble, list, false)
             row.findViewById<TextView>(R.id.title).setText(item.title)
+            row.markHeadings()
             row.findViewById<TextView>(R.id.text).setText(item.text)
             if (item.button != null) row.findViewById<MaterialButton>(R.id.action).apply {
                 visibility = View.VISIBLE

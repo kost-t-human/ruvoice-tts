@@ -30,7 +30,7 @@ abstract class PageFragment(layout: Int) : Fragment(layout) {
     protected abstract fun load(v: View)
     protected abstract fun save(v: View)
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) = load(view)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) { view.markHeadings(); load(view) }
     override fun onPause() {
         // recreate() после импорта (Task 25) сначала распускает старые фрагменты — им нельзя
         // затирать только что импортированный файл своими устаревшими полями.

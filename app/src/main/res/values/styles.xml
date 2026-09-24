@@ -10,6 +10,8 @@
         <item name="android:textColor">?attr/colorPrimary</item>
         <!-- TalkBack: переход по заголовкам (жест «заголовки») -->
         <item name="android:accessibilityHeading" tools:targetApi="28">true</item>
+        <!-- Android 6–8: атрибута выше там нет, заголовки по этой метке отмечает markHeadings() -->
+        <item name="android:tag">heading</item>
     </style>
     <!-- Пояснение под заголовком секции -->
     <style name="SectionHint">

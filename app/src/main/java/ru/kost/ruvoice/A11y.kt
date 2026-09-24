@@ -2,6 +2,7 @@ package ru.kost.ruvoice
 
 import android.app.Activity
 import android.graphics.Typeface
+import android.os.Build
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -48,6 +49,14 @@ fun View.asSwitchRow(toggle: CompoundButton) {
 
 /** Заголовок секции — для навигации TalkBack «по заголовкам» (на API 28+ хватает стиля Section). */
 fun View.asHeading() = ViewCompat.setAccessibilityHeading(this, true)
+
+/** Заголовки из разметки (стиль Section, метка «heading») — для Android 6–8: атрибут accessibilityHeading
+ * там не работает, ViewCompat отмечает заголовок через совместимый путь. На 9+ хватает стиля. */
+fun View.markHeadings() {
+    if (Build.VERSION.SDK_INT >= 28) return
+    if (tag == "heading") asHeading()
+    if (this is ViewGroup) for (i in 0 until childCount) getChildAt(i).markHeadings()
+}
 
 /** Состояние, которое видно только глазами (цвет значка, треугольник ▾), — словами. */
 fun View.say(state: CharSequence?) = ViewCompat.setStateDescription(this, state)

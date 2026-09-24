@@ -377,7 +377,7 @@ class SettingsActivity : AppCompatActivity() {
 
     /** Копирование ~90 МБ идёт в фоне под неотменяемым индикатором. */
     private fun installPack(uri: Uri) {
-        val progress = MaterialAlertDialogBuilder(this).setTitle(R.string.packs_installing).setCancelable(false).show()
+        val progress = MaterialAlertDialogBuilder(this).setTitle(R.string.packs_installing).setMessage(R.string.packs_installing_hint).setCancelable(false).show()
         Thread {
             val result = runCatching {
                 contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException("Не удалось открыть файл")
