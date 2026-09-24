@@ -6,7 +6,7 @@ import androidx.test.espresso.accessibility.AccessibilityChecks
 import androidx.test.espresso.action.ViewActions.clearText
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.closeSoftKeyboard
-import androidx.test.espresso.action.ViewActions.typeText
+import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
@@ -49,7 +49,7 @@ class AccessibilityChecksTest {
     /** Экран правил: список переключателей, «Для TalkBack» с ползунками, поиск. */
     @Test fun rulesScreen() {
         ActivityScenario.launch(RulesActivity::class.java).use {
-            onView(withId(R.id.rulesFilter)).perform(typeText("телефон"), closeSoftKeyboard())
+            onView(withId(R.id.rulesFilter)).perform(replaceText("телефон"), closeSoftKeyboard())
             onView(withId(R.id.rulesFilter)).perform(clearText(), closeSoftKeyboard())
         }
     }
