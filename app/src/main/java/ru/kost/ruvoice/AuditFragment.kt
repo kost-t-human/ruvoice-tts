@@ -208,10 +208,12 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         val group = RadioGroup(ctx).apply { addView(acute); addView(plus); check(if (prefs.accentBookPlus) plus.id else acute.id) }
         val hardE = CheckBox(ctx).apply { setText(R.string.accent_book_hard_e); isChecked = prefs.accentBookHardE }
         val abbr = CheckBox(ctx).apply { setText(R.string.accent_book_abbr); isChecked = prefs.accentBookAbbr }
-        bodyDialog(R.string.accent_book, getString(R.string.accent_book_help), listOf(group, hardE, abbr), R.string.cancel to {}, R.string.audit_scan_pick to {
+        val homoOnly = CheckBox(ctx).apply { setText(R.string.accent_book_homo_only); isChecked = prefs.accentBookHomoOnly }
+        bodyDialog(R.string.accent_book, getString(R.string.accent_book_help), listOf(group, hardE, abbr, homoOnly), R.string.cancel to {}, R.string.audit_scan_pick to {
             prefs.accentBookPlus = group.checkedRadioButtonId == plus.id
             prefs.accentBookHardE = hardE.isChecked
             prefs.accentBookAbbr = abbr.isChecked
+            prefs.accentBookHomoOnly = homoOnly.isChecked
             accentInLauncher.launch(arrayOf("*/*"))
         })
     }

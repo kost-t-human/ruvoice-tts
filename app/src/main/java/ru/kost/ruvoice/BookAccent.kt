@@ -24,9 +24,10 @@ object BookAccent {
     /**
      * Правки [src] по [accented] (выход Stress по сегментам [src]). Совпавшее по ключу слово получает ударение и «ё»;
      * исходные слова между совпавшими, у которых ключ не сошёлся, заменяются словами Stress между теми же совпавшими.
-     * Односложные слова без знака.
+     * Односложные слова без знака. [homo] — ударение только в словах, для которых оно истинно (омографы); «ё» и
+     * подстановки остаются у всех.
      */
-    fun edits(src: String, accented: List<String>, hardE: Boolean = false, abbr: Boolean = true): List<Edit> {
+    fun edits(src: String, accented: List<String>, hardE: Boolean = false, abbr: Boolean = true, homo: ((String) -> Boolean)? = null): List<Edit> {
         val words = wordRe.findAll(src).filter { Marks.key(it.value).isNotEmpty() }.toList()
         val toks = accented.flatMap { a -> wordRe.findAll(a).map { it.value }.filter { Marks.key(it).isNotEmpty() }.toList() }
         val out = ArrayList<Edit>()
@@ -36,9 +37,9 @@ object BookAccent {
                 val ws = words.subList(pw + 1, wj); val ts = toks.subList(pt + 1, ti)
                 // запасной путь без аббревиатур: латиницу («USA») правило latin всё равно перепишет; в одном пропуске
                 // с числом раскроется вместе с ним — в make() буквенное чтение выключено, так что это редкость
-                if (!transfer(src, ws, ts, out, hardE) && (abbr || !ws.all { isAbbr(it.value) })) substitute(src, ws, ts)?.let { out += it }
+                if (!transfer(src, ws, ts, out, hardE, homo) && (abbr || !ws.all { isAbbr(it.value) })) substitute(src, ws, ts, homo)?.let { out += it }
             }
-            if (ti < toks.size) transfer(src, listOf(words[wj]), listOf(toks[ti]), out, hardE)
+            if (ti < toks.size) transfer(src, listOf(words[wj]), listOf(toks[ti]), out, hardE, homo)
             pt = ti; pw = wj
         }
         return out
@@ -83,12 +84,12 @@ object BookAccent {
      * false — прочтение слишком не похоже на исходник (другое слово: «доктор» за «Д-р»), тогда [substitute].
      * [hardE] — «э» из прочтения вместо «е» книги (правило hard_e).
      */
-    private fun transfer(src: String, ws: List<MatchResult>, toks: List<String>, out: MutableList<Edit>, hardE: Boolean): Boolean {
+    private fun transfer(src: String, ws: List<MatchResult>, toks: List<String>, out: MutableList<Edit>, hardE: Boolean, homo: ((String) -> Boolean)?): Boolean {
         val pos = ws.flatMap { w -> w.value.indices.filter { w.value[it].isLetterOrDigit() }.map { w.range.first + it } }
         // буквы прочтения: сама буква, стоит ли перед ней «+», многосложно ли её слово (в односложных знак не ставим)
         val tc = StringBuilder(); val mark = ArrayList<Boolean>(); val many = ArrayList<Boolean>()
         for (t in toks) {
-            val syl = t.count { it.lowercaseChar() in VOWELS } > 1
+            val syl = t.count { it.lowercaseChar() in VOWELS } > 1 && (homo == null || homo(t.filter { it.isLetter() }.lowercase()))
             var plus = false
             for (c in t) {
                 if (c == '+') { plus = true; continue }
@@ -141,7 +142,7 @@ object BookAccent {
     private fun isAbbr(w: String) = w.filter { it.isLetter() }.let { it.length >= 2 && it.all { c -> c.isUpperCase() } }
 
     /** Слова [ws] от первой до последней буквы → [toks] без знаков по краям; заглавная — как у исходного. */
-    private fun substitute(src: String, ws: List<MatchResult>, toks: List<String>): Edit? {
+    private fun substitute(src: String, ws: List<MatchResult>, toks: List<String>, homo: ((String) -> Boolean)?): Edit? {
         // от первой до последней буквы, плюс прочитанные словом символы по краям («№5», «5%»), но не знаки и скобки
         var start = ws.first().let { w -> w.range.first + w.value.indexOfFirst { it.isLetterOrDigit() } }
         while (start > ws.first().range.first && src[start - 1] !in KEEP) start--
@@ -150,7 +151,10 @@ object BookAccent {
         // точка сокращения («т. е.», «г.»): у модели её нет — уходит вместе со словом
         if (src.getOrNull(end) == '.' && !toks.last().endsWith('.')) end++
         if ('+' in src.substring(start, end) || ACUTE in src.substring(start, end)) return null
-        var text = toks.joinToString(" ") { t -> if (t.count { it.lowercaseChar() in VOWELS } > 1) t.replace("+ё", "ё") else t.replace("+", "") }
+        var text = toks.joinToString(" ") { t ->
+            val keep = t.count { it.lowercaseChar() in VOWELS } > 1 && (homo == null || homo(t.filter { it.isLetter() }.lowercase()))
+            if (keep) t.replace("+ё", "ё") else t.replace("+", "")
+        }
             .dropWhile { !it.isLetterOrDigit() && it != '+' }.dropLastWhile { !it.isLetterOrDigit() }
         // заглавная — как у исходного; у числа и знака регистра нет, тогда по началу предложения
         val before = src.substring(0, start).trimEnd { it.isWhitespace() || it in "«\"„“—–-(" }
@@ -190,7 +194,8 @@ object BookAccent {
      * Ударения во все абзацы fb2 после description. [accent] — абзац → выход Stress по его сегментам;
      * [progress] (сделано, всего) → false — прервать, тогда null. Кодировка в заголовке — utf-8, писать в UTF-8.
      */
-    fun fb2(xml: String, mode: Mode, hardE: Boolean, abbr: Boolean, progress: (Int, Int) -> Boolean, accent: (String) -> List<String>): String? {
+    fun fb2(xml: String, mode: Mode, hardE: Boolean, abbr: Boolean, progress: (Int, Int) -> Boolean, homo: ((String) -> Boolean)? = null,
+            accent: (String) -> List<String>): String? {
         // абзацы: открывающий тег одним Matcher на всю книгу, закрывающий — indexOf. На Android (ICU) каждый
         // Regex.find/matchAt по книге копирует её целиком в нативную память: на книге в 1 МБ это гигабайты, и lmkd
         // убивал процесс. Поэтому здесь ни одного регэкспа по всему xml в цикле
@@ -223,7 +228,7 @@ object BookAccent {
                 x = end
             }
             if (plain.isBlank()) continue
-            for (e in edits(plain.toString(), accent(plain.toString()), hardE, abbr).sortedBy { it.start }) {
+            for (e in edits(plain.toString(), accent(plain.toString()), hardE, abbr, homo).sortedBy { it.start }) {
                 val xs = starts[e.start]; val xe = ends[e.end - 1]
                 if (xs < last || (xs until xe).any { xml[it] == '<' }) continue   // правка поперёк тега — пропускаем
                 out.append(xml, last, xs).append(esc(render(e.text, mode))); last = xe
@@ -257,7 +262,11 @@ object BookAccent {
             val replacements = prefs.replacements()
             // модели — до первого абзаца: иначе 10–30 с загрузки висят на «0 %», будто всё застыло
             models.ensureStress()
-            return fb2(source(bytes, title), if (prefs.accentBookPlus) Mode.PLUS else Mode.ACUTE, hardE, prefs.accentBookAbbr, progress) { p ->
+            // омографы — слова, которым конвейер выбирает ударение по контексту: BERT, грамматика, фразы
+            val homo = if (!prefs.accentBookHomoOnly) null else { w: String ->
+                w.replace('ё', 'е').let { e -> listOf(w, e).any { it in d.homodict || it in d.gram || it in d.phrases } }
+            }
+            return fb2(source(bytes, title), if (prefs.accentBookPlus) Mode.PLUS else Mode.ACUTE, hardE, prefs.accentBookAbbr, progress, homo) { p ->
                 Pipeline.plan(p, d, 0, 0, replacements, rules).map { Pipeline.accent(it.text, d, stress, allowed, rules) }
             }
         } finally { models.release() }
