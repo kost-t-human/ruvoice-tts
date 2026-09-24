@@ -138,10 +138,25 @@ object Normalizer {
     // Не перед коротким словом: «4 кВт · ч» — единица, её читает units().
     private val midDotRe = Regex("""\s+[·•]\s+(?!\p{L}{1,3}(?!\p{L}))""")
     private val arrowRe = Regex("""\s*[→⟶⇒➔]\s*""")
+    // Стрелка из символов — «Проверка -> кнопка», «Меню >> Настройки», «=>» — та же стрелка «→»: пауза, а при
+    // symbol_names — «стрелка вправо» (было «дефис больше», «больше больше»). «-->» и «==>» тоже.
+    private val asciiArrowRe = Regex("""(?<![-=<>])(?:-+>|=+>|>>)(?![>=])""")
+    // Черта из знаков — подпись на форуме («--------------------»), разделитель в тексте («=====», «_____», «***»):
+    // пауза как у тире. Раньше дефисы уходили в модель как есть, а при symbol_names «*» звучала двадцать раз.
+    private val ruleLineRe = Regex("""(?<![\p{L}\d])[-_=*~#]{3,}(?![\p{L}\d])""")
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
         s = ellipsisRe.replace(s, "…")
+        s = asciiArrowRe.replace(s, " → ")
+        // черта в начале или в конце фразы — ни о чём, только висячее тире; между словами — пауза
+        s = ruleLineRe.replace(s) { m ->
+            val before = s.substring(0, m.range.first)
+            // у края, среди одних значков или сразу после знака препинания — пауза уже есть
+            val edge = before.none { it.isLetterOrDigit() } || s.substring(m.range.last + 1).none { it.isLetterOrDigit() } ||
+                before.trimEnd().lastOrNull()?.let { it in ".!?…,;:" } == true
+            if (edge) " " else " – "
+        }
         s = spacedDashRe.replace(s, "–")
         s = multiDashRe.replace(s, "–")
         // с symbol_names знаки называются по имени в symbols(), паузой их не подменяем
@@ -222,7 +237,8 @@ object Normalizer {
     private fun glueThousandsSpace(text: String) = thousandsSpaceRe.replace(text) { m ->
         val groups = m.groupValues[2]
         val tail = text.substring(m.range.last + 1)
-        if (groups.length > 4 || groups == " 000" || moneyOrUnitAheadRe.containsMatchIn(tail))
+        // группа с ведущим нулём («14 033», «1 050») отдельным числом не бывает — это разряды
+        if (groups.length > 4 || groups == " 000" || groups[1] == '0' || moneyOrUnitAheadRe.containsMatchIn(tail))
             m.groupValues[1] + groups.replace(" ", "")
         else m.value
     }
@@ -471,11 +487,24 @@ object Normalizer {
     // После двоеточия («06:58:07.2») — секунды с долями, их читает times().
     private val dateNoYearRe = Regex("""(?<![\d.:])(?<![A-Za-z×*+=÷^−] ?)(\d{1,2})\.(\d{1,2})(?![\d.])""")
 
+    // «20.09.26» — год двумя цифрами (форумы, профили, подписи к файлам). День и месяц тоже строго двумя цифрами:
+    // «1.10.26» и «0.14.10» — скорее номер версии. После латиницы («v10.12.13») — версия.
+    private val dateShortYearRe = Regex("""(?<![\d.])(?<![A-Za-z] ?)(\d{2})\.(\d{2})\.(\d{2})(?![\d]|\.\d)""")
+    // «22 сент.», «3 дек.» — сокращённый месяц после дня: полное слово, дальше как обычная дата.
+    private val monthAbbr = mapOf("янв" to 1, "фев" to 2, "февр" to 2, "мар" to 3, "апр" to 4, "июн" to 6, "июл" to 7,
+        "авг" to 8, "сен" to 9, "сент" to 9, "окт" to 10, "ноя" to 11, "нояб" to 11, "дек" to 12)
+    private val monthAbbrRe = Regex("""(?<![\d.])(\d{1,2})\s+(${monthAbbr.keys.sortedByDescending { it.length }.joinToString("|")})\.(?=\s|$|[,;:)])""", RegexOption.IGNORE_CASE)
+
     // ISO «2024-05-12» — та же дата, что «12.05.2024».
     private val dateIsoRe = Regex("""(?<![\d\-\u2010-\u2014.])([12]\d{3})-(\d{2})-(\d{2})(?![\d\-\u2010-\u2014]|[.,]\d)""")
 
     private fun dates(text: String): String {
-        val iso = dateIsoRe.replace(text) { m ->
+        val abbr = monthAbbrRe.replace(text) { m ->
+            // точка сокращения в конце предложения — ещё и его точка: «Встреча 3 дек.» / «…дек. Потом»
+            val dot = if (sentenceEndAheadRe.containsMatchIn(text.substring(m.range.last + 1))) "." else ""
+            m.groupValues[1] + " " + monthGenitive[monthAbbr.getValue(m.groupValues[2].lowercase())] + dot
+        }
+        val iso = dateIsoRe.replace(abbr) { m ->
             val (y, mo, d) = m.destructured
             val day = d.toInt(); val month = mo.toInt()
             if (day !in 1..31 || month !in 1..12) m.value else "$day-го ${monthGenitive[month]} $y-го года"
@@ -490,7 +519,14 @@ object Normalizer {
             val dot = if (gTail.trim() == "г." && sentenceEndAheadRe.containsMatchIn(rest)) "." else ""
             "$day-го ${monthGenitive[month]} $y-го года$dot"
         }
-        return dateNoYearRe.replace(withYear) { m ->
+        val shortYear = dateShortYearRe.replace(withYear) { m ->
+            val (d, mo, y) = m.destructured
+            val day = d.toInt(); val month = mo.toInt()
+            if (day !in 1..31 || month !in 1..12) return@replace m.value
+            if (dateTailUnitRe.containsMatchIn(withYear.substring(m.range.last + 1))) return@replace m.value
+            "$day-го ${monthGenitive[month]} ${y.toInt()}-го года"
+        }
+        return dateNoYearRe.replace(shortYear) { m ->
             val (d, mo) = m.destructured
             if (d.length < 2 && mo.length < 2) return@replace m.value
             val day = d.toInt(); val month = mo.toInt()
@@ -498,7 +534,7 @@ object Normalizer {
             // «N.N» перед единицей измерения — дробь («12.5 км/ч»), не дата без года (review
             // final-fix п.8): unitAltPattern определён ниже по файлу, но здесь это функция, не
             // property-инициализатор — к моменту вызова объект полностью сконструирован.
-            if (dateTailUnitRe.containsMatchIn(withYear.substring(m.range.last + 1))) return@replace m.value
+            if (dateTailUnitRe.containsMatchIn(shortYear.substring(m.range.last + 1))) return@replace m.value
             "$day-го ${monthGenitive[month]}"
         }
     }
@@ -543,7 +579,10 @@ object Normalizer {
             if (frac.isNotEmpty()) sb.append(' ').append(fraction(second!!.toLong(), frac) ?: return@replace m.value).append(" секунды")
             else if (second != null && second > 0) sb.append(' ').append(timeUnit(second, case, 2))
         } else {
-            sb.append(h).append(' ').append(mi)
+            // без триггера — два числа, но ноль минут слышен: «18:06» — «восемнадцать ноль шесть», «16:00» —
+            // «шестнадцать ноль ноль» (было «восемнадцать шесть» — как «18:6»); «3:16» — «три шестнадцать», как и было
+            sb.append(h).append(' ')
+            if (mi[0] == '0') sb.append("ноль ").append(if (mi == "00") "ноль" else mi.substring(1)) else sb.append(mi)
         }
         if (after.isNotEmpty()) sb.append(' ').append(after)
         sb.toString()
@@ -1727,11 +1766,30 @@ object Normalizer {
     private val fracStems = listOf("десят", "сот", "тысячн", "десятитысячн", "стотысячн", "миллионн",
         "десятимиллионн", "стомиллионн", "миллиардн", "десятимиллиардн", "стомиллиардн", "триллионн")
 
-    private val combiningAcuteRe = Regex("""([аеёиоуыэюяАЕЁИОУЫЭЮЯ])\u0301""")
+    // Гравис (U+0300) — тоже ударение: в словарях и на форумах ставят и его («рукѝ»).
+    private val combiningAcuteRe = Regex("""([аеёиоуыэюяАЕЁИОУЫЭЮЯ])[\u0301\u0300]""")
+    // Ударение готовой буквой со знаком: латинские «á», «ó», «é», «ý» (их проще набрать) и кириллические «ѐ»,
+    // «ѝ» внутри русского слова — «Глáза», «Слóва», «Рукѝ». Фильтр алфавита выкидывал такую букву целиком:
+    // «глза», «слва». Латинские берём только рядом с кириллицей — «café» остаётся французским.
+    private val precomposedStressRe = Regex("""(?<=[а-яёА-ЯЁ])[áéóýàèòÁÉÓÝÀÈÒ]|[áéóýàèòÁÉÓÝÀÈÒ](?=[а-яёА-ЯЁ])|[ѐѝЀЍ]""")
+    private val precomposedBase = mapOf('á' to 'а', 'é' to 'е', 'ó' to 'о', 'ý' to 'у', 'à' to 'а', 'è' to 'е', 'ò' to 'о',
+        'Á' to 'А', 'É' to 'Е', 'Ó' to 'О', 'Ý' to 'У', 'À' to 'А', 'È' to 'Е', 'Ò' to 'О', 'ѐ' to 'е', 'ѝ' to 'и', 'Ѐ' to 'Е', 'Ѝ' to 'И')
     private val zeroWidthRe = Regex("""[\u200B-\u200D\uFEFF]""")
+    // Текстовые смайлы — словами, как эмодзи (правило emoji): «:D» — «смеётся» (было «двоеточие д»), «:)» — «улыбается».
+    // Только отдельным словом; русские «))» после текста — не смайл-слово, их съедает пауза скобки.
+    private val asciiSmileyRe = Regex("""(?<![\p{L}\d:;=])(?::-?\)+|:-?D+|[xX]D+|;-?\)+|:-?\(+|:-?[pPрР]|=\)+)(?![\p{L}\d])""")
+    private val asciiSmileys = mapOf("smile" to "улыбается", "laugh" to "смеётся", "wink" to "подмигивает", "sad" to "грустит", "tongue" to "показывает язык")
+    private fun asciiSmileyKey(v: String) = when {
+        v.startsWith(";") -> "wink"
+        v.endsWith("(") -> "sad"
+        v.last() == 'D' -> "laugh"
+        v.last() in "pPрР" -> "tongue"
+        else -> "smile"
+    }
     private val minusBetweenRe = Regex("""(?<=\d)\s*−\s*(?=\d)""")
     private val tildeRe = Regex("""(?<![\p{L}\d])~\s*(?=\d)""")
-    private val kThousandRe = Regex("""(?<=\d)k(?![\p{L}\d])""")
+    // «20k», «20к», «4.5к», «10К» — тысячи. Латинская заглавная «K» — нет: «4K» — разрешение.
+    private val kThousandRe = Regex("""(?<=\d)[kкК](?![\p{L}\d])""")
     // «5 - й этаж», «20 - этажный» — суффикс/основа через дефис в пробелах (корпус ru-normalizr).
     private val spacedOrdSuffixRe = Regex("""(\d)\s+[-–]\s+(?=(?:$ordSuffixAlt)(?![а-яё\d]))""")
 
@@ -1947,10 +2005,14 @@ object Normalizer {
         // соединители (U+200B–U+200D, U+FEFF) выкидываем — иначе слово рвётся на куски.
         // Эмодзи — до выкидывания соединителей: «👨‍👩‍👧» держится на U+200D, а «1️⃣» ушёл бы в числа.
         var s = Emoji.shared?.takeIf { rules.on("emoji") }?.apply(text) ?: text
+        if (rules.on("emoji")) s = asciiSmileyRe.replace(s) { m -> ", " + asciiSmileys.getValue(asciiSmileyKey(m.value)) + ", " }
+        s = precomposedStressRe.replace(s) { "" + precomposedBase.getValue(it.value[0]) + '\u0301' }
         s = combiningAcuteRe.replace(s) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
         // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
         s = step("phones", ::phones)(s)
         s = step("codes", ::codes)(s)
+        // «точка» — меткой, словом её делает symbols(): число перед словом «точка» согласовалось бы с ним («одна точка»)
+        s = step("latin") { t -> fileExtRe.replace(t) { " $EXT_DOT " + it.groupValues[1] } }(s)
         // «+15%», «+5 °C» — «плюс»; «5 + 3» и «5+3» остаются arithmetic().
         if (rules.on("numbers")) s = unaryPlusRe.replace(s, "плюс ")
         // «5−2» (настоящий минус между числами) — «минус»; остальные «−» — как дефис для numberRe.
@@ -1998,6 +2060,7 @@ object Normalizer {
         s = step("abbrev", ::scales)(s)
         s = step("latin", ::greek)(s)
         s = step("letter_digit", ::letterAfterDigit)(s)
+        s = step("letter_digit", ::latinAtDigits)(s)
         s = step("day_month", ::dayMonth)(s)
         if (rules.on("years")) s = yearRe.replace(s) { m ->
             m.groupValues[1] + "-" + yearSuffix.getValue(m.groupValues[3].lowercase()) + m.groupValues[2] + m.groupValues[3]
@@ -2071,7 +2134,12 @@ object Normalizer {
         // части ссылок
         "www" to "вэ вэ вэ", "ru" to "ру", "com" to "ком", "org" to "орг", "net" to "нет", "io" to "ай оу",
         "html" to "эйч ти эм эл", "php" to "пи эйч пи", "js" to "джи эс", "api" to "эй пи ай", "id" to "ай ди",
-        "en" to "эн", "wiki" to "вики", "index" to "индекс", "blog" to "блог", "news" to "ньюс", "watch" to "вотч")
+        "en" to "эн", "wiki" to "вики", "index" to "индекс", "blog" to "блог", "news" to "ньюс", "watch" to "вотч",
+        // форумы и приложения: 4PDA, подписи, имена файлов
+        "ruvoice" to "ру войс", "talkback" to "токбэк", "huawei" to "хуавэй", "xiaomi" to "сяоми", "txt" to "тэ икс тэ",
+        "sqlite" to "эс кью лайт", "mp" to "эм пэ", "fb" to "эф бэ", "epub" to "и паб", "lite" to "лайт", "edge" to "эдж",
+        "edition" to "эдишн", "engine" to "энджин", "ui" to "ю ай", "etc" to "эт сетера", "pro" to "про", "max" to "макс",
+        "ultra" to "ультра", "note" to "ноут", "reader" to "ридер", "voice" to "войс")
     private val latinWordRe = Regex("[a-z]+")
     private val softVowels = setOf('e', 'i', 'y')
 
@@ -2083,7 +2151,33 @@ object Normalizer {
         val w = m.value
         val cyr = w.count { it in 'а'..'я' || it == 'ё' }
         val lat = w.count { it in 'a'..'z' }
-        if (cyr > 0 && lat > 0 && cyr > lat) w.map { homoglyphMap[it] ?: it }.joinToString("") else w
+        when {
+            cyr == 0 || lat == 0 -> w
+            // все латинские — двойники кириллицы: опечатка раскладки
+            cyr > lat && w.all { it !in 'a'..'z' || it in homoglyphMap } -> w.map { homoglyphMap[it] ?: it }.joinToString("")
+            // латиница целым куском в начале или в конце («файлmicrosoft», «файлreverse») — два слова, не опечатка
+            scriptSplitRe.matches(w) -> scriptEdgeRe.replace(w, " ")
+            cyr > lat -> w.map { homoglyphMap[it] ?: it }.joinToString("")
+            else -> w
+        }
+    }
+    // одна латинская буква («ттs») — опечатка, не отдельное слово: так не делим
+    private val scriptSplitRe = Regex("""[а-яё]{2,}[a-z]{2,}|[a-z]{2,}[а-яё]{2,}""")
+    private val scriptEdgeRe = Regex("""(?<=[а-яё])(?=[a-z])|(?<=[a-z])(?=[а-яё])""")
+
+    // Слово со склеенными заглавными — по частям: «EdgeTTS» — «эдж ти ти эс», «MoonReader», «FoxyBook», «AlReaderX»;
+    // раньше транслит читал его одним словом («едджеттс»). Слова из wordFixes («YouTube», «iPhone», «WhatsApp») не
+    // трогаем. До Abbrev: отделённая часть заглавными («TTS») читается по буквам. Одиночная заглавная латинская
+    // буква — названием («V», «X»): транслит давал «в», «кс».
+    private val camelWordRe = Regex("""(?<![\p{L}\d])[A-Za-z]*[a-z][A-Z][A-Za-z]*""")
+    // одна строчная перед заглавной — приставка («iPhone», «eBook», «dB», «mAbook»), по ней не делим
+    private val camelEdgeRe = Regex("""(?<=[A-Z][a-z]|[a-z]{2})(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])""")
+    // «P.S.», «U.S.A.» — сокращение с точками, не отдельная буква
+    private val loneCapRe = Regex("""(?<![\p{L}\d'’.@/_-])[A-Z](?![\p{L}\d'’@/_-]|\.\p{L})""")
+    fun camelCase(text: String, rules: Rules = Rules()): String {
+        if (!rules.on("latin") || !hasLatinRe.containsMatchIn(text)) return text
+        val split = camelWordRe.replace(text) { m -> if (m.value.lowercase() in wordFixes) m.value else camelEdgeRe.replace(m.value, " ") }
+        return loneCapRe.replace(split) { Abbrev.latLetterNames.getValue(it.value[0]) }
     }
 
     // Одиночная латинская буква вплотную за цифрой или через дефис за русским словом — названием буквы
@@ -2094,6 +2188,21 @@ object Normalizer {
         (if (text[m.range.first - 1].isDigit()) " " else "") + Abbrev.latLetterNames.getValue(m.value[0].uppercaseChar()) +
             (if (text.getOrNull(m.range.last + 1)?.isDigit() == true) " " else "")
     }
+
+    // Одиночная латинская буква вплотную перед цифрами — названием: «S20» — «эс двадцать», «v2» — «ви два», «i7», «X3»,
+    // «A32» (было «с двадцать», «в два», «кс три»). Буква внутри слова («mp3», «fp32») сюда не попадает.
+    // «N2» — не буква, а знак номера в библиографии («Земля и Вселенная, 1980, N2»): оставляем как было.
+    private val letterBeforeDigitRe = Regex("""(?<![\p{L}\d'])([A-MO-Za-mo-z])(?=\d)""")
+    // Латинское слово вплотную за цифрами («4PDA», «13pro», «77ruS») — через пробел: иначе число словами («четыре»)
+    // склеивалось с латиницей в одно слово, и омоглифы делали из «pda» кириллическое «рда» — «четырерда».
+    // После единиц: «5GB», «100mAh» они читают сами. Одна буква («5800X», «7A») — letterAfterDigit.
+    private val latinAfterDigitsRe = Regex("""(?<=\d)(?=[A-Za-z]{2})""")
+    private fun latinAtDigits(text: String) =
+        latinAfterDigitsRe.replace(letterBeforeDigitRe.replace(text) { Abbrev.latLetterNames.getValue(it.value[0].uppercaseChar()) + " " }, " ")
+
+    // Расширение файла — «точка» словом: «Brian.wav», «ruvoice-pack-ru.zip», «0.14.10-lite.apk». Без слова точка
+    // уходила в модель внутри слова и не звучала. Адреса («index.html» в ссылке) разобраны раньше, в numbers().
+    private val fileExtRe = Regex("""(?<=[\p{L}\d_)\]])\.(zip|apk|mp3|mp4|m4a|m4b|ogg|opus|flac|wav|fb2|epub|txt|pdf|djvu|docx?|rtf|jpe?g|png|gif|webp|exe|rar|7z|json|xml|html?|csv)(?![\p{L}\d])""", RegexOption.IGNORE_CASE)
 
     // Технические коды кириллицей — буквы при цифрах названиями: «Р-9» → «+эр-9», «8К74» → «8 +ка 74»,
     // «Т-72Б3» → «+тэ-72 +бэ 3», «РД-170» → «эр д+э-170»; «ГАЗ-66» остаётся словом (Abbrev.codePart).
@@ -2150,6 +2259,8 @@ object Normalizer {
             }
             // немое e на конце
             if (w.length > 2 && w.endsWith("e") && !w.endsWith("ee")) sb.setLength(sb.length - 1)
+            // «e» в начале слова — «э»: «episteme», «eos», «energy» (было «епистем», «еос»)
+            if (w[0] == 'e' && sb.startsWith("е")) sb.setCharAt(0, 'э')
             sb.toString()
         }
     }
@@ -2181,7 +2292,10 @@ object Normalizer {
             .replace("&", " и ").replace(wsClass, " "))
         val sb = StringBuilder(normalized.length)
         val names = rules.on("symbol_names")
-        for (c in normalized) {
+        // «+» пропускается фильтром как знак ударения, но ударение — только перед гласной. Остальной «+» — «плюс»:
+        // «Moon+ Reader», «C++», «Aimp + MoonReader» (раньше модель его молча глотала).
+        val plused = plusNotStressRe.replace(normalized, " плюс ").replace(EXT_DOT.toString(), " точка ")
+        for (c in plused) {
             if (c in allowed) sb.append(c)
             // знак, который фильтр выкинул бы, — словом в пробелах; ударение «+» не трогаем
             else if (names && c != '+' && SymbolNames.of(c) != null) sb.append(' ').append(SymbolNames.of(c)).append(' ')
@@ -2191,9 +2305,15 @@ object Normalizer {
         }
         // пробел нужен только между словами: у пробела, знака препинания и края строки зазор не ставим
         val gapped = if (GAP !in sb) sb.toString() else gapEdgeRe.replace(sb, "").replace(GAP, ' ')
-        return gapped.replace(Regex("\\s+"), " ").trim()
+        // пустые паузы подряд («[][][]», «))» после скобок) — одна; перед точкой и в начале — не нужна
+        return commaEdgeRe.replace(commaRunRe.replace(gapped, ","), "").replace(Regex("\\s+"), " ").replace(" ,", ",").trim()
     }
+    private val plusNotStressRe = Regex("""\+(?![аеёиоуыэюяАЕЁИОУЫЭЮЯ])""")
+    private val commaRunRe = Regex(""",(?:\s*,)+""")
+    private val commaEdgeRe = Regex("""^[\s,]+|(?<=[:;.!?…])\s*,|\s*,(?=\s*(?:[.!?…;:]|$))""")
     private const val GAP = '\u0000'
+    /** Точка перед расширением файла (fileExtRe) до symbols(), где она становится словом «точка». */
+    private const val EXT_DOT = '\uE000'
     private val gapEdgeRe = Regex("""\u0000+(?=[\s.,!?;:…»)]|$)|(?<=^|[\s«(])\u0000+""")
 
     // Регистр НЕ приводим к нижнему здесь: numbers() должен видеть исходный регистр — иначе
@@ -2202,5 +2322,5 @@ object Normalizer {
     // всё как раньше (review t17 round2 п.1).
     // Abbrev до latin(): latin() лоуэркейсит текст, а аббревиатуры узнаются по КАПСУ.
     fun prepare(text: String, allowed: String, rules: Rules = Rules()): String =
-        symbols(latin(Abbrev.apply(numbers(punctuation(text, rules), rules), rules), rules), allowed, rules)
+        symbols(latin(Abbrev.apply(camelCase(numbers(punctuation(text, rules), rules), rules), rules), rules), allowed, rules)
 }
