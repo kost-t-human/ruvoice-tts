@@ -140,6 +140,12 @@ object Normalizer {
     private val arrowRe = Regex("""\s*[→⟶⇒➔]\s*""")
     // Стрелка из символов — «Проверка -> кнопка», «Меню >> Настройки», «=>» — та же стрелка «→»: пауза, а при
     // symbol_names — «стрелка вправо» (было «дефис больше», «больше больше»). «-->» и «==>» тоже.
+    // Пробел после знака, забытый при наборе: «вопрос.Присутствует», «книги?Не», «г.Москва», «т.к.Он», «сделал,которая».
+    // Без него предложение не отделялось (пауза и интонация конца терялись), «г.Москва» не раскрывалось («городмосква»),
+    // ударения считались по склейке двух слов. Точка — только перед русской заглавной («будет.У нас», «А.С.Пушкин»; «IP.Board»,
+    // «site.ru» не трогаем); запятая — только между буквами («3,5» — число).
+    private val missingSpaceStopRe = Regex("""(?<=\p{L})([.!?…])(?=[А-ЯЁ])""")
+    private val missingSpaceCommaRe = Regex("""(?<=\p{L}),(?=\p{L})""")
     private val asciiArrowRe = Regex("""(?<![-=<>])(?:-+>|=+>|>>)(?![>=])""")
     // Черта из знаков — подпись на форуме («--------------------»), разделитель в тексте («=====», «_____», «***»):
     // пауза как у тире. Раньше дефисы уходили в модель как есть, а при symbol_names «*» звучала двадцать раз.
@@ -148,6 +154,8 @@ object Normalizer {
         if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
         s = ellipsisRe.replace(s, "…")
+        s = missingSpaceStopRe.replace(s, "$1 ")
+        s = missingSpaceCommaRe.replace(s, ", ")
         s = asciiArrowRe.replace(s, " → ")
         // черта в начале или в конце фразы — ни о чём, только висячее тире; между словами — пауза
         s = ruleLineRe.replace(s) { m ->
@@ -1279,8 +1287,9 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])Dr\.(?=\s+[A-ZА-ЯЁ])""") to "доктор",
         Regex("""(?<![\p{L}\d])Vol\.\s*(?=\d)""") to "том ",
         Regex("""(?<![\p{L}\d])No\.\s*(?=\d)""") to "номер ",
-        Regex("""(?<![\p{L}\d])и\s+т\.\s*д\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и так далее",
-        Regex("""(?<![\p{L}\d])и\s+т\.\s*п\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и тому подобное",
+        // последнюю точку забывают: «и т.д не произносятся»
+        Regex("""(?<![\p{L}\d])и\s+т\.\s*д(?:\.|(?![\p{L}.]))(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и так далее",
+        Regex("""(?<![\p{L}\d])и\s+т\.\s*п(?:\.|(?![\p{L}.]))(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и тому подобное",
         Regex("""(?<![\p{L}\d])в\s+т\.\s*ч\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "в том числе",
         Regex("""(?<![\p{L}\d])т\.\s*е\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "то есть",
         Regex("""(?<![\p{L}\d])т\.\s*к\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так как",
@@ -1777,7 +1786,10 @@ object Normalizer {
     private val zeroWidthRe = Regex("""[\u200B-\u200D\uFEFF]""")
     // Названия, чтение которых правилами не вывести: «4PDA» — «четыре пи ди эй» (правила дали бы «четыре пда»:
     // «PDA» с гласной читается словом). И в тексте, и в адресе («4pda.to»).
-    private val namedReadings = listOf(Regex("""(?<![\p{L}\d])4pda(?![\p{L}\d])""", RegexOption.IGNORE_CASE) to "четыре пи ди эй")
+    private val namedReadings = listOf(Regex("""(?<![\p{L}\d])4pda(?![\p{L}\d])""", RegexOption.IGNORE_CASE) to "четыре пи ди эй",
+        // сокращения, набранные строчными (заглавными их читает Abbrev по буквам): без гласных модель их не выговорит
+        Regex("""(?<![\p{L}\d])ттс(?![\p{L}\d])""") to "тэ тэ +эс", Regex("""(?<![\p{L}\d])смс(?![\p{L}\d])""") to "эс эм +эс",
+        Regex("""(?<![\p{L}\d])пк(?![\p{L}\d])""") to "пэ к+а")
     private fun namedReadings(text: String) = namedReadings.fold(text) { t, (re, v) -> re.replace(t, v) }
     // Смайлы словами, как эмодзи (правило emoji), глаголом, как у имён CLDR: «:D» — «смеётся» (было «двоеточие д»).
     // Только отдельным словом: «в 3:)», «http://» не трогаются. Повтор внутри смайла («:)))») — один раз.
@@ -2212,7 +2224,15 @@ object Normalizer {
         "sqlite" to "эс кью лайт", "mp" to "эм пэ", "fb" to "эф бэ", "epub" to "и паб", "lite" to "лайт", "edge" to "эдж",
         "edition" to "эдишн", "engine" to "энджин", "ui" to "ю ай", "etc" to "эт сетера", "pro" to "про", "max" to "макс",
         "ultra" to "ультра", "note" to "ноут", "reader" to "ридер", "voice" to "войс",
-        "to" to "ту", "forum" to "форум")
+        "to" to "ту", "forum" to "форум", "type" to "тайп", "power" to "пауэр", "poweramp" to "пауэрамп",
+        // частые слова из интерфейсов и кода — как их говорят по-русски
+        "audio" to "аудио", "focus" to "фокус", "manager" to "менеджер", "builder" to "билдер", "build" to "билд",
+        "pause" to "поуз", "status" to "статус", "volume" to "вольюм", "player" to "плеер", "change" to "чейндж",
+        "usage" to "юзидж", "attributes" to "атрибьютс", "language" to "лэнгвидж", "russian" to "рашн", "brian" to "брайан")
+    // Латинское слово без гласных — сокращение, по буквам: «fp32», «pss», «rgb», «css», «dB» (было «фп», «ргб»).
+    // Английских слов без гласных нет, кроме междометий — их транслитом, как было.
+    private val latinInterjections = setOf("hm", "hmm", "hmmm", "shh", "sh", "ssh", "psst", "pst", "brr", "grr", "zzz", "pff", "pfff", "mm", "mmm", "tsk", "nth")
+    private fun latinNoVowels(w: String) = w.length in 2..6 && w.none { it in "aeiouy" } && w !in latinInterjections && w.toSet().size > 1
     private val latinWordRe = Regex("[a-z]+")
     private val softVowels = setOf('e', 'i', 'y')
 
@@ -2316,7 +2336,7 @@ object Normalizer {
     }
 
     private fun translit(text: String): String = latinWordRe.replace(text) { m ->
-        wordFixes[m.value] ?: run {
+        wordFixes[m.value] ?: if (latinNoVowels(m.value)) m.value.map { Abbrev.latLetterNames.getValue(it.uppercaseChar()) }.joinToString(" ") else run {
             val w = m.value
             val sb = StringBuilder()
             var i = 0
@@ -2328,6 +2348,8 @@ object Normalizer {
                 else if (c == 'c' && next in softVowels) { sb.append("с"); i++ }
                 else if (c == 'g' && next in softVowels) { sb.append("дж"); i++ }
                 else if (c == 'y' && next == null && w.length > 1) { sb.append("и"); i++ }
+                // «y» между согласными — «и»: «system», «gym», «Kyutai» (было «сйстем», «джйм»)
+                else if (c == 'y' && i > 0 && w[i - 1] !in "aeiou" && next != null && next !in "aeiouy") { sb.append("и"); i++ }
                 else { sb.append(singles[c] ?: ""); i++ }
             }
             // немое e на конце

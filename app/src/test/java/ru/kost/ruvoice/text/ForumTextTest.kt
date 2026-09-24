@@ -29,7 +29,7 @@ class ForumTextTest {
         assertEquals("четыре пи ди эй", p("4PDA"))
         assertEquals("официальная группа четыре пи ди эй", p("Официальная группа 4pda"))
         assertEquals("редми ноут тринадцать про", p("Redmi Note 13pro"))
-        assertEquals("самсунг галакси эс двадцать фе", p("Samsung Galaxy S20 FE"))
+        assertEquals("самсунг галакси эс двадцать эф +и", p("Samsung Galaxy S20 FE"))
         assertEquals("поко экс три про", p("POCO X3 Pro"))
         assertEquals("процессор ай семь", p("процессор i7"))
         // латиница вплотную к русскому слову — два слова
@@ -45,7 +45,7 @@ class ForumTextTest {
         assertEquals("ру войс ти ти +эс", p("RuVoice TTS"))
         // слова из словаря и приставка из одной строчной — целиком
         assertEquals("айфон и ютуб", p("iPhone и YouTube"))
-        assertEquals("минус четырнадцать дб", p("-14 dB"))
+        assertEquals("минус четырнадцать ди би", p("-14 dB"))
         // одиночная заглавная — названием буквы, «P.S.» — сокращение
         assertEquals("ви", p("V"))
         assertEquals("п.с. привет.", p("P.S. Привет."))
@@ -53,7 +53,7 @@ class ForumTextTest {
 
     @Test fun files() {
         assertEquals("ру войс-пак-ру точка зип", p("ruvoice-pack-ru.zip"))
-        assertEquals("бриан точка вав", p("Brian.wav"))
+        assertEquals("брайан точка вав", p("Brian.wav"))
         // число перед расширением — не «одна точка»
         assertEquals("один точка эм пэ четыре", p("1.mp4"))
         assertEquals("тэ икс тэ файл", p("txt файл"))
@@ -128,6 +128,32 @@ class ForumTextTest {
         assertEquals("рук+и его", p("Рукѝ его"))
         // «café» — французское слово, не ударение
         assertEquals("кафе", p("кафе"))
+    }
+
+    @Test fun missingSpace() {
+        // пробел после знака, забытый при наборе
+        assertEquals("есть вопрос. присутствует такая", p("Есть вопрос.Присутствует такая"))
+        assertEquals("книги? не стоит", p("книги?Не стоит"))
+        assertEquals("будет. у нас", p("будет.У нас"))
+        assertEquals("город москва", p("г.Москва"))
+        assertEquals("улица ленина", p("ул.Ленина"))
+        assertEquals("поделился, которая", p("поделился,которая"))
+        // число и адрес — не трогаем
+        assertEquals("три целых пять десятых", p("3,5"))
+        assertEquals("вэ вэ вэ точка сит точка ру", p("www.site.ru"))
+        // последнюю точку сокращения забыли
+        assertEquals("и так далее не произносятся", p("и т.д не произносятся"))
+    }
+
+    @Test fun abbreviations() {
+        // латиница без гласных — по буквам; междометия — как были
+        assertEquals("эф пи тридцать два и ар джи би и си эс эс", p("fp32 и rgb и css"))
+        assertEquals("хмм и псст", p("hmm и psst"))
+        // русские сокращения строчными
+        assertEquals("эс эм +эс и пэ к+а и тэ тэ +эс", p("смс и пк и ттс"))
+        assertEquals("хм, ну и брр", p("Хм, ну и брр"))
+        // «y» между согласными
+        assertEquals("тайп и систем и джим", p("type и system и gym"))
     }
 
     @Test fun words() {

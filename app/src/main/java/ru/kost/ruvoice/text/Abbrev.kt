@@ -93,8 +93,15 @@ object Abbrev {
     fun codePart(letters: String): String =
         if (letters.length <= 2) spellOut(letters, cyrLetterNames) else spellCyr(letters)
 
+    // Две заглавные латинские почти всегда сокращение («UX», «SE», «FE», «AI»), кроме английских слов.
+    private val latTwoLetterWords = setOf("OK", "NO", "GO", "SO", "DO", "WE", "ME", "MY", "HE", "BE", "HI", "OH", "IF", "OR", "AT",
+        "AS", "IN", "ON", "TO", "IT", "IS", "AN", "AM", "UP", "OF", "BY",
+        // эра («500 CE») — отдельная нерешённая история (NORMALIZER.md), не трогаем
+        "CE", "BC", "AD")
+
     private fun spellLat(token: String): String {
-        val spell = token.none { it in LAT_VOWELS_FOR_AUTO_SPELL } || token in latSpellSet
+        val spell = token.none { it in LAT_VOWELS_FOR_AUTO_SPELL } || token in latSpellSet ||
+            token.length == 2 && token !in latTwoLetterWords
         return if (spell) spellOut(token, latLetterNames) else token
     }
 
