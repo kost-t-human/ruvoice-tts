@@ -26,6 +26,7 @@ object ScreenReaders {
         "com.samsung.android.app.talkback",          // Voice Assistant, старые Samsung
         "com.bjbyhd.screenreader_huawei",            // экранный диктор Huawei
         "com.nirenr.talkman",                        // Jieshuo
+        "com.nirenr.talkman.geek",                   // Jieshuo, международная сборка
         "com.dianming.phoneapp",                     // Dianming
     )
 

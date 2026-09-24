@@ -112,9 +112,21 @@ object Abbrev {
         return parts.joinToString(" ")
     }
 
-    /** Имя буквы с ударением для любой кириллической/латинской буквы; null — не буква из таблиц. */
+    // Отдельно стоящее «эр», «эн», «эм» модель читает как «р», «н», «м» (на слух 24.09.2026, жалоба из TalkBack);
+    // в аббревиатурах соседние буквы это держат, там имена прежние
+    private val loneCyrNames = mapOf('Р' to "ээр", 'Н' to "энн", 'М' to "эмм", 'Ч' to "чэ")   // «че» — «чо»
+
+    // Запрос из одной буквы без слов вокруг (эхо ввода Jieshuo, на телефоне на слух 25.09.2026): «вэ» звучит «вы»,
+    // «ы» — «пы»; точка у остальных букв хуже, поэтому только эти
+    private val loneRequestNames = mapOf('В' to "в+э.", 'Ы' to "— +ы")
+
+    /** Имя буквы, когда весь запрос — одна буква: [letterName] с поправками для голой буквы. */
+    fun loneLetterName(c: Char): String? = loneRequestNames[c.uppercaseChar()] ?: letterName(c)
+
+    /** Имя буквы с ударением для любой кириллической/латинской буквы; null — не буква из таблиц.
+     * Для одиночной буквы (TalkBack, посимвольная TtsSpan), не для аббревиатур. */
     fun letterName(c: Char): String? =
-        (cyrLetterNames[c.uppercaseChar()] ?: latLetterNames[c.uppercaseChar()])?.let(::withStress)
+        (loneCyrNames[c.uppercaseChar()] ?: cyrLetterNames[c.uppercaseChar()] ?: latLetterNames[c.uppercaseChar()])?.let(::withStress)
 
     private fun withStress(name: String): String {
         val i = name.indexOfFirst { it in VOWELS_IN_NAMES }

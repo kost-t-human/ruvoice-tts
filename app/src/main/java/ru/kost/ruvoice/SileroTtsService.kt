@@ -80,13 +80,21 @@ object Pipeline {
     // клавиатуры: строчную как есть, заглавную по умолчанию как «прописная буква Б.»
     // (talkback: CompositorUtils.prependCapital, template_capital_letter в values-ru). Читаем имя
     // буквы. Внутри текста одиночную букву не трогаем — там «в», «с», «к» предлоги, «б», «ж» частицы.
-    private val loneLetter = Regex("""^\s*((?:прописная буква\s+)?)(\p{L})\s*[.)]?\s*$""", RegexOption.IGNORE_CASE)
+    // Jieshuo шлёт заглавную как «Ц Заглавная» (logcat 25.09.2026); «заглавная» принимаем и перед буквой.
+    private val loneLetter = Regex("""^\s*((?:(?:прописная|заглавная)(?:\s+буква)?\s+)?)(\p{L})(\s*,?\s+(?:заглавная|прописная)(?:\s+буква)?)?\s*[.)]?\s*$""", RegexOption.IGNORE_CASE)
 
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
              replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules()): List<Segment> {
         val src = text.toString().let { t ->
             if (!rules.on("letter_name")) t else loneLetter.matchEntire(t)?.let { m ->
-                Abbrev.letterName(m.groupValues[2][0])?.let { m.groupValues[1].lowercase() + it } }
+                m.groupValues[2][0].let { c -> if (m.groupValues[1].isEmpty() && m.groupValues[3].isEmpty()) Abbrev.loneLetterName(c) else Abbrev.letterName(c) }
+                    ?.let { name ->
+                        val pre = m.groupValues[1].lowercase()
+                        val post = m.groupValues[3].lowercase().trim(' ', ',', '\t', '\n')
+                        // «Заглавная А» — имя буквы вперёд, «+а, заглавная»: так звучит Jieshuo, и буква не теряется в начале;
+                        // запятая — пауза между буквой и словом
+                        if (pre.startsWith("заглавная")) "$name, ${pre.trim()}" else pre + name + if (post.isEmpty()) "" else ", $post"
+                    } }
                 // одиночный знак (клавиша «#», знак под курсором) — по имени, иначе фильтр оставит тишину
                 ?: t.trim().singleOrNull()?.let { SymbolNames.of(it) } ?: t
         }

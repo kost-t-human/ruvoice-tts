@@ -147,7 +147,20 @@ class PipelineTest {
         assertEquals("прописная буква в+э", first("прописная буква В."))
         assertEquals("м+ягкий знак", first("ь"))
         assertEquals("б+и", first("b"))
-        assertEquals("в+э", first("в"))
+        assertEquals("в+э.", first("в"))
+        assertEquals("ч+э", first("Ч"))
+        assertEquals("ч+э, заглавная", first("Ч Заглавная"))
+        assertEquals("— +ы", first("Ы"))
+        assertEquals("прописная буква +ы", first("прописная буква Ы."))   // со словами вокруг — обычное имя
+        assertEquals("ц+э, заглавная", first("Ц Заглавная"))   // Jieshuo
+        assertEquals("+и краткое, заглавная буква", first("Й, заглавная буква"))
+        assertEquals("п+э, заглавная", first("Заглавная П"))   // имя буквы вперёд
+        assertEquals("+ы, заглавная буква", first("заглавная буква Ы"))
+        assertEquals("в заглавной роли", first("в заглавной роли"))
+        assertEquals("+ээр", first("р"))   // «+эр» модель читает «р»
+        assertEquals("прописная буква +энн", first("прописная буква Н."))
+        assertEquals("+эмм", first("м"))
+        assertEquals("+эм", first("m"))     // латиница — прежние имена
         // внутри текста «в» — предлог, не трогаем
         assertEquals("в 1917 году.", first("в 1917 году."))
         assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
