@@ -94,4 +94,12 @@ class DictLinesTest {
         assertEquals("старый замок", DictLines.setWordStress("старый з+амок", 7 until 13, null))
         assertEquals("прогр+амм*", DictLines.setWordStress("программ*", 0 until 8, 5))
     }
+
+    // «молоко»: три одинаковые «о» — чипы различаются номером слога
+    @Test fun syllableOfSameVowels() {
+        assertEquals(Triple(1, 3, 'о'), DictLines.syllable("молоко", 1))
+        assertEquals(Triple(2, 3, 'о'), DictLines.syllable("молоко", 3))
+        assertEquals(Triple(3, 3, 'о'), DictLines.syllable("Молоко", 5))
+        assertEquals(Triple(1, 1, 'ё'), DictLines.syllable("Ёж", 0))
+    }
 }

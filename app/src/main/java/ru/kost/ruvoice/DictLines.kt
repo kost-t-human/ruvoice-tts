@@ -29,6 +29,13 @@ object DictLines {
     /** Позиции (индексы символов) гласных букв в слове — по ним строятся чипы диалога. */
     fun vowelPositions(word: String): List<Int> = word.indices.filter { word[it].lowercaseChar() in VOWELS }
 
+    /** Выбор ударения в чипе: (номер слога, всего слогов, ударная буква) — чтобы «моло́ко» и «молоко́»
+     * различались не только значком ударения: номер слога TalkBack скажет любым голосом. */
+    fun syllable(word: String, pos: Int): Triple<Int, Int, Char> {
+        val all = vowelPositions(word)
+        return Triple(all.indexOf(pos) + 1, all.size, word[pos].lowercaseChar())
+    }
+
     /** Границы русского слова (буквы и «+») вокруг позиции курсора в свободном тексте замены;
      * null, если курсор не касается слова. Курсор на границе прилипает к слову слева. */
     fun wordRangeAt(text: String, cursor: Int): IntRange? {

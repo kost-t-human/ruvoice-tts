@@ -17,7 +17,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
 
     /** Правила для запроса экранного чтеца (TalkBack и др.) — секция «Для TalkBack» поверх общих:
      * служебные символы словами, без голоса прямой речи и без тишины перед фразой. Паузы между
-     * предложениями (sr_pauses_off) — не правило, их обнуляет сервис. */
+     * предложениями (sr_pauses_off), выгрузку модели (sr_keep_loaded), темп и высоту чтеца решает сервис. */
     fun screenReader(): Rules {
         var r = this
         if (on("sr_symbols")) r = r.with("symbol_names", true)
@@ -43,7 +43,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         /** Порядок списка = порядок на экране. Вверху «Для TalkBack» (только запросы экранного чтеца),
          * за ней «Разное» — для настроек без своего раздела. */
         val KEYS = listOf(
-            "sr_symbols", "sr_quote_off", "sr_lead_in_off", "sr_pauses_off",
+            "sr_symbols", "sr_quote_off", "sr_lead_in_off", "sr_pauses_off", "sr_keep_loaded",
             "symbol_names", "emoji", "letter_name", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
             "phones", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",

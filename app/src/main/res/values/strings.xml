@@ -78,6 +78,9 @@
     <string name="preview_text">Поезд отходил в 21:30, и до вокзала оставалось около 3 км.\n— Успеем, — сказала она тихо. — Замок на воротах ещё не заперли.</string>
     <string name="preview">Прослушать</string>
     <string name="stop">Стоп</string>
+    <string name="stress_vowel">Ударная гласная</string>
+    <!-- Чип ударения для TalkBack: слово со знаком ударения, номер слога и буква -->
+    <string name="stress_chip">%1$s — %2$d-й слог из %3$d, «%4$s»</string>
     <!-- ▶ в строке списка для TalkBack: какое слово прозвучит -->
     <string name="preview_word">Прослушать: %s</string>
     <string name="edit">Изменить</string>
@@ -238,6 +241,14 @@
     <string name="max_len_hint">Предложение длиннее этого режется по запятой или пробелу и синтезируется по частям. От 100 до 900.</string>
     <string name="chars_suffix">симв.</string>
 
+    <string name="rules_search">Найти правило</string>
+    <string name="rules_found_none">Ничего не найдено</string>
+    <plurals name="rules_found">
+        <item quantity="one">Найден %d пункт</item>
+        <item quantity="few">Найдено %d пункта</item>
+        <item quantity="many">Найдено %d пунктов</item>
+        <item quantity="other">Найдено %d пункта</item>
+    </plurals>
     <string name="rules_section_talkback">Для TalkBack</string>
     <string name="rule_sr_symbols">Служебные символы словами</string>
     <string name="rule_sr_symbols_hint">Только для экранного чтеца: «→», «×», «@», «✓» — по имени, даже если в «Разном» это выключено. Книгам не мешает: там «* * *» и сноски-звёздочки остаются тишиной.</string>
@@ -247,6 +258,12 @@
     <string name="rule_sr_lead_in_off_hint">Экранный чтец почти каждую фразу начинает после паузы — 300 мс тишины (правило «Тишина перед фразой») были бы задержкой на каждый жест.</string>
     <string name="rule_sr_pauses_off">Без пауз между предложениями</string>
     <string name="rule_sr_pauses_off_hint">Паузы после предложения и абзаца (вкладка «Паузы») для экранного чтеца — ноль: быстрее листать. Паузы на запятой и тире остаются.</string>
+    <string name="rule_sr_keep_loaded">Не выгружать модель, пока работает экранный чтец</string>
+    <string name="rule_sr_keep_loaded_hint">Пока в системе включён TalkBack или другой чтец, модель остаётся в памяти, что бы ни стояло во «Выгружать модели при простое» (вкладка «Паузы»): иначе первая фраза после простоя ждёт загрузки.</string>
+    <string name="sr_keep_loaded_pauses_hint">То же, что в меню ⋮ справа вверху → «Настройки» → «Для TalkBack». Важнее выгрузки выше.</string>
+    <string name="sr_sliders_hint">Множители поверх темпа и высоты самого TalkBack — вместо ползунков вкладки «Голос», книги их не чувствуют. Темп TalkBack доходит до ×6.</string>
+    <string name="sr_rate">Темп для TalkBack</string>
+    <string name="sr_pitch">Высота для TalkBack</string>
     <string name="callers_hint">Правила выше действуют, только когда читает экранный чтец. Его узнаём по приложению, приславшему текст: TalkBack и другие известные чтецы или любое приложение с включённой в системе службой доступности с речью. Ниже — кто читал через движок; если определилось неверно, переключите.</string>
     <string name="callers_empty">Пока никто не читал через движок. Включите TalkBack, послушайте пару фраз и откройте этот экран снова.</string>
     <string name="caller_auto_sr">%s — экранный чтец (определено автоматически)</string>

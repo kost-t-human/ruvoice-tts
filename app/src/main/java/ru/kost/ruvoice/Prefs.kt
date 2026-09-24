@@ -40,6 +40,13 @@ class Prefs(private val context: Context) {
             listOf(k.pkg, k.label.replace('\t', ' ').replace('\n', ' '), if (k.auto) "1" else "0", t.toString()).joinToString("\t") }).apply()
     }
 
+    /** Включить/выключить одно правило, не трогая остальные (тумблер вне вкладки правил). */
+    fun setRule(key: String, on: Boolean) { rulesOff = Rules(rulesOff).with(key, on).off }
+
+    /** Отпечаток всех настроек для кэша фраз (PhraseCache): любая правка на вкладках меняет его.
+     * Журнал отправителей не в счёт — он пишется сам по себе раз в час. */
+    fun stamp(): Int = p.all.filterKeys { it != "recent_callers" }.hashCode()
+
     /** Справка «Как включить» показана при первом запуске. */
     var setupShown: Boolean get() = p.getBoolean("setup_shown", false); set(v) = p.edit().putBoolean("setup_shown", v).apply()
     /** Множители темпа/высоты поверх того, что просит читалка; 1 — без изменений. */
@@ -49,6 +56,10 @@ class Prefs(private val context: Context) {
     var quoteVoice: String get() = p.getString("quote_voice", "")!!; set(v) = p.edit().putString("quote_voice", v).apply()
     var quoteRate: Float get() = p.getFloat("quote_rate", 1f); set(v) = p.edit().putFloat("quote_rate", v).apply()
     var quotePitch: Float get() = p.getFloat("quote_pitch", 1f); set(v) = p.edit().putFloat("quote_pitch", v).apply()
+    /** Темп и высота для экранного чтеца (секция «Для TalkBack»): множители поверх темпа самого TalkBack
+     * вместо rate/pitch — книги и TalkBack настраиваются отдельно. */
+    var srRate: Float get() = p.getFloat("sr_rate", 1f); set(v) = p.edit().putFloat("sr_rate", v).apply()
+    var srPitch: Float get() = p.getFloat("sr_pitch", 1f); set(v) = p.edit().putFloat("sr_pitch", v).apply()
     /** Распознавать прямую речь (отдельный голос/темп/высота); по умолчанию выключено. */
     var quoteOn: Boolean get() = p.getBoolean("quote_on", false); set(v) = p.edit().putBoolean("quote_on", v).apply()
     /** Текст поля «Проверка» на вкладке «Голос»; пустая строка — показывать пример. */
@@ -144,6 +155,8 @@ class Prefs(private val context: Context) {
             "quote_voice" to quoteVoice,
             "quote_rate" to quoteRate.toDouble(),
             "quote_pitch" to quotePitch.toDouble(),
+            "sr_rate" to srRate.toDouble(),
+            "sr_pitch" to srPitch.toDouble(),
             "quote_on" to quoteOn,
             "rules_off" to rulesOff.joinToString(","),
             "max_len" to maxLen,
@@ -180,6 +193,8 @@ class Prefs(private val context: Context) {
         (prefsMap["quote_voice"] as? String)?.let { quoteVoice = it }
         (prefsMap["quote_rate"] as? Number)?.let { quoteRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["sr_rate"] as? Number)?.let { srRate = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["sr_pitch"] as? Number)?.let { srPitch = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_on"] as? Boolean)?.let { quoteOn = it }
         (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }

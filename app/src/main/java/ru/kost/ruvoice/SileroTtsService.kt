@@ -253,6 +253,9 @@ class SileroTtsService : TextToSpeechService() {
         handler.removeCallbacks(unload)
         handler.removeCallbacks(fgOff)
         handler.postDelayed(fgOff, FG_IDLE_MS)
+        // «Не выгружать, пока работает экранный чтец» важнее общей выгрузки по простою: первая фраза
+        // TalkBack после паузы иначе ждёт загрузки модели
+        if (prefs.rules().on("sr_keep_loaded") && ScreenReaders.anyActive(this)) return
         if (prefs.idleOn) handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
@@ -306,9 +309,9 @@ class SileroTtsService : TextToSpeechService() {
     override fun onStop() { stopped = true }
 
     /** Текст запроса с подставленными TtsSpan: TYPE_TEXT → ARG_TEXT, TYPE_CARDINAL → ARG_NUMBER. */
-    private fun spokenText(cs: CharSequence?): String {
+    private fun spokenText(cs: CharSequence?): SpanText.Mapped {
         val t = cs?.toString().orEmpty()
-        if (cs !is Spanned) return t
+        if (cs !is Spanned) return SpanText.mapped(t, emptyList())
         val spans = cs.getSpans(0, cs.length, TtsSpan::class.java).mapNotNull { sp ->
             val say = when (sp.type) {
                 TtsSpan.TYPE_TEXT -> sp.args.getString(TtsSpan.ARG_TEXT)
@@ -317,7 +320,7 @@ class SileroTtsService : TextToSpeechService() {
             }
             say?.takeIf { it.isNotBlank() }?.let { Triple(cs.getSpanStart(sp), cs.getSpanEnd(sp), it) }
         }
-        return SpanText.substitute(t, spans)
+        return SpanText.mapped(t, spans)
     }
 
     override fun onSynthesizeText(request: SynthesisRequest, callback: SynthesisCallback) {
@@ -337,14 +340,16 @@ class SileroTtsService : TextToSpeechService() {
             })
             val speakerId = voice.id
             val sym = voice.sym
-            val rate = (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
-            val pitch = (request.pitch / 100f * prefs.pitch).coerceIn(0.5f, 2f)
-            // настройки слушают слово «как модель», без пользовательского словаря
-            val noDict = request.params?.getString("ruvoice.nodict") == "1"
-            // Экранный чтец (TalkBack и др.) — свои правила поверх общих (секция «Для TalkBack»)
+            // Экранный чтец (TalkBack и др.) — свои правила, темп и высота поверх общих (секция «Для TalkBack»)
             val caller = ScreenReaders.caller(this, request.callerUid)
             val screenReader = caller != null && ScreenReaders.isScreenReader(prefs, caller)
             caller?.let { prefs.rememberCaller(it) }
+            // TalkBack шлёт темп до ×6 (и умножает на системный) — для чтеца потолок ×6, книгам ×3 как было
+            val rate = if (screenReader) (request.speechRate / 100f * prefs.srRate).coerceIn(0.5f, SR_MAX_RATE)
+                else (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
+            val pitch = (request.pitch / 100f * (if (screenReader) prefs.srPitch else prefs.pitch)).coerceIn(0.5f, 2f)
+            // настройки слушают слово «как модель», без пользовательского словаря
+            val noDict = request.params?.getString("ruvoice.nodict") == "1"
             val baseRules = prefs.rules()
             val rules = if (screenReader) baseRules.screenReader() else baseRules
             val noPauses = screenReader && baseRules.on("sr_pauses_off")
@@ -358,7 +363,8 @@ class SileroTtsService : TextToSpeechService() {
             val quoteRate = prefs.quoteRate
             val quotePitch = prefs.quotePitch
             // TtsSpan (пунктуация TalkBack «Все») — текстом; смещения rangeStart считаются по нему же
-            val reqText = spokenText(request.charSequenceText)
+            val spoken = spokenText(request.charSequenceText)
+            val reqText = spoken.text
             val segments = Pipeline.plan(reqText, d, if (noPauses) 0 else prefs.sentencePauseMs, if (noPauses) 0 else prefs.paragraphPauseMs, replacements, rules)
             // Паузы после запятой и на тире — явная длительность самого знака в кадрах модели (Marks.frames);
             // ноль — как решит модель. Дефис/минус в пробелах Normalizer.punctuation уже свёл к «–».
@@ -370,7 +376,8 @@ class SileroTtsService : TextToSpeechService() {
             // SSML-теги и маркеры заменяются пробелами той же длины, чтобы смещения не поехали.
             val srcText = reqText.let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }
                 .let { Marks.blank(it) }
-            val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), it.range.first, it.range.last + 1) }.toList()
+            // смещения — в тексте клиента: подставленное из TtsSpan слово указывает на свой знак
+            val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), spoken.orig(it.range.first), spoken.orig(it.range.last) + 1) }.toList()
             val matcher = Marks.Matcher(srcWords.map { it.first })
             var written = 0L // сэмплов отдано читалке — точка отсчёта markerInFrames
             var audioMs = 0L // длительность отданного звука — для журнала
@@ -379,6 +386,21 @@ class SileroTtsService : TextToSpeechService() {
             val synthMs = java.util.concurrent.atomic.AtomicLong()
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
+            // Короткая фраза уже звучала с теми же голосом, темпом и настройками — отдаём готовый звук.
+            // Сбор имён («Проверка») и прослушивание без словаря идут мимо кэша.
+            val cacheKey = if (reqText.length <= PhraseCache.MAX_TEXT && !noDict && !auditNames)
+                listOf(prefs.stamp(), System.identityHashCode(prefs.userDict()), System.identityHashCode(replacements),
+                    voice.name, sr, rate, pitch, screenReader, reqText).joinToString("\u0001") else null
+            cacheKey?.let { phrases.get(it) }?.let { hit ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    for (k in hit.ranges.indices step 3) callback.rangeStart((written + hit.ranges[k]).toInt(), hit.ranges[k + 1], hit.ranges[k + 2])
+                if (!write(callback, hit.pcm)) return
+                callback.done()
+                note("запрос ${request.charSequenceText.length} симв. из кэша, ${System.currentTimeMillis() - t0} мс, звук ${hit.pcm.size * 1000L / sr} мс" +
+                    (caller?.let { ", от ${it.pkg}" + if (screenReader) " (экранный чтец)" else "" } ?: ""))
+                return
+            }
+            val recorder = cacheKey?.let { PhraseCache.Recorder() }
             // Звук сегмента и токены для подсветки; null — нечего читать или синтез упал.
             fun synthSegment(seg: Segment): Pair<SileroModels.Synth, List<Marks.Token>>? {
                 if (stopped) return null
@@ -442,16 +464,22 @@ class SileroTtsService : TextToSpeechService() {
                     for (i in out.durs.indices) cum[i + 1] = cum[i] + out.durs[i]
                     for (t in tokens) {
                         val j = matcher.next(t.key)
-                        if (j >= 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) callback.rangeStart((written + Math.round(cum[t.seqStart] * perFrame)).toInt(), srcWords[j].second, srcWords[j].third)
+                        if (j < 0) continue
+                        val at = Math.round(cum[t.seqStart] * perFrame).toInt()
+                        recorder?.range(at, srcWords[j].second, srcWords[j].third)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) callback.rangeStart((written + at).toInt(), srcWords[j].second, srcWords[j].third)
                     }
+                    recorder?.audio(pcm)
                     if (!write(callback, pcm)) return
                     written += pcm.size
                     audioMs += pcm.size * 1000L / sr
                     Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                 }
-                if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); if (!write(callback, sil)) return; written += sil.size }
+                if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); recorder?.audio(sil); if (!write(callback, sil)) return; written += sil.size }
             }
             callback.done()
+            // в кэш — только доведённое до конца: оборванный TalkBack-ом звук был бы неполным
+            if (recorder != null && cacheKey != null && !stopped && audioMs > 0) phrases.put(cacheKey, recorder.entry())
             audit.flush()
             val ms = System.currentTimeMillis() - t0
             note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс, звук $audioMs мс, синтез ${synthMs.get()} мс" +
@@ -483,6 +511,10 @@ class SileroTtsService : TextToSpeechService() {
     companion object {
         const val LEAD_GAP_MS = 2500L
         const val LEAD_IN_MS = 300
+        /** Потолок темпа для экранного чтеца: TalkBack шлёт до ×6. Книгам — ×3, как раньше. */
+        const val SR_MAX_RATE = 6f
+        /** Кэш коротких фраз — на процесс, переживает пересоздание сервиса. */
+        val phrases = PhraseCache()
         private const val CHANNEL = "synth"
         /** Простой, после которого снимаем foreground: больше паузы между главами, меньше времени
          * висения уведомления после того, как читалку закрыли. */

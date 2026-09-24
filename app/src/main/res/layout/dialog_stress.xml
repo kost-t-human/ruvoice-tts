@@ -25,11 +25,19 @@
             android:inputType="text|textNoSuggestions" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- Подпись чипов: без неё TalkBack читает «моло́ко, флажок» и не объясняет, что выбирается. -->
+    <TextView
+        android:id="@+id/chipsLabel"
+        style="@style/SectionHint"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="0dp"
+        android:text="@string/stress_vowel" />
+
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/chips"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="4dp"
         app:singleSelection="true"
         app:selectionRequired="true" />
 

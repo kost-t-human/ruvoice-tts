@@ -361,7 +361,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         for (pos in DictLines.vowelPositions(e.word)) {
             val chip = LayoutInflater.from(ctx).inflate(R.layout.item_chip, chips, false) as Chip
             chip.id = View.generateViewId()
-            chip.text = DictLines.accentDisplay(e.word.substring(0, pos) + "+" + e.word.substring(pos))
+            chip.showStress(e.word, pos)
             chip.tag = pos
             chips.addView(chip)
             if (pos == modelPos) chip.isChecked = true
@@ -386,6 +386,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             val replace = replaceMode()
             chips.visibility = if (replace) View.GONE else View.VISIBLE
             listenRow.visibility = chips.visibility
+            view.findViewById<View>(R.id.chipsLabel).visibility = chips.visibility
             valueLayout.visibility = if (replace) View.VISIBLE else View.GONE
             val names = lists()
             target.setSimpleItems(names.toTypedArray())

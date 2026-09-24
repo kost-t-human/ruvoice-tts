@@ -1,5 +1,10 @@
 package ru.kost.ruvoice
 
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.View
 import android.widget.CompoundButton
 import android.widget.Switch
@@ -7,6 +12,8 @@ import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
+import com.google.android.material.chip.Chip
+import com.google.android.material.color.MaterialColors
 
 // Помощники для TalkBack. Каждый — про то, как экран слышит незрячий: один фокус на строку,
 // состояние словами, действия вместо жестов, которые TalkBack забирает себе.
@@ -52,3 +59,17 @@ fun View.clearActions() {
 /** Подпись к двойному тапу: «Дважды нажмите, чтобы изменить» вместо безликого «активировать». */
 fun View.clickLabel(label: CharSequence) =
     ViewCompat.replaceAccessibilityAction(this, AccessibilityActionCompat.ACTION_CLICK, label, null)
+
+/** Чип выбора ударной гласной. Видно: ударная буква заглавной, жирной, цветом акцента и со знаком
+ * ударения — «молокО́», не только крошечный значок, который на трёх «о» подряд не различить.
+ * Слышно: «молоко́ — 3-й слог из 3, «о»» — номер слога различает чипы любым голосом TalkBack,
+ * а слово со знаком ударения RuVoice ещё и произнесёт как выбрано. */
+fun Chip.showStress(word: String, pos: Int) {
+    val (n, total, vowel) = DictLines.syllable(word, pos)
+    val shown = word.substring(0, pos) + word[pos].uppercaseChar() + '\u0301' + word.substring(pos + 1)
+    text = SpannableString(shown).apply {
+        setSpan(StyleSpan(Typeface.BOLD), pos, pos + 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        setSpan(ForegroundColorSpan(MaterialColors.getColor(this@showStress, com.google.android.material.R.attr.colorPrimary)), pos, pos + 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+    contentDescription = context.getString(R.string.stress_chip, DictLines.accentDisplay(word.substring(0, pos) + "+" + word.substring(pos)), n, total, vowel.toString())
+}

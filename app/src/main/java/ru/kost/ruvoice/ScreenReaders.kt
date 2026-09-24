@@ -58,6 +58,12 @@ object ScreenReaders {
         return Caller(pkg, label, pkg in KNOWN || pkg in spoken)
     }
 
+    /** Включён ли в системе хоть один экранный чтец — служба доступности с речью или исследование касанием. */
+    fun anyActive(context: Context): Boolean = runCatching {
+        val am = context.getSystemService(AccessibilityManager::class.java) ?: return false
+        am.isTouchExplorationEnabled || am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN).isNotEmpty()
+    }.getOrDefault(false)
+
     /** С учётом решения пользователя. */
     fun isScreenReader(prefs: Prefs, c: Caller): Boolean = when (c.pkg) {
         in prefs.srForce -> true

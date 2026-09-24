@@ -503,7 +503,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
                 // у всех чипов из item_chip.xml один и тот же android:id — ChipGroup.checkedChipId
                 // различает их только по id, назначаем каждому свой
                 chip.id = View.generateViewId()
-                chip.text = DictLines.accentDisplay(word.substring(0, pos) + "+" + word.substring(pos))
+                chip.showStress(word, pos)
                 chip.tag = pos
                 chip.setOnCheckedChangeListener { _, _ -> updateSaveEnabled() }
                 chips.addView(chip)
@@ -708,7 +708,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             for (pos in DictLines.vowelPositions(bare)) {
                 val chip = LayoutInflater.from(ctx).inflate(R.layout.item_chip, stressChips, false) as Chip
                 chip.id = View.generateViewId()
-                chip.text = DictLines.accentDisplay(bare.substring(0, pos) + "+" + bare.substring(pos))
+                chip.showStress(bare, pos)
                 chip.isChecked = pos == stressed
                 chip.setOnClickListener {
                     rebuilding = true

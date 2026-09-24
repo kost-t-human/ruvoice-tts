@@ -31,3 +31,17 @@ class TalkBackTextTest {
         assertEquals("с одного по пять вкл.", Normalizer.numbers("с 1 по 5 вкл."))
     }
 }
+
+/** Смещения подсветки после подстановки TtsSpan указывают в текст клиента. */
+class SpanTextMapTest {
+    @Test fun offsetsBackToClientText() {
+        val m = SpanText.mapped("Привет,мир.", listOf(Triple(6, 7, "запятая")))
+        assertEquals("Привет запятая мир.", m.text)
+        val at = m.text.indexOf("запятая")
+        assertEquals(6, m.orig(at))                 // название — на месте знака
+        assertEquals(7, m.orig(at + "запятая".length - 1) + 1)
+        val mir = m.text.indexOf("мир")
+        assertEquals(7, m.orig(mir))                // «мир» — там же, где у клиента
+        assertEquals(11, m.orig(m.text.length))
+    }
+}
