@@ -15,6 +15,14 @@ class SymbolNamesTest {
         assertEquals("ударение", say("Ударение ▾"))
     }
 
+    // выкинутый фильтром знак не склеивает слова
+    @Test fun droppedSymbolKeepsGap() {
+        assertEquals("и или", say("и/или"))
+        assertEquals("мама папа", say("мама/папа"))
+        assertEquals("он ушёл.", say("Он ушёл.*"))
+        assertEquals("глава первая начало", say("Глава 1 | Начало"))
+    }
+
     @Test fun named() {
         assertEquals("а стрелка вправо б", say("а → б", on))
         assertEquals("ударение треугольник вниз", say("Ударение ▾", on))

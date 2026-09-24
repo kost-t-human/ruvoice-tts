@@ -1885,7 +1885,9 @@ object Normalizer {
         // тот же numberRe, что уже умеет «-5» (task 18 п.4).
         // Комбинированное ударение (U+0301) → «+» перед гласной, как ждёт модель; невидимые
         // соединители (U+200B–U+200D, U+FEFF) выкидываем — иначе слово рвётся на куски.
-        var s = combiningAcuteRe.replace(text) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
+        // Эмодзи — до выкидывания соединителей: «👨‍👩‍👧» держится на U+200D, а «1️⃣» ушёл бы в числа.
+        var s = Emoji.shared?.takeIf { rules.on("emoji") }?.apply(text) ?: text
+        s = combiningAcuteRe.replace(s) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
         // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
         s = step("phones", ::phones)(s)
         // «+15%», «+5 °C» — «плюс»; «5 + 3» и «5+3» остаются arithmetic().
@@ -2099,10 +2101,17 @@ object Normalizer {
         for (c in normalized) {
             if (c in allowed) sb.append(c)
             // знак, который фильтр выкинул бы, — словом в пробелах; ударение «+» не трогаем
-            else if (names && c != '+') SymbolNames.of(c)?.let { sb.append(' ').append(it).append(' ') }
+            else if (names && c != '+' && SymbolNames.of(c) != null) sb.append(' ').append(SymbolNames.of(c)).append(' ')
+            // выкинутый знак — пробел, иначе «и/или» слипается в «иили»; буквы чужих алфавитов и
+            // надстрочные знаки выпадают без следа
+            else if (!c.isLetter() && Character.getType(c) != Character.NON_SPACING_MARK.toInt()) sb.append(GAP)
         }
-        return sb.toString().replace(Regex("\\s+"), " ").trim()
+        // пробел нужен только между словами: у пробела, знака препинания и края строки зазор не ставим
+        val gapped = if (GAP !in sb) sb.toString() else gapEdgeRe.replace(sb, "").replace(GAP, ' ')
+        return gapped.replace(Regex("\\s+"), " ").trim()
     }
+    private const val GAP = '\u0000'
+    private val gapEdgeRe = Regex("""\u0000+(?=[\s.,!?;:…»)]|$)|(?<=^|[\s«(])\u0000+""")
 
     // Регистр НЕ приводим к нижнему здесь: numbers() должен видеть исходный регистр — иначе
     // римские цифры в CAPS-токене («Людовик XIV») теряют признак «весь токен заглавный» ещё

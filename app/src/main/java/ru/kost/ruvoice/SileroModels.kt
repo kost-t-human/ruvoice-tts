@@ -8,6 +8,7 @@ import org.pytorch.LitePyTorchAndroid
 import org.pytorch.Module
 import org.pytorch.Tensor
 import org.pytorch.executorch.EValue
+import ru.kost.ruvoice.text.Emoji
 import ru.kost.ruvoice.text.Morph
 import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.HardE
@@ -192,6 +193,7 @@ class SileroModels(private val context: Context) : StressModels {
                 Normalizer.morph = runCatching { Morph.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "morph.bin не открылся", e) }.getOrNull()
                 YoDict.shared = runCatching { YoDict.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "eyo_safe.txt не открылся", e) }.getOrNull()
                 HardE.shared = runCatching { HardE.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "hard_e.txt не открылся", e) }.getOrNull()
+                Emoji.shared = runCatching { Emoji.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "emoji_ru.tsv не открылся", e) }.getOrNull()
             }
         }
     }
