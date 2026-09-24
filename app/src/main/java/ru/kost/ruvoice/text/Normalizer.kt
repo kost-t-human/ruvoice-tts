@@ -143,7 +143,7 @@ object Normalizer {
     private val asciiArrowRe = Regex("""(?<![-=<>])(?:-+>|=+>|>>)(?![>=])""")
     // Черта из знаков — подпись на форуме («--------------------»), разделитель в тексте («=====», «_____», «***»):
     // пауза как у тире. Раньше дефисы уходили в модель как есть, а при symbol_names «*» звучала двадцать раз.
-    private val ruleLineRe = Regex("""(?<![\p{L}\d])[-_=*~#]{3,}(?![\p{L}\d])""")
+    private val ruleLineRe = Regex("""(?<![\p{L}\d])([-_=*~#])\1{2,}(?![\p{L}\d])""")
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
@@ -1779,16 +1779,77 @@ object Normalizer {
     // «PDA» с гласной читается словом). И в тексте, и в адресе («4pda.to»).
     private val namedReadings = listOf(Regex("""(?<![\p{L}\d])4pda(?![\p{L}\d])""", RegexOption.IGNORE_CASE) to "четыре пи ди эй")
     private fun namedReadings(text: String) = namedReadings.fold(text) { t, (re, v) -> re.replace(t, v) }
-    // Текстовые смайлы — словами, как эмодзи (правило emoji): «:D» — «смеётся» (было «двоеточие д»), «:)» — «улыбается».
-    // Только отдельным словом; русские «))» после текста — не смайл-слово, их съедает пауза скобки.
-    private val asciiSmileyRe = Regex("""(?<![\p{L}\d:;=])(?::-?\)+|:-?D+|[xX]D+|;-?\)+|:-?\(+|:-?[pPрР]|=\)+)(?![\p{L}\d])""")
-    private val asciiSmileys = mapOf("smile" to "улыбается", "laugh" to "смеётся", "wink" to "подмигивает", "sad" to "грустит", "tongue" to "показывает язык")
-    private fun asciiSmileyKey(v: String) = when {
-        v.startsWith(";") -> "wink"
-        v.endsWith("(") -> "sad"
-        v.last() == 'D' -> "laugh"
-        v.last() in "pPрР" -> "tongue"
-        else -> "smile"
+    // Смайлы словами, как эмодзи (правило emoji), глаголом, как у имён CLDR: «:D» — «смеётся» (было «двоеточие д»).
+    // Только отдельным словом: «в 3:)», «http://» не трогаются. Повтор внутри смайла («:)))») — один раз.
+    private val asciiSmileys = listOf(
+        """:-?\)+|=\)+|\^_*\^""" to "улыбается",
+        """:-?D+|[xXхХ]D+""" to "смеётся",
+        """;-?\)+""" to "подмигивает",
+        """:-?\(+|=\(+""" to "грустит",
+        """:['’]-?\(+|[TТ]_[TТ]|;-?\(+""" to "плачет",
+        """:-?[pPрР]""" to "показывает язык",
+        """:-?[oOоО0]|[oOоО]_[oOоО]""" to "удивляется",
+        """:-?\*""" to "целует",
+        """-_-""" to "недоволен",
+        // «n <3», «x < 3» — сравнение, не сердце
+        """(?<![A-Za-z\d]\s)<3""" to "сердце",
+    )
+    private val asciiSmileyRe = Regex(asciiSmileys.joinToString("|", """(?<![\p{L}\d:;=<^_-])(?:""", """)(?![\p{L}\d_^])""") { "(${it.first})" })
+    private fun asciiSmiley(m: MatchResult) = asciiSmileys[(1..asciiSmileys.size).first { m.groups[it] != null } - 1].second
+
+    // Смайлы-коды форумов и мессенджеров: картинка на 4PDA приходит от TalkBack подписью «:blush:», «:censored:».
+    // Известные — словами, остальные — самим словом без двоеточий («:thank_you:» — «thank you», дальше транслит).
+    private val shortcodeRe = Regex("""(?<![\p{L}\d:/]):([a-z][a-z0-9_+-]{1,30}):(?![\p{L}\d:])""")
+    private val shortcodes = mapOf("smile" to "улыбается", "smiley" to "улыбается", "happy" to "радуется", "biggrin" to "смеётся",
+        "lol" to "смеётся", "laugh" to "смеётся", "rofl" to "катается от смеха", "joy" to "смеётся до слёз", "wink" to "подмигивает",
+        "sad" to "грустит", "cry" to "плачет", "angry" to "злится", "mad" to "злится", "blush" to "краснеет", "girl_blush" to "краснеет",
+        "censored" to "цензура", "facepalm" to "рука-лицо", "shok" to "в шоке", "shock" to "в шоке", "wacko" to "в замешательстве",
+        "huh" to "недоумевает", "unsure" to "сомневается", "blink" to "моргает", "beee" to "показывает язык", "tongue" to "показывает язык",
+        "clapping" to "аплодирует", "clap" to "аплодирует", "good" to "класс", "thumbsup" to "большой палец вверх", "+1" to "большой палец вверх",
+        "thumbsdown" to "большой палец вниз", "-1" to "большой палец вниз", "thank_you" to "спасибо", "yes" to "да", "yes2" to "да",
+        "no" to "нет", "ok" to "окей", "heart" to "сердце", "fire" to "огонь", "cool" to "круто", "kiss" to "целует", "hi" to "машет рукой",
+        "bye" to "машет рукой", "sleep" to "спит", "sick" to "болеет", "scare" to "испуган", "rolleyes" to "закатывает глаза", "dry" to "недоволен")
+    private fun shortcodes(text: String) = shortcodeRe.replace(text) { m ->
+        ", " + (shortcodes[m.groupValues[1]] ?: m.groupValues[1].replace('_', ' ').replace('-', ' ')) + ", "
+    }
+
+    // Скобка-смайл, как пишут в рунете: «спасибо))», «ладно)))))» — «улыбается» (один раз), «жаль((» — «грустит».
+    // Смайл — две и больше скобки без пары: «(см. рис.)», «(спасибо :))» — обычные скобки, пауза, как было. Одна «)» без
+    // пары — не смайл: текст приходит по предложениям, и скобка из книги («(Он ушёл. Она осталась)») закрывается уже
+    // в следующем; так же «1)», «а)» и обрывки подписей, которые TalkBack шлёт по частям («%)»).
+    private val smileyRepeatRe = Regex("""(?<![а-яё])(улыбается|смеётся|грустит|плачет|подмигивает)(?:[\s.,…!?]+\1(?![а-яё]))+""")
+    private fun parenSmileys(text: String): String {
+        if (!text.contains("))") && !text.contains("((")) return text
+        val n = text.length
+        // без пары: «)» — слева направо, «(» — справа налево
+        val lone = BooleanArray(n)
+        var depth = 0
+        for (i in 0 until n) when (text[i]) { '(' -> depth++; ')' -> if (depth > 0) depth-- else lone[i] = true }
+        depth = 0
+        for (i in n - 1 downTo 0) when (text[i]) { ')' -> if (!lone[i]) depth++; '(' -> if (depth > 0) depth-- else lone[i] = true }
+        if (lone.none { it }) return text
+        val sb = StringBuilder(n + 16)
+        var i = 0
+        while (i < n) {
+            val c = text[i]
+            if (c != '(' && c != ')') { sb.append(c); i++; continue }
+            var j = i
+            while (j < n && text[j] == c) j++
+            val single = j - i
+            val loneCount = (i until j).count { lone[it] }
+            val kept = c.toString().repeat(single - loneCount)
+            val before = text.substring(0, i)
+            val after = text.substring(j)
+            val smile = loneCount >= 2 && before.isNotBlank() && when (c) {
+                ')' -> true
+                // «((» — в конце слова или фразы, а не перед текстом («((a) b)» — скобки)
+                else -> after.isBlank() || !after.first().isLetterOrDigit()
+            }
+            if (smile) sb.append(if (c == ')') kept else "").append(", ").append(if (c == ')') "улыбается" else "грустит").append(", ").append(if (c == '(') kept else "")
+            else sb.append(text, i, j)
+            i = j
+        }
+        return sb.toString()
     }
     private val minusBetweenRe = Regex("""(?<=\d)\s*−\s*(?=\d)""")
     private val tildeRe = Regex("""(?<![\p{L}\d])~\s*(?=\d)""")
@@ -2010,7 +2071,13 @@ object Normalizer {
         // Эмодзи — до выкидывания соединителей: «👨‍👩‍👧» держится на U+200D, а «1️⃣» ушёл бы в числа.
         var s = Emoji.shared?.takeIf { rules.on("emoji") }?.apply(text) ?: text
         s = namedReadings(s)
-        if (rules.on("emoji")) s = asciiSmileyRe.replace(s) { m -> ", " + asciiSmileys.getValue(asciiSmileyKey(m.value)) + ", " }
+        if (rules.on("emoji")) {
+            s = shortcodes(s)
+            s = asciiSmileyRe.replace(s) { m -> ", " + asciiSmiley(m) + ", " }
+            s = parenSmileys(s)
+            // один и тот же смайл подряд («....)).....))», «:) :)») — один раз, как повтор эмодзи
+            s = smileyRepeatRe.replace(s, "$1")
+        }
         s = precomposedStressRe.replace(s) { "" + precomposedBase.getValue(it.value[0]) + '\u0301' }
         s = combiningAcuteRe.replace(s) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
         // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
