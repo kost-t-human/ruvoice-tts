@@ -72,6 +72,8 @@
             android:layout_marginTop="4dp">
             <TextView
                 android:id="@+id/help"
+                android:focusable="true"
+                android:background="?attr/selectableItemBackground"
                 style="@style/SectionHint"
                 android:layout_width="wrap_content"
                 android:layout_marginBottom="0dp"

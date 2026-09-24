@@ -1,11 +1,17 @@
 package ru.kost.ruvoice
 
+import android.app.Activity
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import android.widget.EditText
 import android.widget.CompoundButton
 import android.widget.Switch
 import androidx.core.view.AccessibilityDelegateCompat
@@ -83,3 +89,35 @@ fun Snackbar.patient(): Snackbar = apply {
 }
 
 private const val PATIENT_MS = 30_000
+
+/** Enter в поле (Done на экранной клавиатуре, Enter на физической) — как нажатие [button], если она
+ * активна: с клавиатурой и Switch Access не надо идти фокусом до «Сохранить». Поле — однострочное. */
+fun EditText.submits(button: () -> Button?) {
+    isSingleLine = true
+    imeOptions = EditorInfo.IME_ACTION_DONE
+    setOnEditorActionListener { _, id, ev ->
+        val enter = ev?.keyCode == KeyEvent.KEYCODE_ENTER
+        if (id != EditorInfo.IME_ACTION_DONE && !enter) return@setOnEditorActionListener false
+        // физический Enter приходит дважды (нажатие и отпускание) — срабатываем на нажатие
+        if (ev == null || ev.action == KeyEvent.ACTION_DOWN) button()?.takeIf { it.isEnabled }?.performClick()
+        true
+    }
+}
+
+/** Ctrl+F на физической клавиатуре — в видимое поле поиска (правила, списки словарей), как в браузере
+ * и почте. Для Activity.onKeyShortcut; false — не наше сочетание или поиска на экране нет. */
+fun Activity.ctrlF(keyCode: Int, event: KeyEvent): Boolean {
+    if (keyCode != KeyEvent.KEYCODE_F || !event.isCtrlPressed) return false
+    fun find(v: View): EditText? {
+        if (!v.isShown) return null
+        if (v is EditText && v.id in SEARCH_IDS) return v
+        if (v is ViewGroup) for (i in 0 until v.childCount) find(v.getChildAt(i))?.let { return it }
+        return null
+    }
+    val field = find(window.decorView) ?: return false
+    field.requestFocus()
+    field.selectAll()
+    return true
+}
+
+private val SEARCH_IDS = setOf(R.id.rulesFilter, R.id.filter)

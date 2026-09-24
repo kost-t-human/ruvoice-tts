@@ -1,5 +1,7 @@
 package ru.kost.ruvoice
 
+import android.view.View
+import android.view.ViewGroup
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.accessibility.AccessibilityChecks
@@ -8,11 +10,13 @@ import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.closeSoftKeyboard
 import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
+import androidx.test.espresso.matcher.ViewMatchers.isRoot
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.hamcrest.Matchers.allOf
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
@@ -40,11 +44,28 @@ class AccessibilityChecksTest {
         Prefs(ctx).setupShown = true // иначе окно «Как включить» закрывает экран
     }
 
+    /** Всё, что нажимается, берёт фокус: иначе физическая клавиатура и Switch Access до него не дойдут
+     * (ATF этого не проверяет — TalkBack кликабельное находит и без фокуса). */
+    private fun assertKeyboardReachable() = onView(isRoot()).check { root, _ ->
+        val bad = ArrayList<String>()
+        fun walk(v: View) {
+            if (!v.isShown) return
+            if (v.isClickable && v.isEnabled && !v.isFocusable)
+                bad += runCatching { v.resources.getResourceEntryName(v.id) }.getOrDefault(v.javaClass.simpleName)
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(root)
+        if (bad.isNotEmpty()) fail("Нажимается, но не берёт фокус: " + bad.joinToString())
+    }
+
     /** Все вкладки настроек по очереди — проверки идут на каждом нажатии. */
     @Test fun settingsTabs() {
         ActivityScenario.launch(SettingsActivity::class.java).use {
-            for (tab in listOf(R.string.tab_pauses, R.string.tab_stress, R.string.tab_replace, R.string.tab_audit, R.string.tab_voice))
+            assertKeyboardReachable()
+            for (tab in listOf(R.string.tab_pauses, R.string.tab_stress, R.string.tab_replace, R.string.tab_audit, R.string.tab_voice)) {
                 onView(allOf(withText(ctx.getString(tab)), isDescendantOfA(withId(R.id.tabs)))).perform(click())
+                assertKeyboardReachable()
+            }
         }
     }
 
@@ -53,6 +74,7 @@ class AccessibilityChecksTest {
         ActivityScenario.launch(RulesActivity::class.java).use {
             onView(withId(R.id.rulesFilter)).perform(replaceText("телефон"), closeSoftKeyboard())
             onView(withId(R.id.rulesFilter)).perform(clearText(), closeSoftKeyboard())
+            assertKeyboardReachable()
         }
     }
 

@@ -389,6 +389,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
             .setPositiveButton(R.string.save) { _, _ -> onOk(field.text.toString().trim()) }
             .setNegativeButton(R.string.cancel, null).create()
         dialog.setOnShowListener { posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE); validate() }
+        field.submits { posButton }
         dialog.show()
     }
 
@@ -583,6 +584,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
             posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             updateSaveEnabled()
         }
+        wordField.submits { posButton }
         dialog.show()
     }
 }
@@ -772,6 +774,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             validate()
         }
+        valueField.submits { posButton }
         dialog.show()
     }
 }

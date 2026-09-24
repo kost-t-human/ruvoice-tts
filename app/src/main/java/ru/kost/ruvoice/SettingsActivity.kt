@@ -6,6 +6,7 @@ import android.content.Intent
 import java.io.File
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.text.method.LinkMovementMethod
@@ -59,6 +60,8 @@ class SettingsActivity : AppCompatActivity() {
         }
     private val packLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) installPack(uri) }
+
+    override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean = ctrlF(keyCode, event) || super.onKeyShortcut(keyCode, event)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)

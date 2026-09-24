@@ -1,6 +1,7 @@
 package ru.kost.ruvoice
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -25,4 +26,6 @@ class RulesActivity : AppCompatActivity() {
         }
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
     }
+
+    override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean = ctrlF(keyCode, event) || super.onKeyShortcut(keyCode, event)
 }

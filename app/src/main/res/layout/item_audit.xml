@@ -6,6 +6,7 @@
     android:layout_height="wrap_content"
     android:paddingHorizontal="16dp"
     android:paddingVertical="10dp"
+    android:focusable="true"
     android:background="?attr/selectableItemBackground">
 
     <LinearLayout
