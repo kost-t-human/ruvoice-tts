@@ -13,6 +13,8 @@ import android.view.inputmethod.EditorInfo
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import android.widget.CompoundButton
 import android.widget.Switch
 import androidx.core.view.AccessibilityDelegateCompat
@@ -134,5 +136,22 @@ fun AutoCompleteTextView.opensFromKeyboard() {
             (code == KeyEvent.KEYCODE_DPAD_DOWN && ev.isAltPressed)
         if (open) showDropDown()
         open
+    }
+}
+
+/** Сообщение окна с процентами («37 %») — живая область: чтец сам скажет, как идёт работа, фокус остаётся
+ * на «Отмене». При чтеце текст меняется только шагами по 10 %: каждые полсекунды TalkBack перебивал бы
+ * себя и не договаривал ни одного числа. Без чтеца — как раньше, на каждое изменение. Окно — после show(). */
+class LiveProgress(private val dialog: AlertDialog) {
+    private val reader = ScreenReaders.anyActive(dialog.context)
+    private var step = -1
+
+    init {
+        dialog.findViewById<TextView>(android.R.id.message)?.let { ViewCompat.setAccessibilityLiveRegion(it, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE) }
+    }
+
+    fun show(pct: Int, text: CharSequence) {
+        if (reader) { val s = pct / 10; if (s == step) return; step = s }
+        dialog.setMessage(text)
     }
 }

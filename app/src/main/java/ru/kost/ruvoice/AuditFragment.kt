@@ -157,6 +157,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         scanCancelled = false
         val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage("0 %")
             .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
+        val live = LiveProgress(dialog)
         Thread {
             val models = SileroModels(ctx)
             val audit = prefs.audit
@@ -169,7 +170,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 val stress = Stress(d, models, userDict, Rules(r.off + setOf("gram", "homo"), r.maxLen, r.focus))
                 val known = Audit.known(d, userDict)
                 var shown = -1
-                fun progress(pct: Int) { if (pct != shown) { shown = pct; activity?.runOnUiThread { dialog.setMessage("$pct %") } } }
+                fun progress(pct: Int) { if (pct != shown) { shown = pct; activity?.runOnUiThread { live.show(pct, "$pct %") } } }
                 // слово → сколько раз и кусок текста вокруг первого вхождения (по границам слов)
                 val found = LinkedHashMap<String, Pair<Int, String>>()
                 val lines = text.lines()
@@ -288,6 +289,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         scanCancelled = false
         val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.accent_book).setMessage(R.string.accent_book_loading)
             .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
+        val live = LiveProgress(dialog)
         // на час работы экран не гасим: в фоне процесс могут прибить
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         Thread {
@@ -301,7 +303,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                     val now = System.currentTimeMillis()
                     if (pct != shownPct || now - shownAt >= 400) {
                         shownPct = pct; shownAt = now
-                        activity?.runOnUiThread { dialog.setMessage(ctx.getString(R.string.accent_book_progress, pct, i, n)) }
+                        activity?.runOnUiThread { live.show(pct, ctx.getString(R.string.accent_book_progress, pct, i, n)) }
                     }
                     !scanCancelled
                 }
@@ -400,7 +402,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         mode.check(if (prefs.auditReplace) R.id.modeReplace else R.id.modeStress)
         mode.addOnButtonCheckedListener { _, _, isChecked -> if (isChecked) switchMode() }
         switchMode()
-        MaterialAlertDialogBuilder(ctx).setTitle(DictLines.accentDisplay(e.variant)).setView(view)
+        val dialog = MaterialAlertDialogBuilder(ctx).setTitle(DictLines.accentDisplay(e.variant)).setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
                 val replace = replaceMode(); prefs.auditReplace = replace
                 val name = target.text.toString().ifBlank { Dicts.MAIN }
@@ -428,5 +430,15 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                     }.patient().show()
             }
             .setNegativeButton(R.string.cancel, null).show()
+        // пустая замена или ни одной гласной — «Сохранить» неактивна: иначе окно молча закрывалось без записи,
+        // а с чтецом и не понять, что ничего не сохранилось
+        val save = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+        fun validate() {
+            save.isEnabled = if (replaceMode()) valueField.text.toString().any { it != '=' && !it.isWhitespace() } else selectedPos() != null
+        }
+        valueField.doAfterTextChanged { validate() }
+        chips.setOnCheckedStateChangeListener { _, _ -> validate() }
+        mode.addOnButtonCheckedListener { _, _, isChecked -> if (isChecked) validate() }
+        validate()
     }
 }
