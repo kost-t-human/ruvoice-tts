@@ -206,23 +206,15 @@ object Normalizer {
     // только когда группа круглая («000»), сразу следует ещё одна группа из трёх цифр
     // («1 200 000») или за группой идут деньги/единица измерения («1 200 рублей», «2 500 км»),
     // иначе это, вероятнее всего, два разных числа подряд («глава 1 200 читателей», review t17 п.2).
-    private val thousandsSpaceRe = Regex("""(\d) (\d{3})(?!\d)""")
-    private val moreGroupAheadRe = Regex("""^ \d{3}(?!\d)""")
-    private fun glueThousandsSpace(text: String): String {
-        var s = text
-        while (true) {
-            var changed = false
-            val r = thousandsSpaceRe.replace(s) { m ->
-                val group = m.groupValues[2]
-                val tail = s.substring(m.range.last + 1)
-                if (group == "000" || moreGroupAheadRe.containsMatchIn(tail) || moneyOrUnitAheadRe.containsMatchIn(tail)) {
-                    changed = true
-                    m.groupValues[1] + group
-                } else m.value
-            }
-            if (!changed) return r
-            s = r
-        }
+    // Цепочка целиком («8 000 000 000»): попарная склейка в цикле съедала цифру соседней группы
+    // и давала «8000 000000» → «восемь тысяч ноль».
+    private val thousandsSpaceRe = Regex("""(?<!\d)(\d{1,3})((?: \d{3})+)(?!\d)""")
+    private fun glueThousandsSpace(text: String) = thousandsSpaceRe.replace(text) { m ->
+        val groups = m.groupValues[2]
+        val tail = text.substring(m.range.last + 1)
+        if (groups.length > 4 || groups == " 000" || moneyOrUnitAheadRe.containsMatchIn(tail))
+            m.groupValues[1] + groups.replace(" ", "")
+        else m.value
     }
 
     // 2. Сноски вида «[1]» — вырезаются, двойной пробел на их месте схлопывается.
@@ -450,12 +442,20 @@ object Normalizer {
     // После двоеточия («06:58:07.2») — секунды с долями, их читает times().
     private val dateNoYearRe = Regex("""(?<![\d.:])(?<![A-Za-z×*+=÷^−] ?)(\d{1,2})\.(\d{1,2})(?![\d.])""")
 
+    // ISO «2024-05-12» — та же дата, что «12.05.2024».
+    private val dateIsoRe = Regex("""(?<![\d\-\u2010-\u2014.])([12]\d{3})-(\d{2})-(\d{2})(?![\d\-\u2010-\u2014]|[.,]\d)""")
+
     private fun dates(text: String): String {
-        val withYear = dateWithYearRe.replace(text) { m ->
+        val iso = dateIsoRe.replace(text) { m ->
+            val (y, mo, d) = m.destructured
+            val day = d.toInt(); val month = mo.toInt()
+            if (day !in 1..31 || month !in 1..12) m.value else "$day-го ${monthGenitive[month]} $y-го года"
+        }
+        val withYear = dateWithYearRe.replace(iso) { m ->
             val (d, mo, y, gTail) = m.destructured
             val day = d.toInt(); val month = mo.toInt()
             if (day !in 1..31 || month !in 1..12) return@replace m.value
-            val rest = text.substring(m.range.last + 1)
+            val rest = iso.substring(m.range.last + 1)
             if (gTail.isEmpty() && dateTailUnitRe.containsMatchIn(rest)) return@replace m.value
             // «г.» перед заглавной/концом текста — ещё и точка предложения, её сохраняем.
             val dot = if (gTail.trim() == "г." && sentenceEndAheadRe.containsMatchIn(rest)) "." else ""
@@ -1735,6 +1735,7 @@ object Normalizer {
         return out
     }
 
+    private val unaryPlusRe = Regex("""(?<![\p{L}\d)+])(?<![\d)] )\+ ?(?=\d)""")
     private val dotThousandsRe = Regex("""(?<![\d.])(?<!\d,)\d{1,3}\.\d{3}\.\d{3}(?![\d.]|,\d)""")
 
     // Телефоны: TalkBack читает ими звонки, СМС и контакты. Без этого прохода «+7 900 083 09 93»
@@ -1875,6 +1876,8 @@ object Normalizer {
         var s = combiningAcuteRe.replace(text) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
         // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
         s = step("phones", ::phones)(s)
+        // «+15%», «+5 °C» — «плюс»; «5 + 3» и «5+3» остаются arithmetic().
+        if (rules.on("numbers")) s = unaryPlusRe.replace(s, "плюс ")
         // «5−2» (настоящий минус между числами) — «минус»; остальные «−» — как дефис для numberRe.
         s = minusBetweenRe.replace(s, " минус ").replace('−', '-')
         s = tildeRe.replace(s, "примерно ")
