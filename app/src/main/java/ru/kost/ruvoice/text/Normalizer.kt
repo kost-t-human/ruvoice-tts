@@ -325,6 +325,21 @@ object Normalizer {
         return if (eligible) value.toString() else token
     }
 
+    // «в 12 в.», «15–16 вв.», «с 16 по 18 в.» — века арабскими цифрами переписываем римскими, дальше
+    // склоняет romanNumerals («в двенадцатом веке»); иначе units читал «в двенадцати веках». Больше 30 — вольты.
+    // Только после предлога или «начала/конца…»: «строили 2 в. подряд» — количество, «два века».
+    private val arabicCenturyRe = Regex("""(?<=(?<![\p{L}])(?:[вВ]о?|[сСкК]о?|[дД]о|[пП]о|[оО]т|[иИ]з|[нН]а|[оО]б?|[нН]ачала|[кК]онца|[сС]ередины|[рР]убежа|[пП]оловины)\s)(\d{1,2})(?:(\s*[–—-]\s*|\s+(?:по|до|и)\s+)(\d{1,2}))?\s*(вв?\.)""")
+    private fun toRoman(n: Int): String {
+        var k = n
+        return buildString { for ((v, r) in listOf(10 to "X", 9 to "IX", 5 to "V", 4 to "IV", 1 to "I")) while (k >= v) { append(r); k -= v } }
+    }
+    private fun arabicCentury(text: String) = arabicCenturyRe.replace(text) { m ->
+        val (a, conn, b, noun) = m.destructured
+        val nums = listOfNotNull(a.toInt(), b.toIntOrNull())
+        if (nums.any { it !in 1..30 }) m.value
+        else toRoman(nums[0]) + (if (b.isEmpty()) "" else conn + toRoman(nums[1])) + " " + noun
+    }
+
     private fun romanNumerals(text: String) = romanRe.replace(text) { m ->
         val (prep, before, tok1, conn, tok2, tok3, after) = m.destructured
         val v1 = romanValue(tok1) ?: return@replace m.value
@@ -344,7 +359,7 @@ object Normalizer {
         val plural = v2 != null && conn.lowercase() !in setOf("по", "до")
         val prepCase = romanPrepCase[prep.lowercase()]
         // Одно число + «вв.» — старое чтение «двадцатые века» (task 28 п.6).
-        if (v2 == null && after.lowercase() == "вв." && before.isEmpty()) return@replace "${if (prep.isEmpty()) "" else "$prep "}$v1-ые века"
+        if (v2 == null && after.lowercase() == "вв." && before.isEmpty()) return@replace "${if (prep.isEmpty()) "" else "$prep "}$v1-ые века" + endDot(text, m, after)
         val nounCase = if (noun.endsWith(".")) null else romanNounCase(noun, plural)
         val range = v2 != null && conn.lowercase() in setOf("по", "до")
         // «с XVI по XVIII век»: существительное согласуется со вторым числом, первое — по предлогу.
@@ -368,10 +383,14 @@ object Normalizer {
                 "кв." -> quarterSg[nounCaseIdx]
                 else -> after
             }
-            sb.append(' ').append(word)
+            sb.append(' ').append(word).append(endDot(text, m, after))
         }
         sb.toString()
     }
+    // «в.», «вв.», «кв.» перед следующим предложением — точка сокращения заодно и конец фразы: «в XII в. Потом…»
+    private val sentenceAfterRe = Regex("""^\s+[А-ЯЁA-Z]""")
+    private fun endDot(text: String, m: MatchResult, after: String) =
+        if (after.endsWith(".") && sentenceAfterRe.containsMatchIn(text.substring(m.range.last + 1))) "." else ""
 
     // 3b. Римское число после имени с заглавной (task 28 п.2): «Пётр I», «Екатерина II» →
     // порядковое через суффикс для numberRe. Падеж — по окончанию имени, род — по списку женских
@@ -1952,6 +1971,7 @@ object Normalizer {
         // (eligibleAlone в romanNumerals не заглядывает влево, task 18 п.4).
         s = step("degrees", ::degrees)(s)
         s = step("roman_name", ::romanAfterName)(s)
+        s = step("roman", ::arabicCentury)(s)
         s = step("roman", ::romanNumerals)(s)
         // до дат и единиц: «Р-7А» иначе «семь ампер», «УР-100Н» — «сто ньютонов»
         s = step("letter_digit", ::cyrCodes)(s)

@@ -104,4 +104,13 @@ class NumbersTest {
         assertEquals("напряжение двести двадцать вольт.", Normalizer.prepare("Напряжение 220 В.", allowed))
         assertEquals("сеть сто двадцать семь вольт, потом триста восемьдесят вольт.", Normalizer.prepare("Сеть 127 В, потом 380 В.", allowed))
     }
+
+    @Test fun arabicCenturyReadAsOrdinal() {
+        val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
+        assertEquals("построен в двенадцатом веке. потом ушли.", Normalizer.prepare("Построен в 12 в. Потом ушли.", allowed))
+        assertEquals("с шестнадцатого по восемнадцатый век было.", Normalizer.prepare("С 16 по 18 в. было.", allowed))
+        assertEquals("в пятнадцатом – шестнадцатом веках строили.", Normalizer.prepare("В 15–16 вв. строили.", allowed))
+        assertEquals("начала девятнадцатого века", Normalizer.prepare("Начала 19 в.", allowed))
+        assertEquals("крепость строили два века подряд.", Normalizer.prepare("Крепость строили 2 в. подряд.", allowed))
+    }
 }
