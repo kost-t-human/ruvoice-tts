@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Темп, высота и громкость экранного чтеца (секция «Для TalkBack», RulesFragment): множители поверх темпа и
+<!-- Темп, высота и громкость экранного чтеца (секция «Чтение с экрана», RulesFragment): множители поверх темпа и
      высоты самого TalkBack, вместо ползунков «Голоса». Подпись «×1.00» над ползунком TalkBack не
      слышит — название и значение у самого ползунка (rateSlider). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"

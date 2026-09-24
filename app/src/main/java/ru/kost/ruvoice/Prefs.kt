@@ -56,7 +56,7 @@ class Prefs(private val context: Context) {
     var quoteVoice: String get() = p.getString("quote_voice", "")!!; set(v) = p.edit().putString("quote_voice", v).apply()
     var quoteRate: Float get() = p.getFloat("quote_rate", 1f); set(v) = p.edit().putFloat("quote_rate", v).apply()
     var quotePitch: Float get() = p.getFloat("quote_pitch", 1f); set(v) = p.edit().putFloat("quote_pitch", v).apply()
-    /** Темп и высота для экранного чтеца (секция «Для TalkBack»): множители поверх темпа самого TalkBack
+    /** Темп и высота для экранного чтеца (секция «Чтение с экрана»): множители поверх темпа самого TalkBack
      * вместо rate/pitch — книги и TalkBack настраиваются отдельно. */
     /** Громкость голоса — множитель звука модели (0,5–2), свой для экранного чтеца. */
     var volume: Float get() = p.getFloat("volume", 1f); set(v) = p.edit().putFloat("volume", v).apply()

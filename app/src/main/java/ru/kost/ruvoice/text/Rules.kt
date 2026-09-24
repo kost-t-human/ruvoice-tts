@@ -15,7 +15,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
     fun with(key: String, on: Boolean): Rules =
         if (on(key) == on) this else Rules(if (key in off) off - key else off + key, maxLen, focus)
 
-    /** Правила для запроса экранного чтеца (TalkBack и др.) — секция «Для TalkBack» поверх общих:
+    /** Правила для запроса экранного чтеца (TalkBack и др.) — секция «Чтение с экрана» поверх общих:
      * служебные символы словами, без голоса прямой речи и без тишины перед фразой. Паузы между
      * предложениями (sr_pauses_off), выгрузку модели (sr_keep_loaded), темп и высоту чтеца решает сервис. */
     fun screenReader(): Rules {
@@ -40,7 +40,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         /** Правила, выключенные по умолчанию. */
         val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails")
 
-        /** Порядок списка = порядок на экране. Вверху «Для TalkBack» (только запросы экранного чтеца),
+        /** Порядок списка = порядок на экране. Вверху «Чтение с экрана» (только запросы экранного чтеца),
          * за ней «Разное» — для настроек без своего раздела. */
         val KEYS = listOf(
             "sr_symbols", "sr_quote_off", "sr_lead_in_off", "sr_pauses_off", "sr_keep_loaded",

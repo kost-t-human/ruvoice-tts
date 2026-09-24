@@ -102,7 +102,7 @@
                 android:inputType="number" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- То же правило, что «Не выгружать модель, пока работает экранный чтец» в «Для TalkBack»:
+        <!-- То же правило, что «Не выгружать модель, пока работает экранный чтец» в «Чтение с экрана»:
              один ключ sr_keep_loaded, пишется сразу при переключении. Важнее выгрузки выше. -->
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/srKeepLoaded"

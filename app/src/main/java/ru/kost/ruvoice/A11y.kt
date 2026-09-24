@@ -10,6 +10,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.CompoundButton
@@ -121,3 +122,17 @@ fun Activity.ctrlF(keyCode: Int, event: KeyEvent): Boolean {
 }
 
 private val SEARCH_IDS = setOf(R.id.rulesFilter, R.id.filter)
+
+/** Выпадающий список (поле без ввода) с физической клавиатуры: Enter, пробел или Alt+↓ открывают, как
+ * у системного списка; в открытом стрелки и Enter — уже свои у AutoCompleteTextView. Просто ↓ не
+ * перехватываем — это переход к следующему полю. Касанием и TalkBack список открывался и раньше. */
+fun AutoCompleteTextView.opensFromKeyboard() {
+    setOnKeyListener { _, code, ev ->
+        if (ev.action != KeyEvent.ACTION_DOWN || isPopupShowing) return@setOnKeyListener false
+        val open = code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+            code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_SPACE ||
+            (code == KeyEvent.KEYCODE_DPAD_DOWN && ev.isAltPressed)
+        if (open) showDropDown()
+        open
+    }
+}

@@ -160,6 +160,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
             popup.show()
         }
         nameField = v.findViewById(R.id.dictName)
+        nameField.opensFromKeyboard()
         nameField.setOnItemClickListener { _, _, pos, _ ->
             prefs.setCurrent(kind, Dicts.name(prefs.dictFiles(kind)[pos]))
             loadLines()

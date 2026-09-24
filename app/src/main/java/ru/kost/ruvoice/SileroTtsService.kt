@@ -339,7 +339,7 @@ class SileroTtsService : TextToSpeechService() {
             })
             val speakerId = voice.id
             val sym = voice.sym
-            // Экранный чтец (TalkBack и др.) — свои правила, темп и высота поверх общих (секция «Для TalkBack»)
+            // Экранный чтец (TalkBack и др.) — свои правила, темп и высота поверх общих (секция «Чтение с экрана»)
             val caller = ScreenReaders.caller(this, request.callerUid)
             val screenReader = caller != null && ScreenReaders.isScreenReader(prefs, caller)
             caller?.let { prefs.rememberCaller(it) }

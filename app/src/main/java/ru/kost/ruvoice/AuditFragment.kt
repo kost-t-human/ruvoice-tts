@@ -383,7 +383,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         view.findViewById<Button>(R.id.listenStressed).setOnClickListener { btn ->
             selectedPos()?.let { pos -> (activity as SettingsActivity).preview(btn, e.word.substring(0, pos) + "+" + e.word.substring(pos), nodict) }
         }
-        val target = view.findViewById<MaterialAutoCompleteTextView>(R.id.target)
+        val target = view.findViewById<MaterialAutoCompleteTextView>(R.id.target).apply { opensFromKeyboard() }
         val mode = view.findViewById<MaterialButtonToggleGroup>(R.id.mode)
         fun replaceMode() = mode.checkedButtonId == R.id.modeReplace
         fun lists() = prefs.dictFiles(if (replaceMode()) Dicts.Kind.REPLACE else Dicts.Kind.STRESS).map { Dicts.name(it) }.filter { it != Dicts.SYSTEM }

@@ -148,6 +148,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         findViewById<MaterialAutoCompleteTextView>(id).apply {
             setSimpleItems(items.toTypedArray())
             setText(value, false)
+            opensFromKeyboard()
         }
 
     // Системные темп/высота (Settings.Secure, 100 = ×1) — только показать: запись требует
@@ -177,7 +178,7 @@ class PausesFragment : PageFragment(R.layout.fragment_pauses) {
             minutes.visibility = if (isChecked) View.VISIBLE else View.GONE
             setOnCheckedChangeListener { _, on -> minutes.visibility = if (on) View.VISIBLE else View.GONE }
         }
-        // «Не выгружать, пока работает экранный чтец» — то же правило, что в «Для TalkBack»: пишем сразу,
+        // «Не выгружать, пока работает экранный чтец» — то же правило, что в «Чтение с экрана»: пишем сразу,
         // save() его не трогает — иначе старое значение вкладки затёрло бы правку с экрана правил
         v.findViewById<MaterialSwitch>(R.id.srKeepLoaded).apply { isChecked = Rules(prefs.rulesOff).on("sr_keep_loaded") }.setOnCheckedChangeListener { sw, on -> if (sw.tag !== SYNC) prefs.setRule("sr_keep_loaded", on) }
     }
@@ -228,6 +229,12 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                         .apply { topMargin = if (i == 0) 0 else (24 * resources.displayMetrics.density).toInt() })
                 group++
                 entries += Entry(header, header.text.toString(), group, true)
+                // под «Чтение с экрана (TalkBack)» — какие программы это; в поиске ведёт себя как заголовок
+                if (section == "talkback") {
+                    val hint = TextView(v.context, null, 0, R.style.SectionHint).apply { setText(R.string.rules_section_talkback_hint) }
+                    list.addView(hint)
+                    entries += Entry(hint, hint.text.toString(), group, true)
+                }
             }
             val row = inflater.inflate(R.layout.item_rule, list, false)
             row.findViewById<TextView>(R.id.title).setText(res("rule_$key"))
@@ -240,7 +247,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             row.asSwitchRow(toggle)
             list.addView(row)
             entries += Entry(row, rowText, group, false)
-            // под правилами «Для TalkBack» — темп и высота чтеца и кто обращался к движку
+            // под правилами «Чтение с экрана» — темп и высота чтеца и кто обращался к движку
             if (key == "sr_keep_loaded") {
                 extra(inflater.inflate(R.layout.item_sr_sliders, list, false).apply {
                     rateSlider(R.id.srRate, R.id.srRateValue, prefs.srRate, getString(R.string.sr_rate))
