@@ -58,6 +58,9 @@ class Prefs(private val context: Context) {
     var quotePitch: Float get() = p.getFloat("quote_pitch", 1f); set(v) = p.edit().putFloat("quote_pitch", v).apply()
     /** Темп и высота для экранного чтеца (секция «Для TalkBack»): множители поверх темпа самого TalkBack
      * вместо rate/pitch — книги и TalkBack настраиваются отдельно. */
+    /** Громкость голоса — множитель звука модели (0,5–2), свой для экранного чтеца. */
+    var volume: Float get() = p.getFloat("volume", 1f); set(v) = p.edit().putFloat("volume", v).apply()
+    var srVolume: Float get() = p.getFloat("sr_volume", 1f); set(v) = p.edit().putFloat("sr_volume", v).apply()
     var srRate: Float get() = p.getFloat("sr_rate", 1f); set(v) = p.edit().putFloat("sr_rate", v).apply()
     var srPitch: Float get() = p.getFloat("sr_pitch", 1f); set(v) = p.edit().putFloat("sr_pitch", v).apply()
     /** Распознавать прямую речь (отдельный голос/темп/высота); по умолчанию выключено. */
@@ -155,6 +158,8 @@ class Prefs(private val context: Context) {
             "quote_voice" to quoteVoice,
             "quote_rate" to quoteRate.toDouble(),
             "quote_pitch" to quotePitch.toDouble(),
+            "volume" to volume.toDouble(),
+            "sr_volume" to srVolume.toDouble(),
             "sr_rate" to srRate.toDouble(),
             "sr_pitch" to srPitch.toDouble(),
             "quote_on" to quoteOn,
@@ -193,6 +198,8 @@ class Prefs(private val context: Context) {
         (prefsMap["quote_voice"] as? String)?.let { quoteVoice = it }
         (prefsMap["quote_rate"] as? Number)?.let { quoteRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_pitch"] as? Number)?.let { quotePitch = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["volume"] as? Number)?.let { volume = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["sr_volume"] as? Number)?.let { srVolume = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["sr_rate"] as? Number)?.let { srRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["sr_pitch"] as? Number)?.let { srPitch = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["quote_on"] as? Boolean)?.let { quoteOn = it }

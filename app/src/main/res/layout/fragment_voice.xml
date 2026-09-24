@@ -112,6 +112,33 @@
             app:tickVisible="false"
             app:labelBehavior="floating" />
 
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/volume" />
+            <TextView
+                android:id="@+id/volumeValue"
+                style="?attr/textAppearanceBodyMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="×1.00" />
+        </LinearLayout>
+        <com.google.android.material.slider.Slider
+            android:id="@+id/volume"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.5"
+            android:valueTo="2.0"
+            android:stepSize="0.05"
+            app:tickVisible="false"
+            app:labelBehavior="floating" />
+
         <TextView
             style="@style/Section"
             android:text="@string/section_system" />

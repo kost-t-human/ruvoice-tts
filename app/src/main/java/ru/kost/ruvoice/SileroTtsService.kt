@@ -348,6 +348,8 @@ class SileroTtsService : TextToSpeechService() {
             val rate = if (screenReader) (request.speechRate / 100f * prefs.srRate).coerceIn(0.5f, SR_MAX_RATE)
                 else (request.speechRate / 100f * prefs.rate).coerceIn(0.5f, 3f)
             val pitch = (request.pitch / 100f * (if (screenReader) prefs.srPitch else prefs.pitch)).coerceIn(0.5f, 2f)
+            // громкость читалки (KEY_PARAM_VOLUME) применяет сам плеер Android; наша — поверх, в звуке модели
+            val volume = (if (screenReader) prefs.srVolume else prefs.volume).coerceIn(0.5f, 2f)
             // настройки слушают слово «как модель», без пользовательского словаря
             val noDict = request.params?.getString("ruvoice.nodict") == "1"
             val baseRules = prefs.rules()
@@ -453,6 +455,7 @@ class SileroTtsService : TextToSpeechService() {
                 if (synth != null) {
                     val (out, tokens) = synth
                     val audio = out.audio
+                    Pcm.gain(audio, volume)
                     Pcm.fadeEdges(audio, sr, 5)
                     val segRate = rate * (if (seg.speech) quoteRate else 1f)
                     val pcm = Tempo.stretch(Pcm.toPcm16(audio), sr, segRate)

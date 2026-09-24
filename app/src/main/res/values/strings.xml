@@ -57,8 +57,9 @@
     <string name="voice">Голос</string>
     <string name="sample_rate">Частота дискретизации</string>
     <string name="sample_rate_item">%1$d Гц</string>
-    <string name="section_rate_pitch">Темп и высота</string>
-    <string name="section_rate_pitch_hint">Умножаются на темп и высоту, которые просит читалка. 1 — без изменений.</string>
+    <string name="section_rate_pitch">Темп, высота и громкость</string>
+    <string name="section_rate_pitch_hint">Умножаются на темп и высоту, которые просит читалка. 1 — без изменений. Громкость выше 1 громче модели; пики мягко прижимаются, а не срезаются.</string>
+    <string name="volume">Громкость</string>
     <string name="section_system">Системные темп и высота</string>
     <string name="section_system_hint">Скорость и высота речи из настроек Android. Действуют для всех приложений; менять их — на системном экране синтеза речи.</string>
     <string name="sys_values">Сейчас: темп ×%1$s, высота ×%2$s</string>
@@ -78,6 +79,11 @@
     <string name="preview_text">Поезд отходил в 21:30, и до вокзала оставалось около 3 км.\n— Успеем, — сказала она тихо. — Замок на воротах ещё не заперли.</string>
     <string name="preview">Прослушать</string>
     <string name="stop">Стоп</string>
+    <!-- «Разбор»: пометки словами — их слышно и в TalkBack -->
+    <string name="analyze_speech">прямая речь</string>
+    <string name="analyze_paragraph">конец абзаца</string>
+    <string name="analyze_model">Модели: %s</string>
+    <string name="analyze_pause">Пауза %d мс.</string>
     <string name="stress_vowel">Ударная гласная</string>
     <!-- Чип ударения для TalkBack: слово со знаком ударения, номер слога и буква -->
     <string name="stress_chip">%1$s — %2$d-й слог из %3$d, «%4$s»</string>
@@ -261,9 +267,10 @@
     <string name="rule_sr_keep_loaded">Не выгружать модель, пока работает экранный чтец</string>
     <string name="rule_sr_keep_loaded_hint">Пока в системе включён TalkBack или другой чтец, модель остаётся в памяти, что бы ни стояло во «Выгружать модели при простое» (вкладка «Паузы»): иначе первая фраза после простоя ждёт загрузки.</string>
     <string name="sr_keep_loaded_pauses_hint">То же, что в меню ⋮ справа вверху → «Настройки» → «Для TalkBack». Важнее выгрузки выше.</string>
-    <string name="sr_sliders_hint">Множители поверх темпа и высоты самого TalkBack — вместо ползунков вкладки «Голос», книги их не чувствуют. Темп TalkBack доходит до ×6.</string>
+    <string name="sr_sliders_hint">Множители поверх темпа и высоты самого TalkBack и громкость — вместо ползунков вкладки «Голос», книги их не чувствуют. Темп TalkBack доходит до ×6.</string>
     <string name="sr_rate">Темп для TalkBack</string>
     <string name="sr_pitch">Высота для TalkBack</string>
+    <string name="sr_volume">Громкость для TalkBack</string>
     <string name="callers_hint">Правила выше действуют, только когда читает экранный чтец. Его узнаём по приложению, приславшему текст: TalkBack и другие известные чтецы или любое приложение с включённой в системе службой доступности с речью. Ниже — кто читал через движок; если определилось неверно, переключите.</string>
     <string name="callers_empty">Пока никто не читал через движок. Включите TalkBack, послушайте пару фраз и откройте этот экран снова.</string>
     <string name="caller_auto_sr">%s — экранный чтец (определено автоматически)</string>

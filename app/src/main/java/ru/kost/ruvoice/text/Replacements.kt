@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Matcher
+import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
 
 /**
@@ -216,7 +217,7 @@ class Replacements private constructor(private val rules: List<Rule>, private va
                 chunk.map { (rawKey, value) ->
                     if (rawKey.startsWith("~")) {
                         // regex-правило: замена не экранируется, чтобы работали обратные ссылки
-                        val re = try { Regex(rawKey.removePrefix("~"), RegexOption.IGNORE_CASE) }
+                        val re = try { userRegex(rawKey.removePrefix("~")) }
                             catch (e: PatternSyntaxException) { return@map null }
                         Rule(rawKey, value, REGEX, false, emptyArray(), re) to emptyArray<Tok>()
                     } else {
@@ -291,6 +292,15 @@ class Replacements private constructor(private val rules: List<Rule>, private va
             return out.toTypedArray()
         }
 
+        /** Regex-ключ пользователя («~»), без учёта регистра. На телефоне regex — ICU: \b и \w знают
+         * кириллицу. В JVM (тесты) с Java 19 \b и \w — только ASCII, «\bгл\.» не находил «гл.»;
+         * там включаем Unicode-классы, чтобы тесты видели то же, что телефон. На Android флаг не
+         * передаём: ICU и так Unicode, а старый Android неизвестный флаг мог бы не принять. */
+        fun userRegex(pattern: String): Regex =
+            Pattern.compile(pattern, Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE or jvmUnicode).toRegex()
+        private val jvmUnicode =
+            if (System.getProperty("java.vendor").orEmpty().contains("Android")) 0 else Pattern.UNICODE_CHARACTER_CLASS
+
         /** Regex для обычного (не «~») ключа: границы слова, маска «*» как группа, «,» с пробелами. */
         fun toRegex(key: String, caseSensitive: Boolean = false): Regex {
             val k = if (caseSensitive) key else key.lowercase()
@@ -318,7 +328,7 @@ class Replacements private constructor(private val rules: List<Rule>, private va
 
         /** Почему regex-ключ не скомпилируется; null — всё в порядке. Для диалога редактирования. */
         fun patternError(pattern: String): String? =
-            try { Regex(pattern, RegexOption.IGNORE_CASE); null } catch (e: PatternSyntaxException) { e.description }
+            try { userRegex(pattern); null } catch (e: PatternSyntaxException) { e.description }
 
         /** Почему замена упадёт на подстановке ($N больше числа групп, одинокий «$», «\» в конце);
          * null — всё в порядке или сам regex битый (это уже сказал patternError).

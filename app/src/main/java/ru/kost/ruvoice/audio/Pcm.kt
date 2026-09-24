@@ -10,6 +10,18 @@ object Pcm {
         v.coerceIn(-32767, 32767).toShort()
     }
 
+    /** Громкость голоса: множитель поверх того, что даёт модель. Выше 1 пики не срезаются в квадрат
+     * (это хрип), а мягко прижимаются к потолку: до 0,8 — как есть, выше — плавный изгиб к 1. */
+    fun gain(samples: FloatArray, g: Float) {
+        if (g == 1f) return
+        for (i in samples.indices) {
+            val v = samples[i] * g
+            val a = Math.abs(v)
+            samples[i] = if (a <= KNEE) v else Math.signum(v) * (KNEE + (1 - KNEE) * Math.tanh(((a - KNEE) / (1 - KNEE)).toDouble()).toFloat())
+        }
+    }
+    private const val KNEE = 0.8f
+
     fun fadeEdges(samples: FloatArray, sampleRate: Int, ms: Int = 5) {
         val n = minOf(sampleRate * ms / 1000, samples.size / 2)
         if (n <= 0) return

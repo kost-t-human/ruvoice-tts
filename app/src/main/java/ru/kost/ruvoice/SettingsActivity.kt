@@ -255,15 +255,16 @@ class SettingsActivity : AppCompatActivity() {
                 val stress = Stress(d, models, prefs.userDict(), rules)
                 val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
                 buildString {
+                    // Пометки словами, не значками: «[¶]» и «→» TalkBack не произносит, «[речь]» — через скобки
                     for (seg in segments) {
-                        var marks = ""
-                        if (seg.speech) marks += " [речь]"
-                        if (seg.paragraph) marks += " [¶]"
-                        appendLine(seg.text + marks)
+                        appendLine(seg.text)
+                        val marks = listOfNotNull(getString(R.string.analyze_speech).takeIf { seg.speech },
+                            getString(R.string.analyze_paragraph).takeIf { seg.paragraph })
+                        if (marks.isNotEmpty()) appendLine(marks.joinToString(", ").replaceFirstChar { it.uppercase() } + ".")
                         // монитор models — тот же, что у синтеза и выгрузки в сервисе: форварды не параллелим
                         val accented = synchronized(models) { Pipeline.accent(seg.text, d, stress, allowed, rules) }
-                        appendLine("→ " + stress.forModel(accented).split(' ').joinToString(" ") { DictLines.accentDisplay(it) })
-                        if (seg.breakMs > 0) appendLine("пауза ${seg.breakMs} мс")
+                        appendLine(getString(R.string.analyze_model, stress.forModel(accented).split(' ').joinToString(" ") { DictLines.accentDisplay(it) }))
+                        if (seg.breakMs > 0) appendLine(getString(R.string.analyze_pause, seg.breakMs))
                         appendLine()
                     }
                 }.trimEnd()

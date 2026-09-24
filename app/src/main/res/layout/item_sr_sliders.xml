@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Темп и высота экранного чтеца (секция «Для TalkBack», RulesFragment): множители поверх темпа и
+<!-- Темп, высота и громкость экранного чтеца (секция «Для TalkBack», RulesFragment): множители поверх темпа и
      высоты самого TalkBack, вместо ползунков «Голоса». Подпись «×1.00» над ползунком TalkBack не
      слышит — название и значение у самого ползунка (rateSlider). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -58,6 +58,32 @@
     </LinearLayout>
     <com.google.android.material.slider.Slider
         android:id="@+id/srPitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="0.5"
+        android:valueTo="2.0"
+        android:stepSize="0.05"
+        app:tickVisible="false"
+        app:labelBehavior="floating" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            style="?attr/textAppearanceBodyMedium"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/sr_volume" />
+        <TextView
+            android:id="@+id/srVolumeValue"
+            style="?attr/textAppearanceBodyMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+    <com.google.android.material.slider.Slider
+        android:id="@+id/srVolume"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:valueFrom="0.5"

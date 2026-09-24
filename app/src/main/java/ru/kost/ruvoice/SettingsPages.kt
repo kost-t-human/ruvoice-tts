@@ -97,6 +97,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         v.dropdown(R.id.sampleRate, rateItems, rateItems[rates.indexOf(prefs.sampleRate).coerceAtLeast(0)])
         v.rateSlider(R.id.rate, R.id.rateValue, prefs.rate, getString(R.string.quote_rate))
         v.rateSlider(R.id.pitch, R.id.pitchValue, prefs.pitch, getString(R.string.quote_pitch))
+        v.rateSlider(R.id.volume, R.id.volumeValue, prefs.volume, getString(R.string.volume))
         v.rateSlider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate, getString(R.string.quote_rate_a11y))
         v.rateSlider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch, getString(R.string.quote_pitch_a11y))
         // Настройки прямой речи видны только при включённом распознавании.
@@ -134,6 +135,7 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
         rateItems.indexOf(v.findViewById<TextView>(R.id.sampleRate).str()).let { if (it >= 0) prefs.sampleRate = rates[it] }
         prefs.rate = v.findViewById<Slider>(R.id.rate).value
         prefs.pitch = v.findViewById<Slider>(R.id.pitch).value
+        prefs.volume = v.findViewById<Slider>(R.id.volume).value
         prefs.quoteRate = v.findViewById<Slider>(R.id.quoteRate).value
         prefs.quotePitch = v.findViewById<Slider>(R.id.quotePitch).value
         prefs.quoteOn = v.findViewById<MaterialSwitch>(R.id.quoteOn).isChecked
@@ -243,7 +245,8 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 extra(inflater.inflate(R.layout.item_sr_sliders, list, false).apply {
                     rateSlider(R.id.srRate, R.id.srRateValue, prefs.srRate, getString(R.string.sr_rate))
                     rateSlider(R.id.srPitch, R.id.srPitchValue, prefs.srPitch, getString(R.string.sr_pitch))
-                }, getString(R.string.sr_rate) + " " + getString(R.string.sr_pitch) + " " + getString(R.string.sr_sliders_hint))
+                    rateSlider(R.id.srVolume, R.id.srVolumeValue, prefs.srVolume, getString(R.string.sr_volume))
+                }, getString(R.string.sr_rate) + " " + getString(R.string.sr_pitch) + " " + getString(R.string.sr_volume) + " " + getString(R.string.sr_sliders_hint))
                 extra(callersBlock(inflater, list), getString(R.string.callers_hint) + " " + prefs.recentCallers().joinToString(" ") { it.first.label + " " + it.first.pkg })
             }
             // поле силы ударения — сразу под своим тумблером
@@ -322,6 +325,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             .coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX)
         v.findViewById<Slider>(R.id.srRate)?.let { prefs.srRate = it.value }
         v.findViewById<Slider>(R.id.srPitch)?.let { prefs.srPitch = it.value }
+        v.findViewById<Slider>(R.id.srVolume)?.let { prefs.srVolume = it.value }
         prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)
             .coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX)
     }
