@@ -308,17 +308,16 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onStop() { stopped = true }
 
-    /** Текст запроса с подставленными TtsSpan: TYPE_TEXT → ARG_TEXT, TYPE_CARDINAL → ARG_NUMBER. */
+    /** Текст запроса с подставленными TtsSpan (SpanSay): TYPE_TEXT пунктуации TalkBack, телефоны,
+     * время, даты, деньги, «по цифрам» и прочие размеченные приложением куски. */
     private fun spokenText(cs: CharSequence?): SpanText.Mapped {
         val t = cs?.toString().orEmpty()
         if (cs !is Spanned) return SpanText.mapped(t, emptyList())
         val spans = cs.getSpans(0, cs.length, TtsSpan::class.java).mapNotNull { sp ->
-            val say = when (sp.type) {
-                TtsSpan.TYPE_TEXT -> sp.args.getString(TtsSpan.ARG_TEXT)
-                TtsSpan.TYPE_CARDINAL -> sp.args.getString(TtsSpan.ARG_NUMBER)
-                else -> null
-            }
-            say?.takeIf { it.isNotBlank() }?.let { Triple(cs.getSpanStart(sp), cs.getSpanEnd(sp), it) }
+            val type = spanTypes[sp.type] ?: return@mapNotNull null
+            val b = sp.args
+            val args = spanArgs.entries.associate { (k, v) -> v to b.get(k)?.let { x -> spanValues[x.toString()] ?: x } }
+            runCatching { SpanSay.say(type, args) }.getOrNull()?.let { Triple(cs.getSpanStart(sp), cs.getSpanEnd(sp), it) }
         }
         return SpanText.mapped(t, spans)
     }
@@ -515,6 +514,30 @@ class SileroTtsService : TextToSpeechService() {
         const val LEAD_GAP_MS = 2500L
         const val LEAD_IN_MS = 300
         /** Потолок темпа для экранного чтеца: TalkBack шлёт до ×6. Книгам — ×3, как раньше. */
+        // TtsSpan → короткие имена SpanSay (без префиксов android.type./android.arg.)
+        private val spanTypes = mapOf(TtsSpan.TYPE_TEXT to "text", TtsSpan.TYPE_CARDINAL to "cardinal",
+            TtsSpan.TYPE_ORDINAL to "ordinal", TtsSpan.TYPE_DECIMAL to "decimal", TtsSpan.TYPE_FRACTION to "fraction",
+            TtsSpan.TYPE_MEASURE to "measure", TtsSpan.TYPE_TIME to "time", TtsSpan.TYPE_DATE to "date",
+            TtsSpan.TYPE_TELEPHONE to "telephone", TtsSpan.TYPE_ELECTRONIC to "electronic", TtsSpan.TYPE_MONEY to "money",
+            TtsSpan.TYPE_DIGITS to "digits", TtsSpan.TYPE_VERBATIM to "verbatim")
+        private val spanArgs = mapOf(TtsSpan.ARG_TEXT to "text", TtsSpan.ARG_NUMBER to "number",
+            TtsSpan.ARG_INTEGER_PART to "integer_part", TtsSpan.ARG_FRACTIONAL_PART to "fractional_part",
+            TtsSpan.ARG_NUMERATOR to "numerator", TtsSpan.ARG_DENOMINATOR to "denominator", TtsSpan.ARG_UNIT to "unit",
+            TtsSpan.ARG_HOURS to "hours", TtsSpan.ARG_MINUTES to "minutes", TtsSpan.ARG_WEEKDAY to "weekday",
+            TtsSpan.ARG_DAY to "day", TtsSpan.ARG_MONTH to "month", TtsSpan.ARG_YEAR to "year",
+            TtsSpan.ARG_COUNTRY_CODE to "country_code", TtsSpan.ARG_NUMBER_PARTS to "number_parts", TtsSpan.ARG_EXTENSION to "extension",
+            TtsSpan.ARG_PROTOCOL to "protocol", TtsSpan.ARG_USERNAME to "username", TtsSpan.ARG_PASSWORD to "password",
+            TtsSpan.ARG_DOMAIN to "domain", TtsSpan.ARG_PORT to "port", TtsSpan.ARG_PATH to "path",
+            TtsSpan.ARG_QUERY_STRING to "query_string", TtsSpan.ARG_FRAGMENT_ID to "fragment_id",
+            TtsSpan.ARG_CURRENCY to "currency", TtsSpan.ARG_QUANTITY to "quantity", TtsSpan.ARG_DIGITS to "digits",
+            TtsSpan.ARG_VERBATIM to "verbatim", TtsSpan.ARG_GENDER to "gender", TtsSpan.ARG_ANIMACY to "animacy",
+            TtsSpan.ARG_MULTIPLICITY to "multiplicity", TtsSpan.ARG_CASE to "case")
+        private val spanValues = mapOf(TtsSpan.GENDER_MALE to "male", TtsSpan.GENDER_FEMALE to "female",
+            TtsSpan.GENDER_NEUTRAL to "neutral", TtsSpan.ANIMACY_ANIMATE to "animate", TtsSpan.ANIMACY_INANIMATE to "inanimate",
+            TtsSpan.MULTIPLICITY_SINGLE to "single", TtsSpan.MULTIPLICITY_DUAL to "plural", TtsSpan.MULTIPLICITY_PLURAL to "plural",
+            TtsSpan.CASE_NOMINATIVE to "nominative", TtsSpan.CASE_GENITIVE to "genitive", TtsSpan.CASE_DATIVE to "dative",
+            TtsSpan.CASE_ACCUSATIVE to "accusative", TtsSpan.CASE_INSTRUMENTAL to "instrumental",
+            TtsSpan.CASE_LOCATIVE to "locative", TtsSpan.CASE_ABLATIVE to "genitive", TtsSpan.CASE_VOCATIVE to "nominative")
         const val SR_MAX_RATE = 6f
         /** Кэш коротких фраз — на процесс, переживает пересоздание сервиса. */
         val phrases = PhraseCache()

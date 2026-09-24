@@ -1839,7 +1839,7 @@ object Normalizer {
     }
     private val phoneLocalShapes = setOf(listOf(3, 2, 2), listOf(2, 2, 2), listOf(1, 2, 2))
 
-    private fun phoneGroup(g: String): String {
+    internal fun phoneGroup(g: String): String {
         val z = g.takeWhile { it == '0' }.length
         val words = List(z) { "ноль" } + if (z < g.length) listOf(cardinal(g.drop(z).toLong())) else emptyList()
         return words.joinToString(" ")
