@@ -21,8 +21,9 @@ import org.junit.runner.RunWith
 /**
  * Проверки доступности (Accessibility Test Framework) на каждом действии Espresso: подписи у значков,
  * области нажатия от 48 dp, контраст текста, дубли кликабельных областей — по всему окну, не только
- * по нажатому. Ошибка валит тест с именем вьюхи и правилом. Прогон: ./gradlew connectedAndroidTest
- * на телефоне или эмуляторе, сборка full (у lite без пака сверху открыт диалог паков).
+ * по нажатому. Ошибка валит тест с именем вьюхи и правилом. Прогон: adb install -r оба APK и
+ * adb shell am instrument (connectedAndroidTest после прогона удаляет пакет вместе с данными),
+ * сборка full (у lite без пака сверху открыт диалог паков).
  */
 @RunWith(AndroidJUnit4::class)
 class AccessibilityChecksTest {
