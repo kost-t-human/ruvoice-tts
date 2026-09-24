@@ -6,7 +6,7 @@ package ru.kost.ruvoice.text
  * и букв другого регистра рядом (границы через lookaround, без \b). Аббревиатура читается
  * по буквам, если в ней нет гласных, либо она явно в списке «по буквам»; иначе токен не
  * трогаем — это либо слово-акроним (НАТО, iPhone), либо не аббревиатура (ГЛАВА).
- * Токены рядом с дефисом и цифрой («Ту-154», «С-300») не матчатся — это другая задача.
+ * Токены рядом с дефисом и цифрой («Р-9», «8К74») не матчатся — их читает Normalizer.cyrCodes через [codePart].
  */
 object Abbrev {
     private const val CYR_VOWELS = "АЕЁИОУЫЭЮЯ"
@@ -37,6 +37,20 @@ object Abbrev {
     // США по традиции «сэ-шэ-а», не по именам букв
     private val cyrExceptions = mapOf("ГИБДД" to "ги бэ дэ д+э", "США" to "сэ шэ +а")
 
+    // Три буквы с единственной гласной с краю («ЛКИ», «ТМА», «ШПУ», «АКС») слогом не произносятся —
+    // по буквам. Обычные слова того же вида и заголовки капсом не трогаем.
+    // ponytail: стоп-лист частых слов, а не словарь; пополнять по жалобам
+    private val edgeVowelWords = setOf(
+        "что", "кто", "где", "два", "две", "три", "сто", "все", "всё", "вся", "мне", "вне", "для", "дни", "дно",
+        "дна", "дня", "зло", "зла", "сны", "сна", "шла", "шло", "шли", "зря", "рта", "рту", "рты", "пса", "псы",
+        "мха", "шва", "швы", "вши", "акт", "иск", "ест", "арт", "ёрш", "ост", "спа", "бра", "тла"
+    )
+    private val capsWordBefore = Regex("""(?<![\p{L}\d])[А-ЯЁ]{4,}[\s,:;—–-]*$""")
+    private val capsWordAfter = Regex("""^[\s,:;—–-]*[А-ЯЁ]{4,}(?![\p{L}\d])""")
+
+    private fun edgeVowel(t: String) = t.length == 3 && t.count { it in CYR_VOWELS } == 1 &&
+        (t[0] in CYR_VOWELS || t[2] in CYR_VOWELS) && t.none { it in "ЙЬЪ" } && t.lowercase() !in edgeVowelWords
+
     private val cyrLetterNames = mapOf(
         'А' to "а", 'Б' to "бэ", 'В' to "вэ", 'Г' to "гэ", 'Д' to "дэ", 'Е' to "е",
         'Ё' to "ё", 'Ж' to "жэ", 'З' to "зэ", 'И' to "и", 'Й' to "и краткое",
@@ -59,15 +73,25 @@ object Abbrev {
     private val latToken = Regex("""(?<!\d-)(?<![\p{L}\d])[A-Z]{2,5}(?![\p{L}\d])(?!-\d)""")
 
     fun apply(text: String, rules: Rules = Rules()): String {
-        val withCyr = if (rules.on("spell_cyr")) cyrToken.replace(text) { spellCyr(it.value) } else text
+        val withCyr = if (rules.on("spell_cyr")) cyrToken.replace(text) { m ->
+            // соседнее слово капсом — заголовок или крик («ЧТО ДЕЛАТЬ»), не аббревиатура
+            val caps = capsWordBefore.containsMatchIn(text.substring(maxOf(0, m.range.first - 40), m.range.first)) ||
+                capsWordAfter.containsMatchIn(text.substring(m.range.last + 1, minOf(text.length, m.range.last + 41)))
+            spellCyr(m.value, !caps)
+        } else text
         return if (rules.on("spell_lat")) latToken.replace(withCyr) { spellLat(it.value) } else withCyr
     }
 
-    private fun spellCyr(token: String): String {
+    private fun spellCyr(token: String, edge: Boolean = true): String {
         cyrExceptions[token]?.let { return it }
-        val spell = token.none { it in CYR_VOWELS } || token in cyrSpellSet
+        val spell = token.none { it in CYR_VOWELS } || token in cyrSpellSet || edge && edgeVowel(token)
         return if (spell) spellOut(token, cyrLetterNames) else token
     }
+
+    /** Буквенная часть кода («Р» в «Р-9», «К» в «8К74», «РД» в «РД-170»): одна-две буквы — всегда по буквам
+     * («АК-74» — «а ка»), длиннее — как аббревиатура, а слово («ГАЗ-66», «ЗИЛ-130») остаётся словом. */
+    fun codePart(letters: String): String =
+        if (letters.length <= 2) spellOut(letters, cyrLetterNames) else spellCyr(letters)
 
     private fun spellLat(token: String): String {
         val spell = token.none { it in LAT_VOWELS_FOR_AUTO_SPELL } || token in latSpellSet

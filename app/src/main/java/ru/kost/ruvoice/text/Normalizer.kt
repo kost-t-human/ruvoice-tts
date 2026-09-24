@@ -1948,6 +1948,8 @@ object Normalizer {
         s = step("degrees", ::degrees)(s)
         s = step("roman_name", ::romanAfterName)(s)
         s = step("roman", ::romanNumerals)(s)
+        // до дат и единиц: «Р-7А» иначе «семь ампер», «УР-100Н» — «сто ньютонов»
+        s = step("letter_digit", ::cyrCodes)(s)
         s = step("dates", ::dates)(s)
         s = step("times", ::times)(s)
         s = step("years", ::yearsWithG)(s)
@@ -2066,6 +2068,23 @@ object Normalizer {
     private fun letterAfterDigit(text: String) = letterAfterDigitRe.replace(text) { m ->
         (if (text[m.range.first - 1].isDigit()) " " else "") + Abbrev.latLetterNames.getValue(m.value[0].uppercaseChar()) +
             (if (text.getOrNull(m.range.last + 1)?.isDigit() == true) " " else "")
+    }
+
+    // Технические коды кириллицей — буквы при цифрах названиями: «Р-9» → «+эр-9», «8К74» → «8 +ка 74»,
+    // «Т-72Б3» → «+тэ-72 +бэ 3», «РД-170» → «эр д+э-170»; «ГАЗ-66» остаётся словом (Abbrev.codePart).
+    // Цифры оставляем числу. Смешанный регистр («Ту-154», «МиГ-29») — слово, не трогаем; число с единицей
+    // вплотную («5А», «100Н») — units.
+    private val cyrCodeRe = Regex("""(?<![\p{L}\d-])(?=[А-ЯЁ\d-]*[А-ЯЁ])(?=[А-ЯЁ\d-]*\d)[А-ЯЁ\d]+(?:-[А-ЯЁ\d]+)*(?![\p{L}\d]|-[\p{L}\d])""")
+    private val codeRunRe = Regex("""[А-ЯЁ]+|\d+|-""")
+    private fun cyrCodes(text: String) = cyrCodeRe.replace(text) { m ->
+        val runs = codeRunRe.findAll(m.value).map { it.value }.toList()
+        if (runs.size == 2 && runs[0][0].isDigit() && unitOf(runs[1]) != null) return@replace m.value
+        val sb = StringBuilder()
+        for ((i, r) in runs.withIndex()) {
+            if (i > 0 && r != "-" && runs[i - 1] != "-") sb.append(' ')
+            sb.append(if (r[0].isLetter()) Abbrev.codePart(r) else r)
+        }
+        sb.toString()
     }
 
     // Одиночная греческая буква — названием («угол α» → «угол альфа»); слова греческими не трогаем.
