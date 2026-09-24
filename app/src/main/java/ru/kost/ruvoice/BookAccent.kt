@@ -88,8 +88,9 @@ object BookAccent {
         val pos = ws.flatMap { w -> w.value.indices.filter { w.value[it].isLetterOrDigit() }.map { w.range.first + it } }
         // буквы прочтения: сама буква, стоит ли перед ней «+», многосложно ли её слово (в односложных знак не ставим)
         val tc = StringBuilder(); val mark = ArrayList<Boolean>(); val many = ArrayList<Boolean>()
-        for (t in toks) {
-            val syl = t.count { it.lowercaseChar() in VOWELS } > 1 && (homo == null || homo(t.filter { it.isLetter() }.lowercase()))
+        for (t0 in toks) {
+            val t = homoOnly(t0, homo)
+            val syl = t.count { it.lowercaseChar() in VOWELS } > 1
             var plus = false
             for (c in t) {
                 if (c == '+') { plus = true; continue }
@@ -139,6 +140,12 @@ object BookAccent {
     }
 
     /** «КП», «США», «НКВД,» — от двух букв, все заглавные. */
+    /** «+» только в омографах; слово через дефис — по частям: «з+амок-кр+епость» → «з+амок-крепость».
+     * Без [homo] — как есть. «ё» остаётся: убирается лишь знак. */
+    private fun homoOnly(t: String, homo: ((String) -> Boolean)?): String =
+        if (homo == null || '+' !in t) t
+        else t.split('-').joinToString("-") { p -> if (homo(p.filter { it.isLetter() }.lowercase())) p else p.replace("+", "") }
+
     private fun isAbbr(w: String) = w.filter { it.isLetter() }.let { it.length >= 2 && it.all { c -> c.isUpperCase() } }
 
     /** Слова [ws] от первой до последней буквы → [toks] без знаков по краям; заглавная — как у исходного. */
@@ -151,9 +158,9 @@ object BookAccent {
         // точка сокращения («т. е.», «г.»): у модели её нет — уходит вместе со словом
         if (src.getOrNull(end) == '.' && !toks.last().endsWith('.')) end++
         if ('+' in src.substring(start, end) || ACUTE in src.substring(start, end)) return null
-        var text = toks.joinToString(" ") { t ->
-            val keep = t.count { it.lowercaseChar() in VOWELS } > 1 && (homo == null || homo(t.filter { it.isLetter() }.lowercase()))
-            if (keep) t.replace("+ё", "ё") else t.replace("+", "")
+        var text = toks.joinToString(" ") { t0 ->
+            val t = homoOnly(t0, homo)
+            if (t.count { it.lowercaseChar() in VOWELS } > 1) t.replace("+ё", "ё") else t.replace("+", "")
         }
             .dropWhile { !it.isLetterOrDigit() && it != '+' }.dropLastWhile { !it.isLetterOrDigit() }
         // заглавная — как у исходного; у числа и знака регистра нет, тогда по началу предложения

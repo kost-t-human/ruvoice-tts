@@ -80,4 +80,12 @@ class BookAccentTest {
         val homo = { w: String -> w in setOf("замок", "все", "домов") }
         assertEquals("Старый з+амок стоял всё лето, пять дом+ов.", BookAccent.apply(src, BookAccent.edits(src, acc, homo = homo), BookAccent.Mode.PLUS))
     }
+
+    @Test fun homographsOnlyHyphen() {
+        // часть через дефис — сама по себе: «замок» омограф, «крепость» нет
+        val src = "Замок-крепость стоял на холме."
+        val acc = listOf("з+амок-кр+епость сто+ял на холм+е.")
+        val homo = { w: String -> w == "замок" }
+        assertEquals("З+амок-крепость стоял на холме.", BookAccent.apply(src, BookAccent.edits(src, acc, homo = homo), BookAccent.Mode.PLUS))
+    }
 }
