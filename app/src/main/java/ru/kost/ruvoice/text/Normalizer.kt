@@ -1243,6 +1243,7 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])ок\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "около ",
         Regex("""(?<![\p{L}\d])кв\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "квартира ",
         Regex("""(?<![\p{L}\d])тел\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "телефон",
+        Regex("""(?<![\p{L}\d])доб\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "добавочный ",
         Regex("""(?<![\p{L}\d])макс\.(?![\p{L}])""") to "максимум",  // без IGNORE_CASE: «Его звали Макс.»
     )
 
@@ -1736,6 +1737,134 @@ object Normalizer {
 
     private val dotThousandsRe = Regex("""(?<![\d.])(?<!\d,)\d{1,3}\.\d{3}\.\d{3}(?![\d.]|,\d)""")
 
+    // Телефоны: TalkBack читает ими звонки, СМС и контакты. Без этого прохода «+7 900 083 09 93»
+    // склеивалось разрядами тысяч в «семь тысяч девятьсот восемьдесят три…» — терялись ведущие
+    // нули, номер на слух был просто другим. Номер читается группами через запятую (пауза),
+    // каждая группа — числом с ведущими нулями: «плюс семь, девятьсот, ноль восемьдесят три,
+    // ноль девять, девяносто три». Группы берутся как написаны; длинная группа («0993»,
+    // «0830993») и номер вплотную («89000830993») режутся по привычной схеме 3-3-2-2.
+    // Кандидат — любая цепочка цифр, скобок и разделителей; телефоном он признаётся только по
+    // структуре (phoneParts), иначе остаётся как был: «1 200 000», «12.05.2024», «10-20» не трогаются.
+    private val phoneRe = Regex("""(?<![\p{L}\d+\-‐-—.,/])(?:\+ ?)?\(?\d[\d()     \-‐-—.]*\d(?![\p{L}\d])""")
+    private val phoneDashes = "-‐‑‒–—"
+    // Коды стран СНГ → длины национального номера; для +7 и этих кодов длина проверяется строго,
+    // иначе «+5 000 000 000» (прирост на пять миллиардов) прочиталось бы номером.
+    private val phoneCodes = mapOf("7" to setOf(10), "373" to setOf(8), "374" to setOf(8), "375" to setOf(9),
+        "380" to setOf(9), "992" to setOf(9), "993" to setOf(8), "994" to setOf(9), "995" to setOf(9),
+        "996" to setOf(9), "998" to setOf(9))
+    // Двузначные коды стран (ITU E.164); однозначные — 1 и 7, остальные трёхзначные.
+    private val phoneCodes2 = setOf("20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45",
+        "46", "47", "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66",
+        "81", "82", "84", "86", "90", "91", "92", "93", "94", "95", "98")
+    private fun phoneCodeLen(d: String) = when {
+        d[0] == '1' || d[0] == '7' -> 1
+        d.take(2) in phoneCodes2 -> 2
+        else -> 3
+    }
+    // Группа длиннее трёх цифр — по-русски парами: 4 → 2-2, 5 → 3-2, 6 → 2-2-2, 7 → 3-2-2.
+    private fun phoneSplit(g: String): List<String> = when (g.length) {
+        in 0..3 -> listOf(g)
+        4 -> listOf(g.take(2), g.drop(2))
+        5 -> listOf(g.take(3), g.drop(3))
+        6 -> listOf(g.take(2), g.substring(2, 4), g.drop(4))
+        7 -> listOf(g.take(3), g.substring(3, 5), g.drop(5))
+        else -> listOf(g.take(3)) + phoneSplit(g.drop(3))
+    }
+    // Национальная часть, записанная вплотную, — по схеме страны: 10 цифр (Россия, Казахстан,
+    // «0 44…» Украины и «0 29…» Беларуси с префиксом) — 3-3-2-2, 9 — код оператора 2 (Грузия и
+    // Киргизия — 3) и 3-2-2, 8 — 2-2-2-2. Записанная группами — группы как есть.
+    private fun phoneNational(cc: String?, nat: List<String>): List<String> {
+        if (nat.size != 1) return nat.flatMap(::phoneSplit)
+        val g = nat[0]
+        fun cut(vararg lens: Int): List<String> { var i = 0; return lens.map { l -> g.substring(i, i + l).also { i += l } } }
+        return when (g.length) {
+            10 -> cut(3, 3, 2, 2)
+            9 -> if (cc == "995" || cc == "996") cut(3, 2, 2, 2) else cut(2, 3, 2, 2)
+            8 -> cut(2, 2, 2, 2)
+            else -> phoneSplit(g)
+        }
+    }
+    private class PhoneGroup(val digits: String, val paren: Boolean, val start: Int, val end: Int)
+
+    /** Группы для чтения (первая — код страны или префикс «8») или null, если это не телефон. */
+    private fun phoneParts(plus: Boolean, gs: List<PhoneGroup>, seps: List<String>): List<String>? {
+        val d = gs.joinToString("") { it.digits }
+        val n = d.length
+        val paren = gs.any { it.paren }
+        val first = gs[0].digits
+        if (plus) {
+            if (n !in 8..15) return null
+            val cc = if (gs.size > 1 && first.length <= 3 && !gs[0].paren) first else d.take(phoneCodeLen(d))
+            val nat = if (cc == first) gs.drop(1).map { it.digits } else listOf(first.drop(cc.length)) + gs.drop(1).map { it.digits }
+            val lens = phoneCodes[cc]
+            if (lens != null && n - cc.length !in lens) return null
+            // «+5 000 000 000» — число с разрядами, не номер
+            if (lens == null && !paren && gs.size > 2 && gs.drop(1).all { it.digits.length == 3 }) return null
+            return listOf(cc) + phoneNational(cc, nat.filter { it.isNotEmpty() })
+        }
+        // Префикс «8» (или «7») и 10 цифр: 8 (900) 083-09-93, 8-900-083-0993, 89000830993, 8 029 123-45-67.
+        // Вплотную — только если за префиксом не «0» (коды России и Казахстана с нуля не начинаются) или
+        // это белорусское «80 29…»: «80000000000» скорее сумма.
+        if (n == 11 && d[0] in "78" && (first.length == 1 || paren || (gs.size == 1 && (d[1] != '0' || (d[0] == '8' && d[2] != '0'))))) {
+            val rest = listOf(first.drop(1)).filter { it.isNotEmpty() } + gs.drop(1).map { it.digits }
+            return listOf(d.take(1)) + phoneNational(null, rest)
+        }
+        // Код страны СНГ без плюса: 375 29 123-45-67, 380441234567.
+        if (first.length == 3 && first in phoneCodes && n - 3 in phoneCodes.getValue(first) && gs.size >= 3)
+            return listOf(first) + phoneNational(first, gs.drop(1).map { it.digits })
+        if (gs.size == 1 && n == 12 && d.take(3) in phoneCodes && 9 in phoneCodes.getValue(d.take(3)))
+            return listOf(d.take(3)) + phoneNational(d.take(3), listOf(d.drop(3)))
+        val lens = gs.map { it.digits.length }
+        // 10 цифр без префикса: (900) 083-09-93, (4952) 12-34-56, 044 123 45 67, 900 083 09 93.
+        if (n == 10 && (paren || (d[0] == '0' && gs.size >= 3) || lens == listOf(3, 3, 2, 2) || lens == listOf(3, 3, 4)))
+            return phoneNational(null, gs.map { it.digits })
+        // Местный номер через дефисы: 123-45-67, 12-34-56, 1-23-45. Пробелы («123 45 67») не берём —
+        // слишком похоже на несколько чисел подряд.
+        if (lens in phoneLocalShapes && seps.all { s -> s.isNotEmpty() && s.all { it in phoneDashes } })
+            return gs.map { it.digits }
+        return null
+    }
+    private val phoneLocalShapes = setOf(listOf(3, 2, 2), listOf(2, 2, 2), listOf(1, 2, 2))
+
+    private fun phoneGroup(g: String): String {
+        val z = g.takeWhile { it == '0' }.length
+        val words = List(z) { "ноль" } + if (z < g.length) listOf(cardinal(g.drop(z).toLong())) else emptyList()
+        return words.joinToString(" ")
+    }
+
+    /** Кандидат может содержать номер не целиком («в 2024. 8 900 083 09 93»): берём самый ранний и самый длинный отрезок групп, который читается телефоном, остаток разбираем так же. */
+    private fun phoneCandidate(v: String): String {
+        val gs = mutableListOf<PhoneGroup>()
+        var i = 0
+        var inParen = false
+        while (i < v.length) {
+            val c = v[i]
+            when {
+                c == '(' -> { inParen = true; i++ }
+                c == ')' -> { inParen = false; i++ }
+                c.isDigit() -> { val st = i; while (i < v.length && v[i].isDigit()) i++; gs += PhoneGroup(v.substring(st, i), inParen, st, i) }
+                else -> i++
+            }
+        }
+        for (a in gs.indices) for (b in minOf(gs.size, a + 9) downTo a + 1) {
+            var st = gs[a].start
+            if (gs[a].paren) st = v.lastIndexOf('(', st)
+            var en = gs[b - 1].end
+            if (gs[b - 1].paren) en = v.indexOf(')', en).let { if (it < 0) en else it + 1 }
+            val span = v.substring(st, en)
+            if (span.count { it == '(' } != span.count { it == ')' } || span.count { it == '(' } > 1) continue
+            val plus = a == 0 && v.startsWith("+")
+            val sub = gs.subList(a, b)
+            val seps = (1 until sub.size).map { k -> v.substring(sub[k - 1].end, sub[k].start).filter { it != '(' && it != ')' } }
+            val parts = phoneParts(plus, sub, seps) ?: continue
+            val head = if (plus) "" else v.substring(0, st)
+            val read = (if (plus) "плюс " else "") + parts.joinToString(", ", transform = ::phoneGroup)
+            return head + read + phoneCandidate(v.substring(en))
+        }
+        return v
+    }
+    private fun phones(text: String) = phoneRe.replace(text) { m -> phoneCandidate(m.value) }
+
     private fun numbersInner(text: String, rules: Rules): String {
         // Каждый проход — под своим ключом Rules (вкладка «Правила»); выключенный просто пропускаем.
         fun step(key: String, f: (String) -> String): (String) -> String = if (rules.on(key)) f else { t -> t }
@@ -1744,6 +1873,8 @@ object Normalizer {
         // Комбинированное ударение (U+0301) → «+» перед гласной, как ждёт модель; невидимые
         // соединители (U+200B–U+200D, U+FEFF) выкидываем — иначе слово рвётся на куски.
         var s = combiningAcuteRe.replace(text) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
+        // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
+        s = step("phones", ::phones)(s)
         // «5−2» (настоящий минус между числами) — «минус»; остальные «−» — как дефис для numberRe.
         s = minusBetweenRe.replace(s, " минус ").replace('−', '-')
         s = tildeRe.replace(s, "примерно ")
