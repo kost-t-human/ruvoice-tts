@@ -43,6 +43,8 @@ class KeyboardTest {
 
     @Before fun skipFirstRunHelp() {
         Prefs(ctx).setupShown = true
+        // как после первого нажатия на клавиатуре: в режиме касания requestFocus() строке правила отказывает
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
     }
 
     /** Фокус на вьюху, как после Tab: клавиши дальше идут в неё. */
