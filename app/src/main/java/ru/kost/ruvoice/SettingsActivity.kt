@@ -13,7 +13,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -211,7 +210,7 @@ class SettingsActivity : AppCompatActivity() {
                 })
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "preview")
             } else button.post {
-                Toast.makeText(ctx, getString(R.string.preview_failed, status.toString()), Toast.LENGTH_LONG).show()
+                showSnackbar(getString(R.string.preview_failed, status.toString()))
                 release(button)
             }
         }, ctx.packageName)

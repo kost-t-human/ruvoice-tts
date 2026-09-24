@@ -283,7 +283,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
             .setAction(R.string.undo) {
                 insertLine(lineIndex.coerceAtMost(lines.size), removed)
                 refresh(); persist()
-            }.show()
+            }.patient().show()
     }
 
     private fun snack(text: String) {
@@ -681,7 +681,10 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             sampleToggle.contentDescription = sampleToggle.text.trimEnd('▾', '▴', ' ') // треугольник — это состояние, оно уже словами
             sampleLayout.visibility = if (sampleOpen) View.VISIBLE else View.GONE
             val sample = if (sampleOpen) sampleField.text.toString() else ""
-            sampleResult.text = if (ok && sample.isNotBlank()) getString(R.string.replace_arrow, Replacements.parse(listOf(currentLine())).apply(sample)) else ""
+            val applied = if (ok && sample.isNotBlank()) Replacements.parse(listOf(currentLine())).apply(sample) else null
+            sampleResult.text = applied?.let { getString(R.string.replace_arrow, it) }.orEmpty()
+            // TalkBack читает сам (live region), без «стрелки вправо»
+            sampleResult.contentDescription = applied?.let { getString(R.string.replace_result, it) }
             sampleResult.visibility = if (sampleResult.text.isEmpty()) View.GONE else View.VISIBLE
         }
 

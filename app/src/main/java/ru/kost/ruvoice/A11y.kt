@@ -14,6 +14,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
 import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
+import com.google.android.material.snackbar.Snackbar
 
 // Помощники для TalkBack. Каждый — про то, как экран слышит незрячий: один фокус на строку,
 // состояние словами, действия вместо жестов, которые TalkBack забирает себе.
@@ -73,3 +74,12 @@ fun Chip.showStress(word: String, pos: Int) {
     }
     contentDescription = context.getString(R.string.stress_chip, DictLines.accentDisplay(word.substring(0, pos) + "+" + word.substring(pos)), n, total, vowel.toString())
 }
+
+/** Снекбар с кнопкой («Отменить») при экранном чтеце — не меньше 30 с: до кнопки надо дойти жестами,
+ * а прочитать сообщение TalkBack успевает раньше. Без чтеца срок прежний; на Android 10+ Material
+ * ещё и берёт большее из этого и системного «Времени на выполнение действия». */
+fun Snackbar.patient(): Snackbar = apply {
+    if (duration != Snackbar.LENGTH_INDEFINITE && ScreenReaders.anyActive(context)) duration = maxOf(duration, PATIENT_MS)
+}
+
+private const val PATIENT_MS = 30_000
