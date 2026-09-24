@@ -111,7 +111,7 @@ fun Activity.ctrlF(keyCode: Int, event: KeyEvent): Boolean {
     fun find(v: View): EditText? {
         if (!v.isShown) return null
         if (v is EditText && v.id in SEARCH_IDS) return v
-        if (v is ViewGroup) for (i in 0 until v.childCount) find(v.getChildAt(i))?.let { return it }
+        if (v is ViewGroup) for (i in 0 until v.childCount) { val f = find(v.getChildAt(i)); if (f != null) return f }
         return null
     }
     val field = find(window.decorView) ?: return false
