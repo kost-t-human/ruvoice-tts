@@ -3,6 +3,7 @@ package ru.kost.ruvoice
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import java.io.File
 import android.net.Uri
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -79,7 +80,7 @@ class SettingsActivity : AppCompatActivity() {
         // «Настройки импортированы» показываем здесь, а не в месте вызова.
         if (intent.getBooleanExtra(EXTRA_IMPORT_DONE, false)) {
             intent.removeExtra(EXTRA_IMPORT_DONE)
-            root.post { showSnackbar(getString(R.string.import_done)) }
+            root.post { importDoneSnackbar() }
         }
         // После установки/удаления пака окно тоже создаётся заново (списки голосов — lazy в фрагментах).
         intent.getStringExtra(EXTRA_SNACK)?.let { msg -> intent.removeExtra(EXTRA_SNACK); root.post { showSnackbar(msg) } }
@@ -163,20 +164,59 @@ class SettingsActivity : AppCompatActivity() {
             .setMessage(R.string.import_confirm)
             .setPositiveButton(R.string.import_confirm_yes) { _, _ ->
                 try {
+                    // снимок для «Отменить»: настройки как были и какие словари были до импорта
+                    saveAllVisiblePages()
+                    val undo = importUndoFiles()
+                    undo.first.writeText(prefs.exportJson())
+                    undo.second.writeText(dictPaths().joinToString("\n"))
                     prefs.importJson(text)
-                    // Не recreate(): он восстанавливает состояние вьюх поверх load(), и старые
-                    // значения полей потом уезжают в Prefs при onPause (проверено на устройстве).
-                    // Флаг на текущем intent — чтобы старые фрагменты не сохранялись при finish().
-                    intent.putExtra(EXTRA_IMPORT_DONE, true)
-                    finish()
-                    startActivity(Intent(this, SettingsActivity::class.java).putExtra(EXTRA_IMPORT_DONE, true))
-                    overridePendingTransition(0, 0)
+                    restartAfterImport(Intent().putExtra(EXTRA_IMPORT_DONE, true))
                 } catch (e: Exception) {
                     showSnackbar(e.message ?: e.toString())
                 }
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
+    }
+
+    private fun dictPaths() = (prefs.dictFiles(Dicts.Kind.STRESS) + prefs.dictFiles(Dicts.Kind.REPLACE)).map { it.absolutePath }
+
+    /** Снимок настроек до импорта и список словарей, что были тогда. */
+    private fun importUndoFiles() = File(cacheDir, "import_undo.json") to File(cacheDir, "import_undo_dicts.txt")
+
+    /** Окно заново, а не recreate(): recreate восстанавливает состояние вьюх поверх load(), и старые
+     * значения полей потом уезжают в Prefs при onPause (проверено на устройстве). Флаг на текущем
+     * intent — чтобы старые фрагменты не сохранялись при finish(). */
+    private fun restartAfterImport(extras: Intent) {
+        intent.putExtra(EXTRA_IMPORT_DONE, true)
+        finish()
+        startActivity(Intent(this, SettingsActivity::class.java).putExtras(extras))
+        overridePendingTransition(0, 0)
+    }
+
+    /** «Настройки импортированы» с «Отменить»: прежние настройки из снимка, словари, которые принёс
+     * импорт, удаляются, перезаписанные возвращаются. */
+    private fun importDoneSnackbar() {
+        val (json, dicts) = importUndoFiles()
+        if (!json.exists()) { showSnackbar(getString(R.string.import_done)); return }
+        Snackbar.make(findViewById(R.id.root), R.string.import_done, 10_000)
+            .setAction(R.string.undo) {
+                try {
+                    val keep = dicts.readText().lines().toSet()
+                    dictPaths().filter { it !in keep }.forEach { File(it).delete() }
+                    prefs.importJson(json.readText())
+                    json.delete(); dicts.delete()
+                    restartAfterImport(Intent().putExtra(EXTRA_SNACK, getString(R.string.import_undone)))
+                } catch (e: Exception) {
+                    showSnackbar(e.message ?: e.toString())
+                }
+            }
+            .addCallback(object : Snackbar.Callback() {
+                override fun onDismissed(bar: Snackbar?, event: Int) {
+                    if (event != DISMISS_EVENT_ACTION) { json.delete(); dicts.delete() }
+                }
+            })
+            .patient().show()
     }
 
     private fun showSnackbar(text: String) =

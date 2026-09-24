@@ -179,6 +179,8 @@
     <string name="replace_skip">→ пропустить</string>
     <string name="replace_arrow">→ %1$s</string>
     <string name="replace_result">Результат: %1$s</string>
+    <string name="audit_cleared">Список очищен</string>
+    <string name="import_undone">Прежние настройки возвращены</string>
     <string name="regex_tag">regex</string>
 
     <!-- Меню, экспорт/импорт и о программе -->

@@ -101,7 +101,12 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         v.findViewById<View>(R.id.clear).setOnClickListener {
             val name = getString(R.string.audit_tab_names) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
             MaterialAlertDialogBuilder(requireContext()).setMessage(getString(R.string.audit_clear_confirm, name))
-                .setPositiveButton(R.string.delete) { _, _ -> prefs.audit.clear(kind, hidden); refresh() }
+                .setPositiveButton(R.string.delete) { _, _ ->
+                    val before = prefs.audit.text(kind)
+                    prefs.audit.clear(kind, hidden); refresh()
+                    Snackbar.make(requireView(), R.string.audit_cleared, 6000)
+                        .setAction(R.string.undo) { prefs.audit.load(kind, before); refresh() }.patient().show()
+                }
                 .setNegativeButton(R.string.cancel, null).show()
         }
         val sortAlpha = v.findViewById<ImageButton>(R.id.sortAlpha)
@@ -410,10 +415,17 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 }
                 val f = Dicts.file(ctx.filesDir, if (replace) Dicts.Kind.REPLACE else Dicts.Kind.STRESS, name)
                 f.parentFile!!.mkdirs()
-                f.appendText((if (f.exists() && f.length() > 0 && !f.readText().endsWith("\n")) "\n" else "") + line + "\n")
+                // для «Отменить»: список и файл словаря как были (файла могло не быть)
+                val dictBefore = f.takeIf { it.exists() }?.readText()
+                val auditBefore = prefs.audit.text(kind)
+                f.appendText((if (dictBefore != null && dictBefore.isNotEmpty() && !dictBefore.endsWith("\n")) "\n" else "") + line + "\n")
                 prefs.audit.remove(kind, e.word); refresh()
                 val shown = if (replace) line.substringAfter(" = ") else DictLines.accentDisplay(line.substringAfter(' '))
-                Snackbar.make(requireView(), getString(R.string.audit_added, shown, name), Snackbar.LENGTH_SHORT).show()
+                Snackbar.make(requireView(), getString(R.string.audit_added, shown, name), 6000)
+                    .setAction(R.string.undo) {
+                        if (dictBefore == null) f.delete() else f.writeText(dictBefore)
+                        prefs.audit.load(kind, auditBefore); refresh()
+                    }.patient().show()
             }
             .setNegativeButton(R.string.cancel, null).show()
     }
