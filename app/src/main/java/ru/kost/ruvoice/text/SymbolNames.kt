@@ -1,9 +1,14 @@
 package ru.kost.ruvoice.text
 
+import android.content.Context
+import android.util.Log
+
 /**
  * Имена служебных символов для правила symbol_names: знак, который модель не знает и фильтр
- * Normalizer.symbols иначе молча выкинул бы, читается словами. Названия — как у TalkBack
- * (values-ru, symbol_*), чтобы голос не спорил с самой читалкой.
+ * Normalizer.symbols иначе молча выкинул бы, читается словами. Сначала своя таблица [NAMES] —
+ * названия как у TalkBack (values-ru, symbol_*), чтобы голос не спорил с самой читалкой; остальное —
+ * из Unicode CLDR (assets/symbols_ru.tsv, tools/symbols_ru.py, сотни знаков: математика, стрелки,
+ * валюты, типографика). Обычная пунктуация не называется ни там, ни там — это паузы.
  */
 object SymbolNames {
     val NAMES: Map<Char, String> = mapOf(
@@ -29,6 +34,19 @@ object SymbolNames {
         'µ' to "микро", '†' to "крестик", '‡' to "двойной крестик", '※' to "знак сноски",
     )
 
+    /** Таблица CLDR; ставит SileroModels.data(), null — только своя таблица (JVM-тесты без ассета). */
+    @Volatile var cldr: Map<Char, String>? = null
+
     /** Имя знака или null: буквы, цифры, пробелы, знаки ударения и неизвестное не называем. */
-    fun of(c: Char): String? = NAMES[c]
+    fun of(c: Char): String? = NAMES[c] ?: cldr?.get(c)
+
+    fun parse(lines: Sequence<String>): Map<Char, String> = lines
+        .filter { !it.startsWith("#") && it.length > 2 && it[1] == '\t' }
+        .associate { it[0] to it.substring(2) }
+
+    fun open(context: Context): Map<Char, String> {
+        val t = System.nanoTime()
+        return context.assets.open("symbols_ru.tsv").bufferedReader().useLines { parse(it) }
+            .also { Log.i("RuVoice", "symbols_ru.tsv: ${it.size} знаков, ${(System.nanoTime() - t) / 1_000_000} мс") }
+    }
 }

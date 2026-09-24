@@ -1,6 +1,6 @@
 # Имена эмодзи — Unicode CLDR (common/annotations/ru.xml, annotationsDerived/ru.xml), tools/emoji_ru.py.
 # Copyright © 2001–2026 Unicode, Inc. Distributed under the Unicode License v3 (SPDX: Unicode-3.0):
-# Полный текст уведомления — emoji_ru.LICENSE.txt рядом.
+# Полный текст уведомления — cldr.LICENSE.txt рядом.
 # Формат: эмодзи без U+FE0F <TAB> имя.
 #⃣	клавиши: #
 *⃣	клавиши: *

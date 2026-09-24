@@ -14,6 +14,7 @@ import ru.kost.ruvoice.text.Normalizer
 import ru.kost.ruvoice.text.HardE
 import ru.kost.ruvoice.text.YoDict
 import ru.kost.ruvoice.text.StressModels
+import ru.kost.ruvoice.text.SymbolNames
 import java.io.File
 import kotlin.math.exp
 
@@ -194,6 +195,7 @@ class SileroModels(private val context: Context) : StressModels {
                 YoDict.shared = runCatching { YoDict.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "eyo_safe.txt не открылся", e) }.getOrNull()
                 HardE.shared = runCatching { HardE.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "hard_e.txt не открылся", e) }.getOrNull()
                 Emoji.shared = runCatching { Emoji.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "emoji_ru.tsv не открылся", e) }.getOrNull()
+                SymbolNames.cldr = runCatching { SymbolNames.open(context.applicationContext) }.onFailure { e -> Log.e(TAG, "symbols_ru.tsv не открылся", e) }.getOrNull()
             }
         }
     }

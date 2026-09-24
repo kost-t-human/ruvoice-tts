@@ -1,4 +1,4 @@
-Unicode CLDR data (app/src/main/assets/emoji_ru.tsv) is distributed under the Unicode License v3:
+Unicode CLDR data (app/src/main/assets/emoji_ru.tsv, symbols_ru.tsv) is distributed under the Unicode License v3:
 
 UNICODE LICENSE V3
 
