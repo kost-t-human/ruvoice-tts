@@ -152,6 +152,13 @@ class PipelineTest {
         assertEquals("в 1917 году.", first("в 1917 году."))
         assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
     }
+    // одиночный знак, которого нет в алфавите модели, — по имени, а не тишина
+    @Test fun loneSymbolRequestIsNamed() {
+        fun first(t: String, rules: Rules = Rules()) = Pipeline.plan(t, d, 0, 0, rules = rules).single().text
+        assertEquals("решётка", first("#"))
+        assertEquals("стрелка вправо", first(" → "))
+        assertEquals("#", first("#", Rules(off = setOf("letter_name"))))
+    }
     @Test fun fastStartCutsOnlyFirstSegment() {
         val long = "Поздним вечером старый смотритель запер тяжёлые ворота, пошёл вдоль стены, а потом долго стоял у окна и смотрел, как гаснут огни в деревне за рекой, где его никто не ждал."
         val text = "$long\n$long"

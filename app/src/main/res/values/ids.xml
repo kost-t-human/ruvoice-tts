@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тег строки списка: id действий TalkBack, добавленных A11y.action (снимаются при переиспользовании). -->
+    <item name="a11y_actions" type="id" />
+</resources>

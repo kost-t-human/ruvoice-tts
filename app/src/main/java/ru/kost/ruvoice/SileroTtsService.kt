@@ -14,6 +14,8 @@ import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import android.speech.tts.Voice
+import android.text.Spanned
+import android.text.style.TtsSpan
 import android.util.Log
 import ru.kost.ruvoice.audio.Pcm
 import ru.kost.ruvoice.audio.Tempo
@@ -84,7 +86,9 @@ object Pipeline {
              replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules()): List<Segment> {
         val src = text.toString().let { t ->
             if (!rules.on("letter_name")) t else loneLetter.matchEntire(t)?.let { m ->
-                Abbrev.letterName(m.groupValues[2][0])?.let { m.groupValues[1].lowercase() + it } } ?: t
+                Abbrev.letterName(m.groupValues[2][0])?.let { m.groupValues[1].lowercase() + it } }
+                // одиночный знак (клавиша «#», знак под курсором) — по имени, иначе фильтр оставит тишину
+                ?: t.trim().singleOrNull()?.let { SymbolNames.of(it) } ?: t
         }
         // Последний абзац запроса намеренно без паузы абзаца — свою паузу до следующей
         // реплики читалка/пользователь и так делают между вызовами.
@@ -301,6 +305,21 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onStop() { stopped = true }
 
+    /** Текст запроса с подставленными TtsSpan: TYPE_TEXT → ARG_TEXT, TYPE_CARDINAL → ARG_NUMBER. */
+    private fun spokenText(cs: CharSequence?): String {
+        val t = cs?.toString().orEmpty()
+        if (cs !is Spanned) return t
+        val spans = cs.getSpans(0, cs.length, TtsSpan::class.java).mapNotNull { sp ->
+            val say = when (sp.type) {
+                TtsSpan.TYPE_TEXT -> sp.args.getString(TtsSpan.ARG_TEXT)
+                TtsSpan.TYPE_CARDINAL -> sp.args.getString(TtsSpan.ARG_NUMBER)
+                else -> null
+            }
+            say?.takeIf { it.isNotBlank() }?.let { Triple(cs.getSpanStart(sp), cs.getSpanEnd(sp), it) }
+        }
+        return SpanText.substitute(t, spans)
+    }
+
     override fun onSynthesizeText(request: SynthesisRequest, callback: SynthesisCallback) {
         stopped = false
         handler.removeCallbacks(unload)
@@ -332,7 +351,9 @@ class SileroTtsService : TextToSpeechService() {
             val quoteSpeakerId = Speaker.resolve(prefs.quoteVoice, d, packs())?.takeIf { it.pack?.id == voice.pack?.id }?.id
             val quoteRate = prefs.quoteRate
             val quotePitch = prefs.quotePitch
-            val segments = Pipeline.plan(request.charSequenceText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
+            // TtsSpan (пунктуация TalkBack «Все») — текстом; смещения rangeStart считаются по нему же
+            val reqText = spokenText(request.charSequenceText)
+            val segments = Pipeline.plan(reqText, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, replacements, rules)
             // Паузы после запятой и на тире — явная длительность самого знака в кадрах модели (Marks.frames);
             // ноль — как решит модель. Дефис/минус в пробелах Normalizer.punctuation уже свёл к «–».
             val pauseFrames = HashMap<Int, Long>()
@@ -341,7 +362,7 @@ class SileroTtsService : TextToSpeechService() {
             pause(prefs.dashPauseMs, '–', '—')
             // Слова запроса для подсветки читаемого слова (rangeStart): ключ и смещения в тексте.
             // SSML-теги и маркеры заменяются пробелами той же длины, чтобы смещения не поехали.
-            val srcText = request.charSequenceText.toString().let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }
+            val srcText = reqText.let { if (rules.on("ssml") && Ssml.isSsml(it)) Ssml.blankTags(it) else it }
                 .let { Marks.blank(it) }
             val srcWords = Regex("\\S+").findAll(srcText).map { Triple(Marks.key(it.value), it.range.first, it.range.last + 1) }.toList()
             val matcher = Marks.Matcher(srcWords.map { it.first })

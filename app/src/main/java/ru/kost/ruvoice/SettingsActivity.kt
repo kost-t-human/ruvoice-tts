@@ -186,16 +186,19 @@ class SettingsActivity : AppCompatActivity() {
     // Прослушивание идёт через платформенный TextToSpeech, а не напрямую через SileroModels:
     // так проверяется тот же путь, которым звук получит читалка (наш сервис как движок).
     // Общий помощник для всех вкладок (голос, диалоги ударений и замен) — один TextToSpeech
-    // на Activity вместо отдельного инстанса на фрагмент. tts?.shutdown() внутри preview()
-    // обрывает предыдущий запрос без onDone/onError, поэтому его кнопку разблокируем сами —
-    // иначе на экранах с несколькими ▶ вторая кнопка навсегда «съедала» разблокировку первой.
+    // на Activity вместо отдельного инстанса на фрагмент. Пока звучит, нажатая кнопка — «Стоп»
+    // (не выключается: незрячему нечем было бы оборвать длинный текст). Звук обрывают и
+    // TalkBack (каждый свайп сбрасывает очереди всех приложений — приходит onStop, а не
+    // onDone/onError), и следующее «Прослушать» — кнопку возвращаем сами во всех случаях.
     private var busyButton: View? = null
+    private var busyRestore: (() -> Unit)? = null
 
     fun preview(button: View, text: String, params: Bundle? = null) {
         val ctx = applicationContext
-        busyButton?.isEnabled = true
+        if (busyButton === button) { tts?.stop(); release(button); return }
+        busyButton?.let { release(it) }
         busyButton = button
-        button.isEnabled = false
+        busyRestore = showStop(button)
         tts?.shutdown()
         tts = TextToSpeech(ctx, { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -204,6 +207,7 @@ class SettingsActivity : AppCompatActivity() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) { button.post { release(button) } }
                     override fun onError(utteranceId: String?) { button.post { release(button) } }
+                    override fun onStop(utteranceId: String?, interrupted: Boolean) { button.post { release(button) } }
                 })
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "preview")
             } else button.post {
@@ -211,6 +215,26 @@ class SettingsActivity : AppCompatActivity() {
                 release(button)
             }
         }, ctx.packageName)
+    }
+
+    /** Кнопка на время звука — «Стоп»: у кнопки с текстом текст и значок, у значка — картинка и
+     * описание для TalkBack. Возвращает, как вернуть прежний вид. */
+    private fun showStop(button: View): () -> Unit {
+        val stop = getString(R.string.stop)
+        return when (button) {
+            is com.google.android.material.button.MaterialButton -> {
+                val text = button.text; val icon = button.icon
+                button.text = stop; if (icon != null) button.setIconResource(R.drawable.ic_stop)
+                val r = { button.text = text; button.icon = icon }; r
+            }
+            is android.widget.ImageView -> {
+                val img = button.drawable; val desc = button.contentDescription
+                button.setImageResource(R.drawable.ic_stop); button.contentDescription = stop
+                // строку списка могли переиспользовать под другое слово — её описание не трогаем
+                val r = { button.setImageDrawable(img); if (button.contentDescription == stop) button.contentDescription = desc }; r
+            }
+            else -> { {} }
+        }
     }
 
     // «Разбор» с «Голоса» и из окна «Проверить» на вкладках списков: по сегментам — текст после
@@ -258,14 +282,14 @@ class SettingsActivity : AppCompatActivity() {
         }.start()
     }
 
-    /** Разблокирует button, только если она всё ещё «занятая» — поздний callback от уже
+    /** Возвращает button прежний вид, только если она всё ещё «занятая» — поздний callback от уже
      * остановленного (shutdown в preview()) движка не должен трогать кнопку следующего запроса. */
     private fun release(button: View) {
-        if (busyButton === button) { button.isEnabled = true; busyButton = null }
+        if (busyButton === button) { busyRestore?.invoke(); busyRestore = null; busyButton = null }
     }
 
     override fun onDestroy() {
-        busyButton?.isEnabled = true
+        busyButton?.let { release(it) }
         tts?.shutdown()
         super.onDestroy()
     }
@@ -285,6 +309,8 @@ class SettingsActivity : AppCompatActivity() {
             val row = layoutInflater.inflate(R.layout.item_pack, list, false)
             row.findViewById<TextView>(R.id.title).text = p.title
             row.findViewById<TextView>(R.id.info).text = getString(R.string.pack_info, p.speakers.size, (p.size / 1048576).toInt(), p.license)
+            // TalkBack: у каждого пака своя «Удалить» — без имени их не различить
+            row.findViewById<Button>(R.id.delete).contentDescription = getString(R.string.pack_delete_named, p.title)
             row.findViewById<Button>(R.id.delete).setOnClickListener {
                 MaterialAlertDialogBuilder(this).setMessage(getString(R.string.pack_delete_confirm, p.title))
                     .setPositiveButton(R.string.pack_delete) { _, _ ->

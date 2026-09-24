@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Одно правило: название, подпись и тумблер. Клик по строке переключает тумблер. -->
+<!-- Одно правило: название, подпись и тумблер. Клик по строке переключает тумблер; для TalkBack
+     строка — один переключатель (RulesFragment → asSwitchRow). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:paddingVertical="8dp"
+    android:minHeight="48dp"
+    android:background="?attr/selectableItemBackground"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
     <LinearLayout

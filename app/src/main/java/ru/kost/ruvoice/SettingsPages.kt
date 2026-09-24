@@ -73,10 +73,10 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
             if (quoteView.str() !in items) quoteView.setText(items.first(), false)
         }
         v.dropdown(R.id.sampleRate, rateItems, rateItems[rates.indexOf(prefs.sampleRate).coerceAtLeast(0)])
-        v.slider(R.id.rate, R.id.rateValue, prefs.rate)
-        v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch)
-        v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate)
-        v.slider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch)
+        v.slider(R.id.rate, R.id.rateValue, prefs.rate, R.string.quote_rate)
+        v.slider(R.id.pitch, R.id.pitchValue, prefs.pitch, R.string.quote_pitch)
+        v.slider(R.id.quoteRate, R.id.quoteRateValue, prefs.quoteRate, R.string.quote_rate_a11y)
+        v.slider(R.id.quotePitch, R.id.quotePitchValue, prefs.quotePitch, R.string.quote_pitch_a11y)
         // Настройки прямой речи видны только при включённом распознавании.
         val quoteGroup = v.findViewById<View>(R.id.quoteGroup)
         v.findViewById<MaterialSwitch>(R.id.quoteOn).apply {
@@ -130,14 +130,18 @@ class VoiceFragment : PageFragment(R.layout.fragment_voice) {
     // старые quote_rate из текстового поля) — округляем к шагу и зажимаем в диапазон.
     private fun snap(raw: Float, from: Float, to: Float) = (Math.round((raw - from) / 0.05f) * 0.05f + from).coerceIn(from, to)
 
-    /** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок с тем же форматом при перетаскивании. */
-    private fun View.slider(sliderId: Int, valueId: Int, raw: Float, from: Float = 0.5f, to: Float = 2f): Slider {
+    /** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок «1,25» при перетаскивании. TalkBack
+     * слышит один элемент — слайдер с названием [label] и значением из поплавка: строка подписи над
+     * ним скрыта, а «×» из значения голос не произносит (или называет «знак умножения»). */
+    private fun View.slider(sliderId: Int, valueId: Int, raw: Float, label: Int, from: Float = 0.5f, to: Float = 2f): Slider {
         val valueView = findViewById<TextView>(valueId)
         fun format(v: Float) = "×%.2f".format(Locale.ROOT, v)
         val value = snap(raw, from, to)
         valueView.text = format(value)
+        (valueView.parent as View).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         return findViewById<Slider>(sliderId).apply {
-            setLabelFormatter(::format)
+            contentDescription = getString(label)
+            setLabelFormatter { "%.2f".format(Locale("ru"), it) }
             this.value = value
             addOnChangeListener { _, v, _ -> valueView.text = format(v) }
         }
@@ -195,7 +199,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         val inflater = LayoutInflater.from(v.context)
         for ((i, key) in Rules.KEYS.withIndex()) {
             Rules.SECTIONS[key]?.let { section ->
-                list.addView(TextView(v.context, null, 0, R.style.Section).apply { setText(res("rules_section_$section")) },
+                list.addView(TextView(v.context, null, 0, R.style.Section).apply { setText(res("rules_section_$section")); asHeading() },
                     LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                         .apply { topMargin = if (i == 0) 0 else (24 * resources.displayMetrics.density).toInt() })
             }
@@ -205,7 +209,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             val toggle = row.findViewById<MaterialSwitch>(R.id.toggle)
             toggle.tag = key
             toggle.isChecked = rules.on(key)
-            row.setOnClickListener { toggle.toggle() }
+            row.asSwitchRow(toggle)
             list.addView(row)
             // поле силы ударения — сразу под своим тумблером
             if (key == "focus") list.addView(inflater.inflate(R.layout.item_focus_level, list, false).apply {

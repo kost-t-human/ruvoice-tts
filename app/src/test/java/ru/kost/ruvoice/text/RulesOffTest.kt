@@ -120,7 +120,7 @@ class RulesOffTest {
         for (k in listOf("numbers", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "phones",
             "units", "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands",
             "footnotes", "abbrev", "spell_cyr", "spell_lat", "latin", "homoglyphs", "dehyphen", "soft_break",
-            "punct", "ssml", "homo", "accentor", "prefix_space", "intonation", "exclaim", "question", "pause_semicolon", "lead_in"))
+            "punct", "ssml", "homo", "accentor", "prefix_space", "intonation", "exclaim", "question", "pause_semicolon", "lead_in", "symbol_names"))
             assertTrue(k, k in Rules.KEYS)
     }
 

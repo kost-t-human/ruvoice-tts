@@ -55,6 +55,8 @@ import ru.kost.ruvoice.text.Replacements
 abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     protected abstract val kind: Dicts.Kind
     protected abstract val emptyHintRes: Int
+    /** Подпись «+» для TalkBack: что именно добавится. */
+    protected abstract val addLabelRes: Int
     /** Текст справки вкладки — открывается попапом по ссылке над поиском; заголовок — имя вкладки. */
     protected abstract val helpRes: Int
     protected abstract val helpTitleRes: Int
@@ -145,6 +147,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         fun showScope() {
             val scope = prefs.searchScope(kind)
             filterLayout.hint = getString(R.string.filter_scope_hint, scopeTitles[scope.ordinal])
+            filterLayout.endIconContentDescription = getString(R.string.search_scope_now, scopeTitles[scope.ordinal]) // цвет значка TalkBack не видит
             filterLayout.setEndIconTintList(ColorStateList.valueOf(MaterialColors.getColor(filterLayout,
                 if (scope == Dicts.Scope.CURRENT) com.google.android.material.R.attr.colorControlNormal else com.google.android.material.R.attr.colorPrimary)))
         }
@@ -173,7 +176,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = createAdapter()
         filterField.doAfterTextChanged { refresh() }
-        addButton = v.findViewById<FloatingActionButton>(R.id.add).apply { setOnClickListener { showDialog(null) } }
+        addButton = v.findViewById<FloatingActionButton>(R.id.add).apply { contentDescription = getString(addLabelRes); setOnClickListener { showDialog(null) } }
         attachSwipeToDelete()
         // Файл могли поменять извне (импорт настроек + recreate, Task 25) — читаем заново,
         // не кэшируем между пересозданиями.
@@ -255,6 +258,19 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         box.findViewById<Button>(R.id.preview).setOnClickListener { btn -> text()?.let { (activity as SettingsActivity).preview(btn, it) } }
         box.findViewById<Button>(R.id.analyze).setOnClickListener { text()?.let { (activity as SettingsActivity).analyze(it) } }
         MaterialAlertDialogBuilder(ctx).setView(box).setPositiveButton(R.string.close, null).show()
+    }
+
+    /** TalkBack: подпись двойного тапа («Изменить» / «Открыть в своём списке») и «Удалить» в меню
+     * действий — свайп незрячему недоступен, его забирает TalkBack. [list] — строка другого списка. */
+    protected fun rowActions(row: View, list: String?, position: Int) {
+        row.clearActions()
+        when {
+            list != null -> row.clickLabel(getString(R.string.open_in_list))
+            !readOnly -> {
+                row.clickLabel(getString(R.string.edit))
+                row.action(getString(R.string.delete)) { shown.getOrNull(position)?.let { deleteLine(it) } }
+            }
+        }
     }
 
     /** Удаляет строку файла и даёт «Отменить» в снекбаре. */
@@ -419,6 +435,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
 class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val kind = Dicts.Kind.STRESS
     override val emptyHintRes = R.string.stress_empty_hint
+    override val addLabelRes = R.string.add_stress
     override val helpRes = R.string.stress_help
     override val helpTitleRes = R.string.tab_stress
     override val sorted = true
@@ -450,6 +467,8 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
             holder.word.text = labeled(DictLines.accentDisplay(variant), list, holder.word)
             holder.itemView.setOnClickListener { if (list != null) openIn(list, p) else if (!readOnly) showDialog(shown[position]) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, variant) }
+            holder.play.contentDescription = getString(R.string.preview_word, DictLines.accentDisplay(variant))
+            rowActions(holder.itemView, list, position)
         }
     }
 
@@ -571,6 +590,7 @@ class StressFragment : DictListFragment(R.layout.fragment_dict_list) {
 class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
     override val kind = Dicts.Kind.REPLACE
     override val emptyHintRes = R.string.replace_empty_hint
+    override val addLabelRes = R.string.add_replace
     override val helpRes = R.string.replace_help
     override val helpTitleRes = R.string.tab_replace
 
@@ -611,6 +631,8 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             holder.play.visibility = if (skip) View.GONE else View.VISIBLE
             holder.itemView.setOnClickListener { if (list != null) openIn(list, p) else if (!readOnly) showDialog(shown[position]) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, value) }
+            holder.play.contentDescription = getString(R.string.preview_word, value)
+            rowActions(holder.itemView, list, position)
         }
     }
 
@@ -655,6 +677,8 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             posButton?.isEnabled = ok
             val sampleOpen = prefs.replaceSampleOpen
             sampleToggle.setText(if (sampleOpen) R.string.replace_sample_open else R.string.replace_sample_closed)
+            sampleToggle.say(getString(if (sampleOpen) R.string.state_expanded else R.string.state_collapsed))
+            sampleToggle.contentDescription = sampleToggle.text.trimEnd('▾', '▴', ' ') // треугольник — это состояние, оно уже словами
             sampleLayout.visibility = if (sampleOpen) View.VISIBLE else View.GONE
             val sample = if (sampleOpen) sampleField.text.toString() else ""
             sampleResult.text = if (ok && sample.isNotBlank()) getString(R.string.replace_arrow, Replacements.parse(listOf(currentLine())).apply(sample)) else ""
@@ -668,6 +692,8 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             if (rebuilding) return
             val open = prefs.replaceStressOpen
             stressToggle.setText(if (open) R.string.replace_stress_open else R.string.replace_stress_closed)
+            stressToggle.say(getString(if (open) R.string.state_expanded else R.string.state_collapsed))
+            stressToggle.contentDescription = stressToggle.text.trimEnd('▾', '▴', ' ') // треугольник — это состояние, оно уже словами
             // пустое «На что» и ключ-слово (не regex): чипы по ключу, тап заполняет замену им же
             // с ударением — «замок = з+амок» без перепечатывания слова
             val fromKey = valueField.text.isNullOrBlank() && !regexSwitch.isChecked

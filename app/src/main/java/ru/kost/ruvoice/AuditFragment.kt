@@ -105,7 +105,10 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 .setNegativeButton(R.string.cancel, null).show()
         }
         val sortAlpha = v.findViewById<ImageButton>(R.id.sortAlpha)
-        fun tintSort() = sortAlpha.setColorFilter(MaterialColors.getColor(sortAlpha, if (prefs.auditSortAlpha) com.google.android.material.R.attr.colorPrimary else com.google.android.material.R.attr.colorControlNormal))
+        fun tintSort() {
+            sortAlpha.setColorFilter(MaterialColors.getColor(sortAlpha, if (prefs.auditSortAlpha) com.google.android.material.R.attr.colorPrimary else com.google.android.material.R.attr.colorControlNormal))
+            sortAlpha.say(getString(if (prefs.auditSortAlpha) R.string.state_on else R.string.state_off)) // цвет TalkBack не видит
+        }
         tintSort()
         sortAlpha.setOnClickListener { prefs.auditSortAlpha = !prefs.auditSortAlpha; tintSort(); refresh() }
         v.findViewById<View>(R.id.scan).setOnClickListener {
@@ -332,10 +335,18 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         override fun getItemCount() = items.size
         override fun onBindViewHolder(holder: VH, position: Int) {
             val e = items[position]
-            holder.word.text = if (e.count > 1) getString(R.string.audit_count, DictLines.accentDisplay(e.variant), e.count) else DictLines.accentDisplay(e.variant)
+            val shownWord = DictLines.accentDisplay(e.variant)
+            holder.word.text = if (e.count > 1) getString(R.string.audit_count, shownWord, resources.getQuantityString(R.plurals.audit_times, e.count, e.count)) else shownWord
             holder.context.text = e.context
             holder.itemView.setOnClickListener { showDialog(e) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, e.variant) }
+            holder.play.contentDescription = getString(R.string.preview_word, shownWord)
+            // TalkBack: свайп «скрыть/вернуть» — действием в меню
+            holder.itemView.clearActions()
+            holder.itemView.clickLabel(getString(R.string.audit_to_dict))
+            holder.itemView.action(getString(if (hidden) R.string.audit_unhide else R.string.audit_hide)) {
+                prefs.audit.hide(kind, e.word, !hidden); refresh()
+            }
         }
     }
 

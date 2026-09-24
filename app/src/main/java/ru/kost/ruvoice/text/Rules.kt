@@ -23,11 +23,11 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         const val FOCUS_MAX = 3
 
         /** Правила, выключенные по умолчанию. */
-        val DEFAULT_OFF = setOf("fast_start", "drop_links", "drop_emails")
+        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails")
 
         /** Порядок списка = порядок на экране. Секция «Разное» вверху — для настроек без своего раздела. */
         val KEYS = listOf(
-            "letter_name", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
+            "symbol_names", "letter_name", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
             "phones", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
@@ -36,7 +36,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "pause_semicolon", "pause_parens", "fast_cores",
         )
         /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */
-        val SECTIONS = mapOf("letter_name" to "misc", "phones" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
+        val SECTIONS = mapOf("symbol_names" to "misc", "phones" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
             "gram" to "stress", "pause_semicolon" to "audio")
     }
 }

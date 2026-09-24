@@ -133,12 +133,22 @@ object Normalizer {
     private val ellipsisRe = Regex("""\.(?: ?\.){2,}""")
     private val spacedDashRe = Regex("""(?<=^|[ ])[-−](?=[ ])""")
     private val multiDashRe = Regex("[–—]{2,}")
+    // Интерфейсные знаки, которые TalkBack шлёт из подписей: «замок · Системный» — пауза как
+    // у запятой, ««21» → «двадцать один»» — как у тире; иначе фильтр их съедает и слова слипаются.
+    // Не перед коротким словом: «4 кВт · ч» — единица, её читает units().
+    private val midDotRe = Regex("""\s+[·•]\s+(?!\p{L}{1,3}(?!\p{L}))""")
+    private val arrowRe = Regex("""\s*[→⟶⇒➔]\s*""")
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
         s = ellipsisRe.replace(s, "…")
         s = spacedDashRe.replace(s, "–")
         s = multiDashRe.replace(s, "–")
+        // с symbol_names знаки называются по имени в symbols(), паузой их не подменяем
+        if (!rules.on("symbol_names")) {
+            s = midDotRe.replace(s, ", ")
+            s = arrowRe.replace(s, " – ")
+        }
         return s
     }
 
@@ -1245,6 +1255,8 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])тел\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "телефон",
         Regex("""(?<![\p{L}\d])доб\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "добавочный ",
         Regex("""(?<![\p{L}\d])макс\.(?![\p{L}])""") to "максимум",  // без IGNORE_CASE: «Его звали Макс.»
+        // «вкл.» не трогаем: в тексте это чаще «включительно» («с 1 по 5 вкл.»)
+        Regex("""(?<![\p{L}\d])выкл\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "выключено",
     )
 
     // «Св. Георгия» → «Святого Георгия», «Св. Анны» → «Святой Анны»: род и падеж по имени (nameGenderCase).
@@ -2083,7 +2095,12 @@ object Normalizer {
         val normalized = (if (rules.on("pause_parens")) ::parens else { s: String -> s })(text.replace('—', '–').replace('–', dash).replace(hyphenClass, "-").replace("±", " плюс-минус ").replace("≈", " примерно ")
             .replace("&", " и ").replace(wsClass, " "))
         val sb = StringBuilder(normalized.length)
-        for (c in normalized) if (c in allowed) sb.append(c)
+        val names = rules.on("symbol_names")
+        for (c in normalized) {
+            if (c in allowed) sb.append(c)
+            // знак, который фильтр выкинул бы, — словом в пробелах; ударение «+» не трогаем
+            else if (names && c != '+') SymbolNames.of(c)?.let { sb.append(' ').append(it).append(' ') }
+        }
         return sb.toString().replace(Regex("\\s+"), " ").trim()
     }
 
