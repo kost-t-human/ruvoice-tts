@@ -22,7 +22,7 @@ class EmojiTest {
 
     @Test fun sequences() {
         // флаг, тон кожи (без тона в имени), вариант начертания U+FE0F и без него, клавиша
-        assertEquals("флаг: Россия", emoji.apply("🇷🇺"))
+        assertEquals("флаг: Антарктида", emoji.apply("🇦🇶"))
         assertEquals("машет рукой", emoji.apply("👋🏽"))
         assertEquals(emoji.apply("❤️"), emoji.apply("❤"))
         assertEquals("клавиша 1", emoji.apply("1️⃣"))
