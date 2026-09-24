@@ -98,4 +98,10 @@ class NumbersTest {
         assertEquals("пять плюс три", n("5 + 3"))
         assertEquals("пять плюс три", n("5+3"))
     }
+
+    @Test fun mainsVoltageAtSentenceEndIsVolts() {
+        val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
+        assertEquals("напряжение двести двадцать вольт.", Normalizer.prepare("Напряжение 220 В.", allowed))
+        assertEquals("сеть сто двадцать семь вольт, потом триста восемьдесят вольт.", Normalizer.prepare("Сеть 127 В, потом 380 В.", allowed))
+    }
 }

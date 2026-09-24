@@ -79,5 +79,6 @@ class AbbrevTest {
         assertEquals("а к+а-семьдесят четыре, газ-шестьдесят шесть, ту-сто пятьдесят четыре.",
             Normalizer.prepare("АК-74, ГАЗ-66, Ту-154.", allowed))
         assertEquals("сила сто ньютонов.", Normalizer.prepare("Сила 100Н.", allowed)) // число с единицей — не код
+        assertEquals("тэ эм +а-ноль один +эм и +эр-ноль ноль семь.", Normalizer.prepare("ТМА-01М и Р-007.", allowed))
     }
 }

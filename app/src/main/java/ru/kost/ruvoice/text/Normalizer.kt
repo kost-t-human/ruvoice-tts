@@ -999,35 +999,40 @@ object Normalizer {
         if (right.equals("с", true) || right == "c") return@replace m.value
         unitTable.keys.firstOrNull { it.equals("$left/$right", true) || it.equals("$left·$right", true) } ?: m.value
     }) { m ->
-        val (trigger, numStr, unitKey) = m.destructured
+        var (trigger, numStr, unitKey) = m.destructured
+        // «220 В.» в конце предложения — вольты, не века: века больше тридцатого не бывает (сеть 110–400 В)
+        val volts = unitKey.equals("в.", true) && (numStr.substringBefore(',').substringBefore('.').toLongOrNull() ?: 0) > 30
+        if (volts) unitKey = "В"
         val u = unitOf(unitKey) ?: return@replace m.value
         val hasFrac = numStr.contains(',') || numStr.contains('.')
         val head = if (trigger.isEmpty()) "" else "$trigger "
         val inAcc = trigger.lowercase() in setOf("в", "во") &&
             (unitKey in timeUnitKeys || unitInAccBehindRe.containsMatchIn(text.substring(0, m.range.first)))
-        if (trigger.isNotEmpty() && !hasFrac && !inAcc) {
-            val n = numStr.toLongOrNull() ?: return@replace m.value
-            val case = unitTriggerCase.getValue(trigger.lowercase().replace(Regex("\\s+"), " "))
-            head + Declension.cardinal(n, case, u.feminine) + " " + unitWord(u, n, case)
-        } else if (u.forms.first == "сутки" && !hasFrac) {
-            // «сутки» — только мн. ч.: «одни сутки», «двое суток», дальше обычный счёт.
-            val n = numStr.toLongOrNull() ?: return@replace m.value
-            val one = n % 10 == 1L && n % 100 != 11L
-            val few = mapOf(2L to "двое", 3L to "трое", 4L to "четверо")
-            (if (one) "одни" else few[n] ?: cardinal(n)) + " " + (if (one) "сутки" else "суток")
-        } else if (u.feminine && !hasFrac) {
-            val n = numStr.toLongOrNull() ?: return@replace m.value
-            val acc = n % 10 == 1L && n % 100 != 11L &&
-                (inAcc || trigger.isEmpty() && unitAccBehindRe.containsMatchIn(text.substring(0, m.range.first)))
-            if (acc) head + Declension.cardinal(n, Case.ACC, feminine = true) + " " + unitWord(u, n, Case.ACC)
-            else head + cardinal(n, feminine = true) + " " + plural(n, u.forms) + u.suffix
-        } else {
-            val intPart = numStr.substringBefore(',').substringBefore('.')
-            val n = intPart.toLongOrNull() ?: return@replace m.value
-            val pre = u.prefix?.let { (if (hasFrac) it.second else plural(n, it)) + " " } ?: ""
-            val form = if (hasFrac) u.forms.second else plural(n, u.forms)
-            head + numStr + " " + pre + form + u.suffix
-        }
+        run {
+            if (trigger.isNotEmpty() && !hasFrac && !inAcc) {
+                val n = numStr.toLongOrNull() ?: return@replace m.value
+                val case = unitTriggerCase.getValue(trigger.lowercase().replace(Regex("\\s+"), " "))
+                head + Declension.cardinal(n, case, u.feminine) + " " + unitWord(u, n, case)
+            } else if (u.forms.first == "сутки" && !hasFrac) {
+                // «сутки» — только мн. ч.: «одни сутки», «двое суток», дальше обычный счёт.
+                val n = numStr.toLongOrNull() ?: return@replace m.value
+                val one = n % 10 == 1L && n % 100 != 11L
+                val few = mapOf(2L to "двое", 3L to "трое", 4L to "четверо")
+                (if (one) "одни" else few[n] ?: cardinal(n)) + " " + (if (one) "сутки" else "суток")
+            } else if (u.feminine && !hasFrac) {
+                val n = numStr.toLongOrNull() ?: return@replace m.value
+                val acc = n % 10 == 1L && n % 100 != 11L &&
+                    (inAcc || trigger.isEmpty() && unitAccBehindRe.containsMatchIn(text.substring(0, m.range.first)))
+                if (acc) head + Declension.cardinal(n, Case.ACC, feminine = true) + " " + unitWord(u, n, Case.ACC)
+                else head + cardinal(n, feminine = true) + " " + plural(n, u.forms) + u.suffix
+            } else {
+                val intPart = numStr.substringBefore(',').substringBefore('.')
+                val n = intPart.toLongOrNull() ?: return@replace m.value
+                val pre = u.prefix?.let { (if (hasFrac) it.second else plural(n, it)) + " " } ?: ""
+                val form = if (hasFrac) u.forms.second else plural(n, u.forms)
+                head + numStr + " " + pre + form + u.suffix
+            }
+        } + if (volts) "." else ""
     }
 
     // 8b. Градусы (task 18 п.4): число оставляем цифрами для numberRe ниже, сразу дописываем
@@ -2082,7 +2087,9 @@ object Normalizer {
         val sb = StringBuilder()
         for ((i, r) in runs.withIndex()) {
             if (i > 0 && r != "-" && runs[i - 1] != "-") sb.append(' ')
-            sb.append(if (r[0].isLetter()) Abbrev.codePart(r) else r)
+            // ведущие нули в номере произносятся: «ТМА-01М» — «ноль один»
+            val zeros = if (r.length > 1) r.takeWhile { it == '0' }.let { if (it == r) it.dropLast(1) else it } else ""
+            sb.append(if (r[0].isLetter()) Abbrev.codePart(r) else (zeros.map { "0" } + r.drop(zeros.length)).joinToString(" "))
         }
         sb.toString()
     }
