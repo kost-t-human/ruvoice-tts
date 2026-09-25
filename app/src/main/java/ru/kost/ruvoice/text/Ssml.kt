@@ -1,7 +1,8 @@
 package ru.kost.ruvoice.text
 
-/** Темп/высота <prosody> и <emphasis> живут прямо в text как маркеры Marks ({prosody:R:P}, *слово*). */
-data class Segment(val text: String, val breakMs: Int = 0, val paragraph: Boolean = false, val speech: Boolean = false)
+/** Темп/высота <prosody> и <emphasis> живут прямо в text как маркеры Marks ({prosody:R:P}, *слово*).
+ * en — английский кусок для другого движка (правило en_proxy, English.split). */
+data class Segment(val text: String, val breakMs: Int = 0, val paragraph: Boolean = false, val speech: Boolean = false, val en: Boolean = false)
 
 object Ssml {
     private val strength = mapOf("x-weak" to 25, "weak" to 75, "medium" to 150, "strong" to 300, "x-strong" to 1000)

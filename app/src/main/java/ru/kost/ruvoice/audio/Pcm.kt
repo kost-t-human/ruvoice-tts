@@ -32,6 +32,47 @@ object Pcm {
         }
     }
 
+    /** Частота чужого движка (EnglishProxy, обычно 22050 или 24000) → наша. Линейная интерполяция:
+     * речь почти вся ниже 8 кГц, на слух разницы с полифазным фильтром нет. */
+    fun resample(pcm: ShortArray, from: Int, to: Int): ShortArray {
+        if (from == to || pcm.isEmpty() || from <= 0 || to <= 0) return pcm
+        val n = (pcm.size.toLong() * to / from).toInt().coerceAtLeast(1)
+        val step = from.toDouble() / to
+        return ShortArray(n) { i ->
+            val x = i * step
+            val a = x.toInt().coerceAtMost(pcm.size - 1)
+            val b = (a + 1).coerceAtMost(pcm.size - 1)
+            val t = x - a
+            Math.round(pcm[a] * (1 - t) + pcm[b] * t).toInt().toShort()
+        }
+    }
+
+    /** Громкость речи без пауз: RMS по кадрам 20 мс, в счёт — кадры не тише 1/10 самого громкого.
+     * Тишина между словами и до фразы у разных движков разная и среднее по всему звуку врёт. 0 — тишина. */
+    fun voicedRms(samples: FloatArray, sampleRate: Int): Float {
+        val frame = maxOf(1, sampleRate / 50)
+        val rms = ArrayList<Double>()
+        var i = 0
+        while (i < samples.size) {
+            val end = minOf(samples.size, i + frame)
+            var s = 0.0
+            for (k in i until end) s += samples[k].toDouble() * samples[k]
+            rms += Math.sqrt(s / (end - i))
+            i = end
+        }
+        val max = rms.maxOrNull() ?: return 0f
+        if (max <= 1e-4) return 0f
+        val voiced = rms.filter { it >= max / 10 }
+        return Math.sqrt(voiced.sumOf { it * it } / voiced.size).toFloat()
+    }
+
+    /** Усиление, которое подтягивает [other] к громкости [reference] (voicedRms), в пределах ×0,5…×2:
+     * дальше — уже не выравнивание, а порча звука. 1 — если мерить нечем. */
+    fun matchGain(reference: Float, other: Float): Float =
+        if (reference <= 0f || other <= 0f) 1f else (reference / other).coerceIn(0.5f, 2f)
+
+    fun toFloat(pcm: ShortArray): FloatArray = FloatArray(pcm.size) { pcm[it] / 32767f }
+
     fun silence(sampleRate: Int, ms: Int): ShortArray = ShortArray(maxOf(0, sampleRate * ms / 1000))
 
     fun toBytes(pcm: ShortArray): ByteArray {

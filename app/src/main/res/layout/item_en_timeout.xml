@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Сколько экранный чтец ждёт звук от движка для английского (мс), RulesFragment — под «Английский другим движком: экранный чтец». -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="8dp">
+    <TextView
+        style="@style/SectionHint"
+        android:text="@string/en_sr_timeout_hint" />
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/en_sr_timeout">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/enSrTimeout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

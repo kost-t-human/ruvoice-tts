@@ -31,6 +31,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.Locale
+import ru.kost.ruvoice.text.English
 import ru.kost.ruvoice.text.Stress
 
 /**
@@ -296,14 +297,22 @@ class SettingsActivity : AppCompatActivity() {
                 // те же акцентор и BERT, что у сервиса (SileroModels.shared); если сервис их выгрузил, Stress догрузит
                 val models = SileroModels.shared(ctx)
                 val stress = Stress(d, models, prefs.userDict(), rules)
-                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules)
+                // «Разбор» — как «Прослушать»: запрос из самого приложения сервис читает по правилам книг
+                val enEngine = if (rules.on("en_proxy_books")) EnglishProxy.chosen(ctx, prefs.enEngine) else null
+                val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules,
+                    if (enEngine == null) 0 else prefs.enMinWords.coerceIn(English.MIN_WORDS, English.MAX_WORDS))
                 buildString {
                     // Пометки словами, не значками: «[¶]» и «→» TalkBack не произносит, «[речь]» — через скобки
                     for (seg in segments) {
                         appendLine(seg.text)
                         val marks = listOfNotNull(getString(R.string.analyze_speech).takeIf { seg.speech },
-                            getString(R.string.analyze_paragraph).takeIf { seg.paragraph })
+                            getString(R.string.analyze_paragraph).takeIf { seg.paragraph },
+                            enEngine?.let { e -> getString(R.string.analyze_english, e.label).takeIf { seg.en } })
                         if (marks.isNotEmpty()) appendLine(marks.joinToString(", ").replaceFirstChar { it.uppercase() } + ".")
+                        if (seg.en && enEngine != null) {
+                            if (seg.breakMs > 0) appendLine(getString(R.string.analyze_pause, seg.breakMs))
+                            appendLine(); continue
+                        }
                         // монитор models — тот же, что у синтеза и выгрузки в сервисе: форварды не параллелим
                         val accented = synchronized(models) { Pipeline.accent(seg.text, d, stress, allowed, rules) }
                         appendLine(getString(R.string.analyze_model, stress.forModel(accented).split(' ').joinToString(" ") { DictLines.accentDisplay(it) }))

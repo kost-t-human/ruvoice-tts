@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Темп и громкость английского от другого движка (RulesFragment, под «Английский другим движком»): поправки
+     поверх общих, «×1» у двух движков звучит по-разному. Название и значение — у самого ползунка (rateSlider). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        style="@style/SectionHint"
+        android:text="@string/en_sliders_hint" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            style="?attr/textAppearanceBodyMedium"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/en_rate" />
+        <TextView
+            android:id="@+id/enRateValue"
+            style="?attr/textAppearanceBodyMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+    <com.google.android.material.slider.Slider
+        android:id="@+id/enRate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="0.5"
+        android:valueTo="2.0"
+        android:stepSize="0.05"
+        app:tickVisible="false"
+        app:labelBehavior="floating" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <TextView
+            style="?attr/textAppearanceBodyMedium"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/en_volume" />
+        <TextView
+            android:id="@+id/enVolumeValue"
+            style="?attr/textAppearanceBodyMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+    <com.google.android.material.slider.Slider
+        android:id="@+id/enVolume"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="0.5"
+        android:valueTo="2.0"
+        android:stepSize="0.05"
+        app:tickVisible="false"
+        app:labelBehavior="floating" />
+</LinearLayout>

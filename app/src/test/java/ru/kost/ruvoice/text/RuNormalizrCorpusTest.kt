@@ -53,6 +53,6 @@ class RuNormalizrCorpusTest {
         assertTrue(s, (without.first["safe"] ?: 0) >= MIN_MATCHED_NO_MORPH)
     }
 
-    // −3 с 25.09.2026: «эмм», «энн», «ээр» в аббревиатурах (ГЛМ, НДС, РФ), корпус ждёт «эм», «эн», «эр»
-    companion object { const val MIN_MATCHED = 489; const val MIN_MATCHED_NO_MORPH = 482 }
+    // −5 с 25.09.2026: «эмм», «энн», «ээр» в аббревиатурах (ГЛМ, GLM, НДС, РФ), корпус ждёт «эм», «эн», «эр»
+    companion object { const val MIN_MATCHED = 487; const val MIN_MATCHED_NO_MORPH = 480 }
 }

@@ -52,7 +52,7 @@ object Abbrev {
         (t[0] in CYR_VOWELS || t[2] in CYR_VOWELS) && t.none { it in "ЙЬЪ" } && t.lowercase() !in edgeVowelWords
 
     // «эр», «эн», «эм» модель читает как «р», «н», «м», «че» как «чо» (на слух 24.09.2026, TalkBack);
-    // латиница: «зед» звучит «зет» (25.09.2026). Эти имена и в аббревиатурах
+    // латиница: «зед» звучит «зет», M и N — те же «эм», «эн» (25.09.2026). Эти имена и в аббревиатурах
     private val cyrLetterNames = mapOf(
         'А' to "а", 'Б' to "бэ", 'В' to "вэ", 'Г' to "гэ", 'Д' to "дэ", 'Е' to "е",
         'Ё' to "ё", 'Ж' to "жэ", 'З' to "зэ", 'И' to "и", 'Й' to "и краткое",
@@ -65,7 +65,7 @@ object Abbrev {
     val latLetterNames = mapOf(
         'A' to "эй", 'B' to "би", 'C' to "си", 'D' to "ди", 'E' to "и", 'F' to "эф",
         'G' to "джи", 'H' to "эйч", 'I' to "ай", 'J' to "джей", 'K' to "кей", 'L' to "эл",
-        'M' to "эм", 'N' to "эн", 'O' to "оу", 'P' to "пи", 'Q' to "кью", 'R' to "ар",
+        'M' to "эмм", 'N' to "энн", 'O' to "оу", 'P' to "пи", 'Q' to "кью", 'R' to "ар",
         'S' to "эс", 'T' to "ти", 'U' to "ю", 'V' to "ви", 'W' to "дабл ю", 'X' to "экс",
         'Y' to "уай", 'Z' to "зэдд"
     )
@@ -109,8 +109,8 @@ object Abbrev {
 
     // имена букв через пробел, "+" перед гласной в имени последней буквы
     private fun spellOut(token: String, names: Map<Char, String>): String {
-        val parts = token.map { names.getValue(it) }.toMutableList()
-        parts[parts.lastIndex] = withStress(parts.last())
+        val parts = token.map { names.getValue(it).replace("+", "") }.toMutableList()
+        parts[parts.lastIndex] = withStress(names.getValue(token.last()))
         return parts.joinToString(" ")
     }
 

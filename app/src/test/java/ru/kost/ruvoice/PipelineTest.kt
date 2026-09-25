@@ -162,7 +162,11 @@ class PipelineTest {
         assertEquals("+ээр", first("р"))   // «+эр» модель читает «р»
         assertEquals("прописная буква +энн", first("прописная буква Н."))
         assertEquals("+эмм", first("м"))
-        assertEquals("+эм", first("m"))     // латиница — прежние имена
+        assertEquals("+эмм", first("m"))    // латинские M и N — как русские М и Н
+        assertEquals("+энн", first("N"))
+        assertEquals("у+ай", first("y"))    // /waɪ/: ударение на «ай», не «У́-ай»
+        assertEquals("з+эдд", first("Z"))    // «з+ед» модель читает «зет»
+        assertEquals("удаление, у+ай, заглавная", Pipeline.plan("Удаление заглавная Y", d, 0, 0, rules = Rules().screenReader()).single().text)
         // внутри текста «в» — предлог, не трогаем
         assertEquals("в 1917 году.", first("в 1917 году."))
         assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
@@ -191,4 +195,75 @@ class PipelineTest {
         assertEquals(listOf(Segment("Раз.", breakMs = 100), Segment("Два!", breakMs = 100)), on)
     }
 
+
+    @Test fun englishPhraseBecomesOwnSegment() {
+        val t = "Он сказал: «I don't know what you mean», и ушёл. Потом вернулся."
+        val s = Pipeline.plan(t, d, 100, 0, englishWords = 1)
+        // на стыках со знаком — пауза запятой (по умолчанию 100 мс)
+        assertEquals(listOf(
+            Segment("Он сказал: «", breakMs = 100), Segment("I don't know what you mean", breakMs = 100, en = true), Segment("», и ушёл.", breakMs = 100),
+            Segment("Потом вернулся.", breakMs = 100)), s)
+        // без движка для английского — как раньше
+        assertEquals(2, Pipeline.plan(t, d, 100, 0).size)
+    }
+
+    @Test fun englishSentenceKeepsPauseAndParagraph() {
+        val s = Pipeline.plan("Эпиграф.\nHello, world!\nДальше.", d, 0, 300, englishWords = 1)
+        assertEquals(listOf(Segment("Эпиграф.", breakMs = 300, paragraph = true), Segment("Hello, world!", breakMs = 300, paragraph = true, en = true),
+            Segment("Дальше.")), s)
+    }
+
+    @Test fun punctuationOnlyPieceDropped() {
+        val s = Pipeline.plan("«Nice to meet you», — сказала она.", d, 0, 0, englishWords = 1)
+        assertEquals(listOf("Nice to meet you" to true, "сказала она." to false), s.map { it.text to it.en })
+    }
+
+    @Test fun letterEchoWithActionWord() {
+        fun first(t: String) = Pipeline.plan(t, d, 0, 0, rules = Rules().screenReader()).single().text
+        assertEquals("удаление, +ээр, заглавная", first("Удаление заглавная Р"))
+        assertEquals("удаление, +ээр, заглавная", first("Удаление Р заглавная"))
+        assertEquals("удаление, +ээр", first("Удаление р"))
+        assertEquals("+ээр, удалено", first("р удалено"))                         // Jieshuo msg_deleted
+        assertEquals("+ээр, заглавная буква, удалено", first("Р Заглавная буква Р удалено"))  // upper_case_format
+        assertEquals("удаление, в+э.", first("Удаление в"))                       // буква, не предлог: других слов нет
+        assertEquals("удаление, в+э, заглавная", first("Удаление заглавная В"))
+        assertEquals("удаление, — +ы", first("Удаление ы"))
+        assertEquals("удаление, ч+э", first("Удаление ч"))
+        assertEquals("удаление, +ар, заглавная", first("Удаление заглавная R"))
+        // шаблоны TalkBack
+        assertEquals("текст, +ээр, прописная буква, удален", first("Текст прописная буква Р. удален."))
+        assertEquals("вставлен текст, +ээр", first("Вставлен текст \"р\""))
+        assertEquals("+ээр, буква, удалена", first("Буква \"р\" удалена."))
+        // удалённый знак — по имени
+        assertEquals("удаление, запятая", first("Удаление ,"))
+        assertEquals("текст, запятая, удален", first("Текст \",\" удален."))
+        assertEquals("удаление, решётка", first("Удаление #"))
+        // точка в конце фразы — не удалённый знак
+        assertEquals("Текст удален.", first("Текст удален."))
+        // обычный текст не трогаем
+        assertEquals("Удаление в два этапа.", first("Удаление в два этапа."))
+        assertEquals("Удаление файла Р.", first("Удаление файла Р."))
+        // выключено правило — как раньше
+        assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().screenReader().with("letter_name", false)).single().text)
+        // книги и приложения — только по тумблеру
+        assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0).single().text)
+        assertEquals("удаление, +ээр, заглавная", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().with("letter_echo_all", true)).single().text)
+    }
+
+    @Test fun englishJoinPauses() {
+        // без знака на стыке — короткая пауза, со знаком — переданная (пауза запятой)
+        val s = Pipeline.plan("Открыл Microsoft Word на iPhone, потом закрыл.", d, 0, 0, englishWords = 1, englishJoinMs = 150)
+        assertEquals(listOf("Открыл" to 60, "Microsoft Word" to 60, "на" to 60, "iPhone" to 150, "потом закрыл." to 0),
+            s.map { it.text to it.breakMs })
+        // пауза выброшенного обрывка из знаков уходит соседу
+        val q = Pipeline.plan("«Nice to meet you», — сказала она.", d, 0, 0, englishWords = 1, englishJoinMs = 150)
+        assertEquals(listOf(150, 0), q.map { it.breakMs })
+    }
+
+    @Test fun latinLetterEchoStaysRussianNamed() {
+        // набор по буквам: одиночная латинская буква и эхо с ней — имя буквы русским голосом, не другому движку
+        val sr = Rules().screenReader()
+        assertEquals(listOf("+ар" to false), Pipeline.plan("r", d, 0, 0, rules = sr, englishWords = 1).map { it.text to it.en })
+        assertEquals(listOf("удаление, +ар, заглавная" to false), Pipeline.plan("Удаление заглавная R", d, 0, 0, rules = sr, englishWords = 1).map { it.text to it.en })
+    }
 }

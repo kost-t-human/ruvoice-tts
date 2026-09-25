@@ -106,7 +106,7 @@ class RulesTest {
         assertEquals("иоанна три шестнадцать", p("Иоанна 3:16"))
         assertEquals("в двадцатом веке", p("в XX веке"))
         // не римское 1009; капс с единственной гласной I Abbrev читает по буквам (как FBI)
-        assertEquals("эм ай +экс стилей", p("MIX стилей"))
+        assertEquals("эмм ай +экс стилей", p("MIX стилей"))
     }
 
     @Test fun dates() {
