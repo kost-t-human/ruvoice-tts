@@ -274,6 +274,9 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                         setText((if (sr) prefs.enMinWordsSr else prefs.enMinWords).toString())
                     }
                 }, getString(R.string.en_min_words) + " " + hintText)
+                if (sr) extra(inflater.inflate(R.layout.item_en_timeout, list, false).apply {
+                    findViewById<EditText>(R.id.enSrTimeout).setText(prefs.enSrTimeoutMs.toString())
+                }, getString(R.string.en_sr_timeout) + " " + getString(R.string.en_sr_timeout_hint))
             }
             if (key == "en_proxy_sr") {
                 val voiceRow = voiceRow(inflater, list)
@@ -532,6 +535,9 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         v.findViewById<Slider>(R.id.srVolume)?.let { prefs.srVolume = it.value }
         v.findViewById<EditText>(R.id.enMinWords)?.let { prefs.enMinWords = (it.str().toIntOrNull() ?: English.MIN_WORDS).coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
         v.findViewById<EditText>(R.id.enMinWordsSr)?.let { prefs.enMinWordsSr = (it.str().toIntOrNull() ?: English.MIN_WORDS).coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
+        v.findViewById<EditText>(R.id.enSrTimeout)?.let {
+            prefs.enSrTimeoutMs = (it.str().toIntOrNull() ?: EnglishProxy.SR_TIMEOUT_DEFAULT).coerceIn(EnglishProxy.SR_TIMEOUT_MIN, EnglishProxy.SR_TIMEOUT_MAX)
+        }
         v.findViewById<Slider>(R.id.enRate)?.let { prefs.enRate = it.value }
         v.findViewById<Slider>(R.id.enVolume)?.let { prefs.enVolume = it.value }
         prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)

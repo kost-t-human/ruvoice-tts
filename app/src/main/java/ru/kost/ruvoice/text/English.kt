@@ -20,6 +20,38 @@ package ru.kost.ruvoice.text
 object English {
     const val MIN_WORDS = 1
     const val MAX_WORDS = 10
+    /** Пауза на стыке русского и английского без знака («открыл | Microsoft Word | на | iPhone»): голоса
+     * меняются, совсем без паузы слова налезают друг на друга. */
+    const val JOIN_MS = 60
+    /** Пауза на стыке со знаком по умолчанию; сервис передаёт свою — паузу после запятой (Prefs.commaPauseMs). */
+    const val JOIN_PUNCT_MS = 100
+    // знаки, после которых на стыке пауза как у запятой: препинание, кавычки, скобки, тире
+    private const val JOIN_PUNCT = ",.;:!?…—–-«»\"“”„()[]"
+
+    /** Кусок после разбиения: текст, английский ли, пауза перед следующим куском. */
+    data class Piece(val text: String, val en: Boolean, val joinMs: Int)
+
+    /** Куски [split] → сегменты с паузами на стыках: знак на стыке (в конце куска, в начале следующего или
+     * в выброшенном обрывке из одних знаков) — [punctMs], без знака — [JOIN_MS]. Обрывки без букв (««», «»,»)
+     * выбрасываются, текст кусков обрезается по краям. Один кусок — как есть, без паузы. */
+    fun joins(pieces: List<Pair<String, Boolean>>, punctMs: Int): List<Piece> {
+        if (pieces.size == 1) return listOf(Piece(pieces[0].first, pieces[0].second, 0))
+        fun tail(s: String) = s.trimEnd().takeLastWhile { !it.isLetterOrDigit() }.any { it in JOIN_PUNCT }
+        fun head(s: String) = s.trimStart().takeWhile { !it.isLetterOrDigit() }.any { it in JOIN_PUNCT }
+        val out = ArrayList<Piece>()
+        for ((i, p) in pieces.withIndex()) {
+            if (!p.second && isNoise(p.first)) {
+                if (out.isNotEmpty() && p.first.any { it in JOIN_PUNCT }) out[out.size - 1] = out.last().copy(joinMs = punctMs)
+                continue
+            }
+            val next = pieces.getOrNull(i + 1)?.first
+            val punct = tail(p.first) || (next != null && head(next))
+            // «, потом закрыл» после английского: запятая уже стала паузой стыка, в начале куска она модели не нужна
+            val text = p.first.trim().let { if (!p.second && out.isNotEmpty()) it.trimStart { c -> c in ",;:" || c.isWhitespace() } else it }
+            out += Piece(text, p.second, if (punct) punctMs else JOIN_MS)
+        }
+        return out
+    }
 
     private val tokenRe = Regex("\\S+")
     // слово с апострофом или дефисом внутри: don't, Wi-Fi, mother-in-law

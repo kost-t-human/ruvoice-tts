@@ -157,8 +157,12 @@ class EnglishProxy private constructor(private val context: Context) {
     companion object {
         /** Книги ждут движок подольше: лучше английский с задержкой, чем транслитерация. */
         val BOOKS = Timeouts(init = 5_000, base = 10_000, perChar = 100)
-        /** Экранный чтец ждать не может: не успел движок — фраза по-русски, следующая — снова ему. */
-        val SCREEN_READER = Timeouts(init = 2_000, base = 2_500, perChar = 20)
+        /** Экранный чтец ждать не может: не успел движок за [ms] (настройка «Сколько ждать движок», Prefs.enSrTimeoutMs)
+         * — фраза по-русски, следующая — снова ему. Столько же — на подключение клиента. */
+        fun screenReader(ms: Int) = Timeouts(init = ms.toLong(), base = ms.toLong(), perChar = 20)
+        const val SR_TIMEOUT_DEFAULT = 2_500
+        const val SR_TIMEOUT_MIN = 500
+        const val SR_TIMEOUT_MAX = 10_000
 
         // голоса Google и многих других: en-us-x-iol-local, en-gb-x-rjs-network
         private val voiceNameRe = Regex("([a-z]{2,3})-([a-z]{2,3})-x-([a-z0-9]+)(?:-(?:local|network))?")

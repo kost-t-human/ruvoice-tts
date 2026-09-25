@@ -193,8 +193,9 @@ class PipelineTest {
     @Test fun englishPhraseBecomesOwnSegment() {
         val t = "Он сказал: «I don't know what you mean», и ушёл. Потом вернулся."
         val s = Pipeline.plan(t, d, 100, 0, englishWords = 1)
+        // на стыках со знаком — пауза запятой (по умолчанию 100 мс)
         assertEquals(listOf(
-            Segment("Он сказал: «"), Segment("I don't know what you mean", en = true), Segment("», и ушёл.", breakMs = 100),
+            Segment("Он сказал: «", breakMs = 100), Segment("I don't know what you mean", breakMs = 100, en = true), Segment("», и ушёл.", breakMs = 100),
             Segment("Потом вернулся.", breakMs = 100)), s)
         // без движка для английского — как раньше
         assertEquals(2, Pipeline.plan(t, d, 100, 0).size)
@@ -241,5 +242,22 @@ class PipelineTest {
         // книги и приложения — только по тумблеру
         assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0).single().text)
         assertEquals("удаление, +ээр, заглавная", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().with("letter_echo_all", true)).single().text)
+    }
+
+    @Test fun englishJoinPauses() {
+        // без знака на стыке — короткая пауза, со знаком — переданная (пауза запятой)
+        val s = Pipeline.plan("Открыл Microsoft Word на iPhone, потом закрыл.", d, 0, 0, englishWords = 1, englishJoinMs = 150)
+        assertEquals(listOf("Открыл" to 60, "Microsoft Word" to 60, "на" to 60, "iPhone" to 150, "потом закрыл." to 0),
+            s.map { it.text to it.breakMs })
+        // пауза выброшенного обрывка из знаков уходит соседу
+        val q = Pipeline.plan("«Nice to meet you», — сказала она.", d, 0, 0, englishWords = 1, englishJoinMs = 150)
+        assertEquals(listOf(150, 0), q.map { it.breakMs })
+    }
+
+    @Test fun latinLetterEchoStaysRussianNamed() {
+        // набор по буквам: одиночная латинская буква и эхо с ней — имя буквы русским голосом, не другому движку
+        val sr = Rules().screenReader()
+        assertEquals(listOf("+ар" to false), Pipeline.plan("r", d, 0, 0, rules = sr, englishWords = 1).map { it.text to it.en })
+        assertEquals(listOf("удаление, +ар, заглавная" to false), Pipeline.plan("Удаление заглавная R", d, 0, 0, rules = sr, englishWords = 1).map { it.text to it.en })
     }
 }

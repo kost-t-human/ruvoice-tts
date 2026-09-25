@@ -29,6 +29,8 @@ class Prefs(private val context: Context) {
     var enMinWordsSr: Int get() = p.getInt("en_min_words_sr", English.MIN_WORDS); set(v) = p.edit().putInt("en_min_words_sr", v).apply()
     /** Поправка темпа и громкости английского поверх общих (0,5–2): «×1» у двух движков звучит по-разному.
      * Громкость ещё и выравнивается к Silero сама (Pcm.matchGain), это — сверху. */
+    /** Сколько экранный чтец ждёт звук от движка для английского, мс; не дождался — фраза по-русски. */
+    var enSrTimeoutMs: Int get() = p.getInt("en_sr_timeout", EnglishProxy.SR_TIMEOUT_DEFAULT); set(v) = p.edit().putInt("en_sr_timeout", v).apply()
     var enRate: Float get() = p.getFloat("en_rate", 1f); set(v) = p.edit().putFloat("en_rate", v).apply()
     var enVolume: Float get() = p.getFloat("en_volume", 1f); set(v) = p.edit().putFloat("en_volume", v).apply()
     /** Пакеты, которые пользователь сам отметил экранным чтецом / не чтецом (ScreenReaders). В экспорт
@@ -185,6 +187,7 @@ class Prefs(private val context: Context) {
             "en_min_words" to enMinWords,
             "en_min_words_sr" to enMinWordsSr,
             "en_rate" to enRate.toDouble(),
+            "en_sr_timeout" to enSrTimeoutMs,
             "en_volume" to enVolume.toDouble(),
             "audit_names" to auditNames,
             "audit_dict_names" to auditDict(Audit.Kind.NAMES),
@@ -227,6 +230,7 @@ class Prefs(private val context: Context) {
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         (prefsMap["en_min_words"] as? Number)?.let { enMinWords = it.toInt().coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
         (prefsMap["en_min_words_sr"] as? Number)?.let { enMinWordsSr = it.toInt().coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
+        (prefsMap["en_sr_timeout"] as? Number)?.let { enSrTimeoutMs = it.toInt().coerceIn(EnglishProxy.SR_TIMEOUT_MIN, EnglishProxy.SR_TIMEOUT_MAX) }
         (prefsMap["en_rate"] as? Number)?.let { enRate = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["en_volume"] as? Number)?.let { enVolume = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }

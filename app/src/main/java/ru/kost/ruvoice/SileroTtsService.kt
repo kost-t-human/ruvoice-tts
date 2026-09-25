@@ -85,9 +85,11 @@ object Pipeline {
 
     /** englishWords > 0 — выделять английские куски от стольких слов в отдельные сегменты (Segment.en,
      * правила en_proxy_*): решает сервис, только когда есть движок для английского. 0 — не выделять,
-     * «Книге с ударениями» они не нужны. */
+     * «Книге с ударениями» они не нужны. englishJoinMs — пауза на стыке русского и английского, где
+     * стоит знак (запятая, двоеточие, кавычка); без знака — короткая English.JOIN_MS (English.joins). */
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
-             replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules(), englishWords: Int = 0): List<Segment> {
+             replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules(), englishWords: Int = 0,
+             englishJoinMs: Int = English.JOIN_PUNCT_MS): List<Segment> {
         val src = text.toString().let { t ->
             if (!rules.on("letter_name")) t else loneLetter.matchEntire(t)?.let { m ->
                 m.groupValues[2][0].let { c -> if (m.groupValues[1].isEmpty() && m.groupValues[3].isEmpty()) Abbrev.loneLetterName(c) else Abbrev.letterName(c) }
@@ -142,14 +144,15 @@ object Pipeline {
                     openReply = parts.last().second && !closingQuote.containsMatchIn(parts.last().first.trimEnd())
                     for ((k, part) in parts.withIndex()) {
                         val lastPart = k == parts.size - 1
-                        // английский кусок посреди реплики — свой сегмент; обрывки из одних знаков («», »)
-                        // русскому движку читать нечего, их пауза уходит соседу
-                        val langs = if (englishWords <= 0) listOf(part.first to false) else English.split(part.first, englishWords).let { l ->
-                            if (l.size == 1) l else l.filter { it.second || !English.isNoise(it.first) }.map { it.first.trim() to it.second } }
+                        // английский кусок посреди реплики — свой сегмент с паузой на стыке (два движка одну фразу
+                        // общей интонацией не свяжут — пауза делает стык паузой, а не обрывом); обрывки из одних
+                        // знаков («», ») русскому движку читать нечего, их знак решает, какой будет пауза
+                        val langs = if (englishWords <= 0) listOf(English.Piece(part.first, false, 0))
+                            else English.joins(English.split(part.first, englishWords), englishJoinMs)
                         for ((li, lp) in langs.withIndex()) {
-                            val lastLang = lastPart && li == langs.size - 1
-                            out += Segment(lp.first, breakMs = if (lastLang) breakMs else 0,
-                                paragraph = lastLang && last && seg.paragraph, speech = part.second, en = lp.second)
+                            val lastLang = li == langs.size - 1
+                            out += Segment(lp.text, breakMs = if (!lastLang || !lastPart) lp.joinMs else breakMs,
+                                paragraph = lastPart && lastLang && last && seg.paragraph, speech = part.second, en = lp.en)
                         }
                         if (langs.isEmpty() && lastPart && breakMs > 0) out += Segment("", breakMs = breakMs, paragraph = last && seg.paragraph)
                     }
@@ -406,12 +409,14 @@ class SileroTtsService : TextToSpeechService() {
             val enVoice = prefs.enVoice
             val enRate = prefs.enRate.coerceIn(0.5f, 2f)
             val enVolume = prefs.enVolume.coerceIn(0.5f, 2f)
-            val enLimits = if (screenReader) EnglishProxy.SCREEN_READER else EnglishProxy.BOOKS
+            val enLimits = if (screenReader) EnglishProxy.screenReader(prefs.enSrTimeoutMs.coerceIn(EnglishProxy.SR_TIMEOUT_MIN, EnglishProxy.SR_TIMEOUT_MAX))
+                else EnglishProxy.BOOKS
             // читалка попросила английский (setLanguage, голос EN_VOICE) — вся латиница другому движку, с первого слова
             val askedEnglish = request.language == "eng" || request.voiceName == EN_VOICE
             val enWords = if (enEngine == null) 0 else if (askedEnglish) English.MIN_WORDS
                 else (if (screenReader) prefs.enMinWordsSr else prefs.enMinWords).coerceIn(English.MIN_WORDS, English.MAX_WORDS)
-            val segments = Pipeline.plan(reqText, d, if (noPauses) 0 else prefs.sentencePauseMs, if (noPauses) 0 else prefs.paragraphPauseMs, replacements, rules, enWords)
+            val segments = Pipeline.plan(reqText, d, if (noPauses) 0 else prefs.sentencePauseMs, if (noPauses) 0 else prefs.paragraphPauseMs, replacements, rules, enWords,
+                maxOf(prefs.commaPauseMs, English.JOIN_MS))
             // Паузы после запятой и на тире — явная длительность самого знака в кадрах модели (Marks.frames);
             // ноль — как решит модель. Дефис/минус в пробелах Normalizer.punctuation уже свёл к «–».
             val pauseFrames = HashMap<Int, Long>()
