@@ -57,4 +57,15 @@ class EnglishTest {
     @Test fun sentenceEndGoesToEnglish() {
         assertEquals(listOf("Он ответил: " to false, "See you later!" to true), English.split("Он ответил: See you later!"))
     }
+
+    @Test fun capsEnglishWords() {
+        assertEquals(listOf("I LOVE YOU"), en("I LOVE YOU", 1))
+        assertEquals(listOf("HELP"), en("HELP", 1))
+        assertEquals(listOf("GAME OVER"), en("На экране: GAME OVER", 1))
+        // сокращения и двухбуквенные без соседей — по-прежнему русскому голосу
+        assertEquals(emptyList<String>(), en("Отдел IT и NASA", 1))
+        assertEquals(emptyList<String>(), en("USA", 1))
+        // «DID» — не римское число, если это слово из списка
+        assertEquals(listOf("WHAT DID YOU SAY"), en("WHAT DID YOU SAY", 1))
+    }
 }

@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Порог английских слов подряд (1–10), RulesFragment вставляет под тумблерами «Английский другим движком». -->
+<!-- Порог английских слов подряд (1–10), RulesFragment вставляет под каждым тумблером «Английский другим движком»:
+     подпись (enWordsHint) и id поля (enMinWords / enMinWordsSr) — свои у книг и у экранного чтеца. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:paddingBottom="8dp">
     <TextView
-        style="@style/SectionHint"
-        android:text="@string/en_min_words_hint" />
+        android:id="@+id/enWordsHint"
+        style="@style/SectionHint" />
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"

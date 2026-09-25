@@ -261,15 +261,31 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 }, getString(R.string.sr_rate) + " " + getString(R.string.sr_pitch) + " " + getString(R.string.sr_volume) + " " + getString(R.string.sr_sliders_hint))
                 extra(callersBlock(inflater, list), getString(R.string.callers_title) + " " + getString(R.string.callers_hint) + " " + prefs.recentCallers().joinToString(" ") { it.first.label + " " + it.first.pkg })
             }
-            // английский другим движком: при включении — предупреждение, под тумблером — выбор движка
-            if (key == "en_proxy_books" || key == "en_proxy_sr") toggle.setOnCheckedChangeListener { _, on -> if (on) confirmEnglish(toggle) }
+            // английский другим движком: при включении — предупреждение; под каждым тумблером — свой порог слов,
+            // под последним — движок, голос, темп и громкость (общие)
+            if (key == "en_proxy_books" || key == "en_proxy_sr") {
+                toggle.setOnCheckedChangeListener { _, on -> if (on) confirmEnglish(toggle) }
+                val sr = key == "en_proxy_sr"
+                val hintText = getString(if (sr) R.string.en_min_words_sr_hint else R.string.en_min_words_hint)
+                extra(inflater.inflate(R.layout.item_en_words, list, false).apply {
+                    findViewById<TextView>(R.id.enWordsHint).text = hintText
+                    findViewById<EditText>(R.id.enMinWords).apply {
+                        if (sr) id = R.id.enMinWordsSr
+                        setText((if (sr) prefs.enMinWordsSr else prefs.enMinWords).toString())
+                    }
+                }, getString(R.string.en_min_words) + " " + hintText)
+            }
             if (key == "en_proxy_sr") {
                 val voiceRow = voiceRow(inflater, list)
-                extra(engineRow(inflater, list) { describeVoice(voiceRow) }, getString(R.string.en_engine))
+                val engineRow = engineRow(inflater, list) { offline = null; describeVoice(voiceRow); checkOffline(voiceRow) }
+                refreshEnglish = { offline = null; describeEngine(engineRow); describeVoice(voiceRow); checkOffline(voiceRow) }
+                extra(engineRow, getString(R.string.en_engine))
                 extra(voiceRow, getString(R.string.en_voice))
-                extra(inflater.inflate(R.layout.item_en_words, list, false).apply {
-                    findViewById<EditText>(R.id.enMinWords).setText(prefs.enMinWords.toString())
-                }, getString(R.string.en_min_words) + " " + getString(R.string.en_min_words_hint))
+                extra(inflater.inflate(R.layout.item_en_sliders, list, false).apply {
+                    rateSlider(R.id.enRate, R.id.enRateValue, prefs.enRate, getString(R.string.en_rate))
+                    rateSlider(R.id.enVolume, R.id.enVolumeValue, prefs.enVolume, getString(R.string.en_volume))
+                }, getString(R.string.en_rate) + " " + getString(R.string.en_volume) + " " + getString(R.string.en_sliders_hint))
+                checkOffline(voiceRow)
             }
             // поле силы ударения — сразу под своим тумблером
             if (key == "focus") extra(inflater.inflate(R.layout.item_focus_level, list, false).apply {
@@ -349,7 +365,8 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     /** Включили «Английский другим движком» — спокойно объясняем, куда уйдёт текст. «Отмена» или
      * закрытие окна тумблер возвращают; без других движков включать нечего. */
     private fun confirmEnglish(toggle: MaterialSwitch) {
-        val engine = EnglishProxy.resolve(requireContext(), prefs.enEngine)
+        EnglishProxy.forget()
+        val engine = EnglishProxy.suggest(requireContext(), prefs.enEngine)
         if (engine == null) {
             toggle.isChecked = false
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.en_proxy_confirm_title)
@@ -360,7 +377,12 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.en_proxy_confirm_title)
             .setMessage(getString(R.string.en_proxy_confirm, engine.label))
-            .setPositiveButton(R.string.en_proxy_enable) { _, _ -> accepted = true }
+            .setPositiveButton(R.string.en_proxy_enable) { _, _ ->
+                accepted = true
+                // согласие — на этот движок: его и запоминаем, на другой сервис молча не перейдёт
+                if (prefs.enEngine != engine.pkg) { prefs.enEngine = engine.pkg; prefs.enVoice = "" }
+                refreshEnglish()
+            }
             .setNegativeButton(R.string.cancel, null)
             .setOnDismissListener { if (!accepted) toggle.isChecked = false }
             .show()
@@ -395,13 +417,15 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         row.setOnClickListener {
             if (loading) return@setOnClickListener
             val ctx = requireContext().applicationContext
-            val engine = EnglishProxy.resolve(ctx, prefs.enEngine)
-                ?: return@setOnClickListener message(R.string.en_voice, getString(R.string.en_engine_none)).let { }
+            val engine = EnglishProxy.chosen(ctx, prefs.enEngine)
+                ?: return@setOnClickListener message(R.string.en_voice, getString(R.string.en_voice_no_engine)).let { }
             val hint = row.findViewById<TextView>(R.id.hint)
             hint.setText(R.string.en_voice_loading)
             loading = true
             Thread {
-                val voices = EnglishProxy.shared(ctx).voices(engine.pkg)
+                // свой клиент: общий сервиса может быть занят чтением, окно ждало бы, пока дочитает
+                val voices = EnglishProxy.create(ctx).let { p -> try { p.voices(engine.pkg) } finally { p.release() } }
+                if (voices != null) offline = voices.any { it.offline }
                 activity?.runOnUiThread {
                     loading = false
                     if (!isAdded) return@runOnUiThread
@@ -432,31 +456,62 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             getString(R.string.en_voice_network).takeIf { v.network },
             getString(R.string.en_voice_not_installed).takeIf { !v.installed }).joinToString(", ")
 
+    /** Есть ли у выбранного движка офлайн-голос для английского: null — ещё не знаем. */
+    @Volatile private var offline: Boolean? = null
+    private var refreshEnglish: () -> Unit = {}
+
+    /** Голос по умолчанию сервис берёт офлайн (EnglishProxy.pickOffline); если офлайн-голосов нет — прямо
+     * в строке предупреждаем, что текст может уходить в интернет. */
     private fun describeVoice(row: View) {
-        row.findViewById<TextView>(R.id.hint).text = if (prefs.enVoice.isEmpty()) getString(R.string.en_voice_default)
-            else getString(R.string.en_voice_value, EnglishProxy.voiceTitle(prefs.enVoice, null, Locale("ru"), getString(R.string.en_voice_word)))
+        row.findViewById<TextView>(R.id.hint).text = if (prefs.enVoice.isNotEmpty())
+            getString(R.string.en_voice_value, EnglishProxy.voiceTitle(prefs.enVoice, null, Locale("ru"), getString(R.string.en_voice_word)))
+        else when (offline) {
+            false -> getString(R.string.en_voice_default_online)
+            true -> getString(R.string.en_voice_default_offline)
+            null -> getString(R.string.en_voice_default)
+        }
+    }
+
+    /** Узнать в фоне, есть ли офлайн-голос, — только если английский включён и движок выбран: иначе
+     * подключаться к чужому движку незачем. */
+    private fun checkOffline(row: View) {
+        val ctx = requireContext().applicationContext
+        val rules = Rules(prefs.rulesOff)
+        if (!rules.on("en_proxy_books") && !rules.on("en_proxy_sr")) return
+        val engine = EnglishProxy.chosen(ctx, prefs.enEngine) ?: return
+        Thread {
+            val voices = EnglishProxy.create(ctx).let { p -> try { p.voices(engine.pkg) } finally { p.release() } } ?: return@Thread
+            offline = voices.any { it.offline }
+            activity?.runOnUiThread { if (isAdded) describeVoice(row) }
+        }.start()
+    }
+
+    /** Выбранный движок; удалили — говорим прямо, что английский сейчас читается по-русски. */
+    private fun describeEngine(row: View) {
+        val e = EnglishProxy.chosen(requireContext(), prefs.enEngine)
+        row.findViewById<TextView>(R.id.hint).text = when {
+            e != null -> getString(R.string.en_engine_value, e.label)
+            EnglishProxy.engines(requireContext()).isEmpty() -> getString(R.string.en_engine_none)
+            prefs.enEngine.isNotEmpty() -> getString(R.string.en_engine_missing)
+            else -> getString(R.string.en_engine_not_chosen)
+        }
     }
 
     /** Строка «Движок для английского»: какой сейчас и выбор из установленных. */
     private fun engineRow(inflater: LayoutInflater, parent: LinearLayout, onChange: () -> Unit): View {
         val row = pickerRow(inflater, parent, R.string.en_engine, R.string.en_engine_pick)
-        val hint = row.findViewById<TextView>(R.id.hint)
-        fun describe() {
-            val e = EnglishProxy.resolve(requireContext(), prefs.enEngine)
-            hint.text = if (e == null) getString(R.string.en_engine_none) else getString(R.string.en_engine_value, e.label)
-        }
-        describe()
+        describeEngine(row)
         row.setOnClickListener {
             EnglishProxy.forget()
             val engines = EnglishProxy.engines(requireContext())
-            if (engines.isEmpty()) { describe(); message(R.string.en_engine, getString(R.string.en_engine_none)); return@setOnClickListener }
-            val cur = EnglishProxy.resolve(requireContext(), prefs.enEngine)
+            if (engines.isEmpty()) { describeEngine(row); message(R.string.en_engine, getString(R.string.en_engine_none)); return@setOnClickListener }
+            val cur = EnglishProxy.chosen(requireContext(), prefs.enEngine)
             MaterialAlertDialogBuilder(requireContext())
                 .setTitle(R.string.en_engine)
                 .setSingleChoiceItems(engines.map { it.label }.toTypedArray(), engines.indexOfFirst { it.pkg == cur?.pkg }) { d, i ->
-                    // голос прежнего движка новому не подходит
+                    // голос прежнего движка новому не подходит, про офлайн-голоса ещё не знаем
                     if (prefs.enEngine != engines[i].pkg) prefs.enVoice = ""
-                    prefs.enEngine = engines[i].pkg; describe(); onChange(); d.dismiss()
+                    prefs.enEngine = engines[i].pkg; describeEngine(row); onChange(); d.dismiss()
                 }
                 .setNegativeButton(R.string.cancel, null)
                 .show()
@@ -476,6 +531,9 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         v.findViewById<Slider>(R.id.srPitch)?.let { prefs.srPitch = it.value }
         v.findViewById<Slider>(R.id.srVolume)?.let { prefs.srVolume = it.value }
         v.findViewById<EditText>(R.id.enMinWords)?.let { prefs.enMinWords = (it.str().toIntOrNull() ?: English.MIN_WORDS).coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
+        v.findViewById<EditText>(R.id.enMinWordsSr)?.let { prefs.enMinWordsSr = (it.str().toIntOrNull() ?: English.MIN_WORDS).coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
+        v.findViewById<Slider>(R.id.enRate)?.let { prefs.enRate = it.value }
+        v.findViewById<Slider>(R.id.enVolume)?.let { prefs.enVolume = it.value }
         prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)
             .coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX)
     }

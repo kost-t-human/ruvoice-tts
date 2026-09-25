@@ -2,4 +2,6 @@
 <resources>
     <!-- Тег строки списка: id действий TalkBack, добавленных A11y.action (снимаются при переиспользовании). -->
     <item name="a11y_actions" type="id" />
+    <!-- Порог английских слов экранного чтеца: тот же item_en_words, что у книг, id меняется при вставке. -->
+    <item name="enMinWordsSr" type="id" />
 </resources>

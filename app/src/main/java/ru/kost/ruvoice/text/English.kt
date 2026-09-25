@@ -11,7 +11,9 @@ package ru.kost.ruvoice.text
  * английский с первого же слова при любом пороге: так TalkBack читает пункты «Settings», «Wi-Fi».
  *
  * Английским словом не считаются: римские числа («XIV» — номер главы), одиночные буквы, сокращения
- * капсом до четырёх букв («USB», «OK»); они отрезок не рвут, но и не начинают. «I» и «a» идут в счёт
+ * капсом до четырёх букв («USB», «OK»); они отрезок не рвут, но и не начинают. Короткое слово капсом из
+ * [CAPS_WORDS] («HELP», «I LOVE YOU») — слово: трёх-четырёхбуквенное само по себе, двухбуквенное («IT»,
+ * «NO») — как «I», только рядом с другим английским словом, иначе «отдел IT» ушёл бы английскому голосу. «I» и «a» идут в счёт
  * слов, только если рядом есть настоящее английское слово («I love you», но не «Глава I»). Слово
  * с кириллицей, цифрами, «/», «@», точкой внутри (ссылки, почта, «4PDA») отрезок рвёт.
  */
@@ -29,6 +31,21 @@ object English {
     private const val EDGE = "\"'«»“”„‘’()[]{},.;:!?…—–-*"
     private const val SENT_END = ".!?…"
 
+    /** Частые короткие английские слова, которые пишут капсом в заголовках, кнопках и криках. Сокращений
+     * (USA, API, CEO, NASA) здесь нет — их по-прежнему читает русский голос по буквам. */
+    private val CAPS_WORDS = setOf(
+        "THE", "AND", "YOU", "ARE", "FOR", "NOT", "BUT", "ALL", "CAN", "HER", "HIS", "WAS", "ONE", "OUR", "OUT",
+        "GET", "HAS", "HIM", "HOW", "NEW", "NOW", "OLD", "SEE", "TWO", "WAY", "WHO", "DID", "ITS", "LET", "PUT",
+        "SAY", "SHE", "TOO", "USE", "YES", "WHY", "BIG", "END", "RUN", "TOP", "OFF", "GOT", "HOT", "RED", "SEX",
+        "LOVE", "HELP", "STOP", "OPEN", "SAVE", "EXIT", "MENU", "HOME", "BACK", "NEXT", "DONE", "EDIT", "SEND",
+        "PLAY", "WAIT", "KILL", "HATE", "GAME", "OVER", "LIKE", "WHAT", "WHEN", "WITH", "THIS", "THAT", "YOUR",
+        "FROM", "HAVE", "JUST", "COME", "MAKE", "TAKE", "GIVE", "GOOD", "BEST", "FREE", "SALE", "CALL", "LIVE",
+        "READ", "MORE", "LESS", "WORK", "TIME", "LIFE", "KING", "GIRL", "LOOK", "KEEP", "CALM", "DEAD", "LOST",
+        "FIND", "WANT", "NEED", "KNOW", "ONLY", "HERE", "THEY", "THEM", "WILL", "BEEN", "WERE", "LAST", "DARK",
+        "IS", "IT", "TO", "OF", "IN", "ON", "AT", "BE", "WE", "ME", "MY", "HE", "GO", "DO", "NO", "SO", "UP", "OR",
+        "IF", "BY", "AN", "AM", "AS", "OH", "HI",
+    )
+
     private enum class Kind { WORD, WEAK, SOFT, BREAK }
 
     private class Tok(val start: Int, val end: Int, val kind: Kind)
@@ -38,6 +55,7 @@ object English {
         numberRe.matches(core) -> Kind.SOFT
         !wordRe.matches(core) -> Kind.BREAK
         core == "I" || core == "a" || core == "A" -> Kind.WEAK
+        core in CAPS_WORDS -> if (core.length <= 2) Kind.WEAK else Kind.WORD
         romanRe.matches(core) -> Kind.SOFT
         core.length == 1 -> Kind.SOFT
         core.length <= 4 && core.none { it.isLowerCase() } -> Kind.SOFT

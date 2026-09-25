@@ -17,13 +17,20 @@ class Prefs(private val context: Context) {
     var idleMinutes: Int get() = p.getInt("idle_min", 5); set(v) = p.edit().putInt("idle_min", v).apply()
     /** Выгружать модели по простою; выключено — держать в памяти, пока жив сервис. */
     var idleOn: Boolean get() = p.getBoolean("idle_on", true); set(v) = p.edit().putBoolean("idle_on", v).apply()
-    /** Движок для английских кусков (правило en_proxy); пустая строка — Google или первый установленный
-     * (EnglishProxy.resolve). В экспорт не идёт: движки у каждого телефона свои. */
+    /** Движок для английских кусков (правила en_proxy_*): тот, что пользователь выбрал или подтвердил в диалоге
+     * включения; пустая строка — не выбран, английский читается по-русски (EnglishProxy.chosen). В экспорт
+     * не идёт: движки у каждого телефона свои, а согласие — на конкретный движок. */
     var enEngine: String get() = p.getString("en_engine", "")!!; set(v) = p.edit().putString("en_engine", v).apply()
     /** Голос движка для английского (Voice.getName()); пустая строка — голос движка по умолчанию. */
     var enVoice: String get() = p.getString("en_voice", "")!!; set(v) = p.edit().putString("en_voice", v).apply()
-    /** С какого числа английских слов подряд внутри русского текста отдавать их другому движку (1–10). */
+    /** С какого числа английских слов подряд внутри русского текста отдавать их другому движку (1–10):
+     * книги и приложения — [enMinWords], экранный чтец — [enMinWordsSr]. */
     var enMinWords: Int get() = p.getInt("en_min_words", English.MIN_WORDS); set(v) = p.edit().putInt("en_min_words", v).apply()
+    var enMinWordsSr: Int get() = p.getInt("en_min_words_sr", English.MIN_WORDS); set(v) = p.edit().putInt("en_min_words_sr", v).apply()
+    /** Поправка темпа и громкости английского поверх общих (0,5–2): «×1» у двух движков звучит по-разному.
+     * Громкость ещё и выравнивается к Silero сама (Pcm.matchGain), это — сверху. */
+    var enRate: Float get() = p.getFloat("en_rate", 1f); set(v) = p.edit().putFloat("en_rate", v).apply()
+    var enVolume: Float get() = p.getFloat("en_volume", 1f); set(v) = p.edit().putFloat("en_volume", v).apply()
     /** Пакеты, которые пользователь сам отметил экранным чтецом / не чтецом (ScreenReaders). В экспорт
      * настроек не идут — это про приложения конкретного телефона. */
     var srForce: Set<String> get() = p.getStringSet("sr_force", emptySet())!!.toSet(); set(v) = p.edit().putStringSet("sr_force", v).apply()
@@ -176,6 +183,9 @@ class Prefs(private val context: Context) {
             "max_len" to maxLen,
             "focus_level" to focusLevel,
             "en_min_words" to enMinWords,
+            "en_min_words_sr" to enMinWordsSr,
+            "en_rate" to enRate.toDouble(),
+            "en_volume" to enVolume.toDouble(),
             "audit_names" to auditNames,
             "audit_dict_names" to auditDict(Audit.Kind.NAMES),
             "audit_dict_replace" to auditReplaceDict,
@@ -216,6 +226,9 @@ class Prefs(private val context: Context) {
         (prefsMap["rules_off"] as? String)?.let { rulesOff = it.split(',').toSet() }
         (prefsMap["max_len"] as? Number)?.let { maxLen = it.toInt().coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX) }
         (prefsMap["en_min_words"] as? Number)?.let { enMinWords = it.toInt().coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
+        (prefsMap["en_min_words_sr"] as? Number)?.let { enMinWordsSr = it.toInt().coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
+        (prefsMap["en_rate"] as? Number)?.let { enRate = it.toFloat().coerceIn(0.5f, 2f) }
+        (prefsMap["en_volume"] as? Number)?.let { enVolume = it.toFloat().coerceIn(0.5f, 2f) }
         (prefsMap["focus_level"] as? Number)?.let { focusLevel = it.toInt().coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
         (prefsMap["audit_names"] as? Boolean)?.let { auditNames = it }
         (prefsMap["audit_dict_names"] as? String)?.let { setAuditDict(Audit.Kind.NAMES, it) }

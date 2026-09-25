@@ -298,7 +298,7 @@ class SettingsActivity : AppCompatActivity() {
                 val models = SileroModels.shared(ctx)
                 val stress = Stress(d, models, prefs.userDict(), rules)
                 // «Разбор» — как «Прослушать»: запрос из самого приложения сервис читает по правилам книг
-                val enEngine = if (rules.on("en_proxy_books")) EnglishProxy.resolve(ctx, prefs.enEngine) else null
+                val enEngine = if (rules.on("en_proxy_books")) EnglishProxy.chosen(ctx, prefs.enEngine) else null
                 val segments = Pipeline.plan(text, d, prefs.sentencePauseMs, prefs.paragraphPauseMs, prefs.replacements(), rules,
                     if (enEngine == null) 0 else prefs.enMinWords.coerceIn(English.MIN_WORDS, English.MAX_WORDS))
                 buildString {
