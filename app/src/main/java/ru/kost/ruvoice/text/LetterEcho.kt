@@ -37,14 +37,16 @@ object LetterEcho {
         if (letters.isEmpty() || letters.any { !it.value.equals(letters[0].value, ignoreCase = true) }) return null
         val words = toks.filter { it !in letters }.map { it.value.lowercase().replace('ё', 'е') }
         if (words.any { it !in ACTION && it !in CASE } || words.none { it in ACTION }) return null
-        val name = Abbrev.letterName(letters[0].value[0]) ?: return null
+        // имя как у голой буквы («в+э.», «— +ы» — иначе «вы», «пы»); точку перед следующей частью заменяет запятая
+        val name = Abbrev.loneLetterName(letters[0].value[0]) ?: return null
         val first = letters[0].range.first
         val before = toks.filter { it !in letters && it.range.first < first }.map { it.value.lowercase() }
         val after = toks.filter { it !in letters && it.range.first > first }.map { it.value.lowercase() }
         val pre = before.filter { it.replace('ё', 'е') in ACTION }
         val case = (before + after).filter { it.replace('ё', 'е') in CASE }.distinct()
         val post = after.filter { it.replace('ё', 'е') in ACTION }
-        return listOfNotNull(pre.joinToString(" ").ifEmpty { null }, name, case.joinToString(" ").ifEmpty { null },
-            post.joinToString(" ").ifEmpty { null }).joinToString(", ")
+        val tail = listOfNotNull(case.joinToString(" ").ifEmpty { null }, post.joinToString(" ").ifEmpty { null })
+        return listOfNotNull(pre.joinToString(" ").ifEmpty { null }, if (tail.isEmpty()) name else name.trimEnd('.'), *tail.toTypedArray())
+            .joinToString(", ")
     }
 }

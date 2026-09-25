@@ -218,7 +218,10 @@ class PipelineTest {
         assertEquals("удаление, +ээр", first("Удаление р"))
         assertEquals("+ээр, удалено", first("р удалено"))                         // Jieshuo msg_deleted
         assertEquals("+ээр, заглавная буква, удалено", first("Р Заглавная буква Р удалено"))  // upper_case_format
-        assertEquals("удаление, в+э", first("Удаление в"))                        // буква, не предлог: других слов нет
+        assertEquals("удаление, в+э.", first("Удаление в"))                       // буква, не предлог: других слов нет
+        assertEquals("удаление, в+э, заглавная", first("Удаление заглавная В"))
+        assertEquals("удаление, — +ы", first("Удаление ы"))
+        assertEquals("удаление, ч+э", first("Удаление ч"))
         assertEquals("удаление, +ар, заглавная", first("Удаление заглавная R"))
         // обычный текст не трогаем
         assertEquals("Удаление в два этапа.", first("Удаление в два этапа."))
