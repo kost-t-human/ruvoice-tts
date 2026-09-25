@@ -65,7 +65,9 @@ object Abbrev {
         'G' to "джи", 'H' to "эйч", 'I' to "ай", 'J' to "джей", 'K' to "кей", 'L' to "эл",
         'M' to "эм", 'N' to "эн", 'O' to "оу", 'P' to "пи", 'Q' to "кью", 'R' to "ар",
         'S' to "эс", 'T' to "ти", 'U' to "ю", 'V' to "ви", 'W' to "дабл ю", 'X' to "экс",
-        'Y' to "уай", 'Z' to "зед"
+        // ударение уже в имени, где оно не на первой гласной: Y /waɪ/ — «уа́й», а не «У́-ай»;
+        // Z /zɛd/ — твёрдое «зэд», «зед» модель читала «зьед» (жалобы из TalkBack, 26.09.2026)
+        'Y' to "у+ай", 'Z' to "зэд"
     )
 
     // (?<!\d-)...(?!-\d) — не матчить токен, если он приклеен к цифре через дефис
@@ -107,14 +109,16 @@ object Abbrev {
 
     // имена букв через пробел, "+" перед гласной в имени последней буквы
     private fun spellOut(token: String, names: Map<Char, String>): String {
-        val parts = token.map { names.getValue(it) }.toMutableList()
-        parts[parts.lastIndex] = withStress(parts.last())
+        val parts = token.map { names.getValue(it).replace("+", "") }.toMutableList()
+        parts[parts.lastIndex] = withStress(names.getValue(token.last()))
         return parts.joinToString(" ")
     }
 
     // Отдельно стоящее «эр», «эн», «эм» модель читает как «р», «н», «м» (на слух 24.09.2026, жалоба из TalkBack);
     // в аббревиатурах соседние буквы это держат, там имена прежние
-    private val loneCyrNames = mapOf('Р' to "ээр", 'Н' to "энн", 'М' to "эмм", 'Ч' to "чэ")   // «че» — «чо»
+    // Латинские M и N (/ɛm/, /ɛn/) — то же «эм», «эн», та же беда: ключи латинские, отдельные от кириллических
+    private val loneCyrNames = mapOf('Р' to "ээр", 'Н' to "энн", 'М' to "эмм", 'Ч' to "чэ",   // «че» — «чо»
+        'M' to "эмм", 'N' to "энн")
 
     // Запрос из одной буквы без слов вокруг (эхо ввода Jieshuo, на телефоне на слух 25.09.2026): «вэ» звучит «вы»,
     // «ы» — «пы»; точка у остальных букв хуже, поэтому только эти
@@ -129,6 +133,7 @@ object Abbrev {
         (loneCyrNames[c.uppercaseChar()] ?: cyrLetterNames[c.uppercaseChar()] ?: latLetterNames[c.uppercaseChar()])?.let(::withStress)
 
     private fun withStress(name: String): String {
+        if ('+' in name) return name
         val i = name.indexOfFirst { it in VOWELS_IN_NAMES }
         return if (i < 0) name else name.substring(0, i) + "+" + name.substring(i)
     }

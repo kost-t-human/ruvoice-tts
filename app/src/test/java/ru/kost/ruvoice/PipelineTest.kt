@@ -160,7 +160,11 @@ class PipelineTest {
         assertEquals("+ээр", first("р"))   // «+эр» модель читает «р»
         assertEquals("прописная буква +энн", first("прописная буква Н."))
         assertEquals("+эмм", first("м"))
-        assertEquals("+эм", first("m"))     // латиница — прежние имена
+        assertEquals("+эмм", first("m"))    // латинские M и N — как русские М и Н
+        assertEquals("+энн", first("N"))
+        assertEquals("у+ай", first("y"))    // /waɪ/: ударение на «ай», не «У́-ай»
+        assertEquals("з+эд", first("Z"))    // /zɛd/: твёрдое «з», не «зьед»
+        assertEquals("удаление, у+ай, заглавная", Pipeline.plan("Удаление заглавная Y", d, 0, 0, rules = Rules().screenReader()).single().text)
         // внутри текста «в» — предлог, не трогаем
         assertEquals("в 1917 году.", first("в 1917 году."))
         assertEquals("б", first("б", Rules(off = setOf("letter_name"))))
