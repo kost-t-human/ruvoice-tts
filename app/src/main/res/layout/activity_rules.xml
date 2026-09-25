@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- «Настройки» из меню ⋮: тулбар с «назад» и RulesFragment (бывшая вкладка «Правила»). -->
+<!-- «Настройки» и «Английский» из меню ⋮: тулбар с «назад» и RulesFragment (бывшая вкладка «Правила»), его кладёт RulesActivity. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
@@ -21,7 +21,6 @@
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/rules"
-        android:name="ru.kost.ruvoice.RulesFragment"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />

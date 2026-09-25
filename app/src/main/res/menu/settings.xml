@@ -6,6 +6,10 @@
         android:title="@string/rules_title"
         app:showAsAction="never" />
     <item
+        android:id="@+id/english"
+        android:title="@string/english_title"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/export_settings"
         android:title="@string/export_settings"
         app:showAsAction="never" />

@@ -218,20 +218,29 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     /** Строка списка для поиска: заголовок секции ([text] пустой) или правило/блок под ним с текстом. */
     private class Entry(val view: View, val text: String, val group: Int, val header: Boolean)
     private val entries = ArrayList<Entry>()
+    /** Страница «Английский» из меню ⋮ — только секция english; в «Настройках» её нет. */
+    private val english get() = arguments?.getBoolean(ARG_ENGLISH) == true
+    /** Тумблеры этой страницы: остальные ключи rulesOff сохраняются как были. */
+    private val shownKeys = HashSet<String>()
 
     override fun load(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
         list.removeAllViews()
         entries.clear()
+        shownKeys.clear()
         var group = -1
         val rules = Rules(prefs.rulesOff)
         val inflater = LayoutInflater.from(v.context)
-        for ((i, key) in Rules.KEYS.withIndex()) {
+        var section = ""
+        for (key in Rules.KEYS) {
+            section = Rules.SECTIONS[key] ?: section
+            if ((section == "english") != english) continue
+            shownKeys += key
             Rules.SECTIONS[key]?.let { section ->
                 val header = TextView(v.context, null, 0, R.style.Section).apply { setText(res("rules_section_$section")); asHeading() }
                 list.addView(header,
                     LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                        .apply { topMargin = if (i == 0) 0 else (24 * resources.displayMetrics.density).toInt() })
+                        .apply { topMargin = if (list.childCount == 0) 0 else (24 * resources.displayMetrics.density).toInt() })
                 group++
                 entries += Entry(header, header.text.toString(), group, true)
                 // под «Чтение с экрана (TalkBack)» — какие программы это; в поиске ведёт себя как заголовок
@@ -295,6 +304,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 findViewById<EditText>(R.id.focusLevel).setText(prefs.focusLevel.toString())
             }, getString(R.string.focus_level) + " " + getString(R.string.focus_level_hint))
         }
+        for (id in listOf(R.id.chunkBlock, R.id.rulesHint)) v.findViewById<View>(id).visibility = if (english) View.GONE else View.VISIBLE
         v.findViewById<EditText>(R.id.maxLen).setText(prefs.maxLen.toString())
         v.findViewById<EditText>(R.id.rulesFilter).apply {
             doAfterTextChanged { filter(v, it?.toString().orEmpty()) }
@@ -395,8 +405,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
      * Подпись со значением — живая область: сменили движок или голос, ждём список — чтец скажет сам,
      * фокус остаётся на строке. */
     private fun pickerRow(inflater: LayoutInflater, parent: LinearLayout, title: Int, pickLabel: Int): View =
-        inflater.inflate(R.layout.item_rule, parent, false).apply {
-            findViewById<View>(R.id.toggle).visibility = View.GONE
+        inflater.inflate(R.layout.item_picker, parent, false).apply {
             findViewById<TextView>(R.id.title).setText(title)
             ViewCompat.setAccessibilityLiveRegion(findViewById(R.id.hint), ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE)
             isFocusable = true
@@ -525,10 +534,11 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     override fun save(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
         // тумблеры правил помечены ключом; у строк «Кто читает через движок» тега нет
-        prefs.rulesOff = (0 until list.childCount).mapNotNull { list.getChildAt(it).findViewById<MaterialSwitch>(R.id.toggle) }
+        prefs.rulesOff = prefs.rulesOff.filterTo(HashSet()) { it !in shownKeys } +
+            (0 until list.childCount).mapNotNull { list.getChildAt(it).findViewById<MaterialSwitch>(R.id.toggle) }
             .filter { it.tag is String }
-            .filter { it.isChecked == (it.tag in Rules.DEFAULT_OFF) }.map { it.tag as String }.toSet()
-        prefs.maxLen = (v.findViewById<EditText>(R.id.maxLen).str().toIntOrNull() ?: Rules.MAX_LEN_DEFAULT)
+            .filter { it.isChecked == (it.tag in Rules.DEFAULT_OFF) }.map { it.tag as String }
+        if (!english) prefs.maxLen = (v.findViewById<EditText>(R.id.maxLen).str().toIntOrNull() ?: Rules.MAX_LEN_DEFAULT)
             .coerceIn(Rules.MAX_LEN_MIN, Rules.MAX_LEN_MAX)
         v.findViewById<Slider>(R.id.srRate)?.let { prefs.srRate = it.value }
         v.findViewById<Slider>(R.id.srPitch)?.let { prefs.srPitch = it.value }
@@ -540,7 +550,11 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         }
         v.findViewById<Slider>(R.id.enRate)?.let { prefs.enRate = it.value }
         v.findViewById<Slider>(R.id.enVolume)?.let { prefs.enVolume = it.value }
-        prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)
-            .coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX)
+        v.findViewById<EditText>(R.id.focusLevel)?.let { prefs.focusLevel = (it.str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)
+            .coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX) }
+    }
+
+    companion object {
+        const val ARG_ENGLISH = "english"
     }
 }

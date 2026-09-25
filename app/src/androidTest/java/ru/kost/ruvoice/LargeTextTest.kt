@@ -95,10 +95,14 @@ class LargeTextTest {
 
     @Test fun rulesScreen() {
         ActivityScenario.launch(RulesActivity::class.java).use { assertNoClippedText() }
+        ActivityScenario.launch<RulesActivity>(english()).use { assertNoClippedText() }
     }
 
     @Test fun helperScreens() {
         ActivityScenario.launch(TroubleshootActivity::class.java).use { assertNoClippedText() }
         ActivityScenario.launch(AboutActivity::class.java).use { assertNoClippedText() }
     }
+
+    private fun english() = android.content.Intent(InstrumentationRegistry.getInstrumentation().targetContext, RulesActivity::class.java)
+        .putExtra(RulesActivity.EXTRA_ENGLISH, true)
 }

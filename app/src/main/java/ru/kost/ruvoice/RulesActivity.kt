@@ -10,7 +10,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.color.DynamicColors
 
-/** «Настройки» из меню ⋮: RulesFragment отдельным окном, тумблеры сохраняются в его onPause. */
+/** «Настройки» и «Английский» ([EXTRA_ENGLISH]) из меню ⋮: RulesFragment отдельным окном, тумблеры сохраняются в его onPause. */
 class RulesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
@@ -24,8 +24,16 @@ class RulesActivity : AppCompatActivity() {
             v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
             insets
         }
-        findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
+        val english = intent.getBooleanExtra(EXTRA_ENGLISH, false)
+        if (english) setTitle(R.string.english_title)
+        findViewById<MaterialToolbar>(R.id.toolbar).apply { if (english) setTitle(R.string.english_title); setNavigationOnClickListener { finish() } }
+        if (savedInstanceState == null) supportFragmentManager.beginTransaction()
+            .add(R.id.rules, RulesFragment().apply { arguments = Bundle().apply { putBoolean(RulesFragment.ARG_ENGLISH, english) } }).commit()
     }
 
     override fun onKeyShortcut(keyCode: Int, event: KeyEvent): Boolean = ctrlF(keyCode, event) || super.onKeyShortcut(keyCode, event)
+
+    companion object {
+        const val EXTRA_ENGLISH = "english"
+    }
 }

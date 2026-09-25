@@ -34,6 +34,7 @@
                 android:textColor="?attr/colorOnSurface"
                 android:textStyle="bold"
                 android:autoLink="web"
+                android:minHeight="48dp"
                 android:text="@string/about_telegram" />
             <TextView
                 style="@style/SectionHint"

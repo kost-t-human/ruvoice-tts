@@ -76,6 +76,9 @@ class AccessibilityChecksTest {
             onView(withId(R.id.rulesFilter)).perform(clearText(), closeSoftKeyboard())
             assertKeyboardReachable()
         }
+        // страница «Английский»: тумблеры, пороги, рамки выбора движка и голоса
+        ActivityScenario.launch<RulesActivity>(android.content.Intent(InstrumentationRegistry.getInstrumentation().targetContext, RulesActivity::class.java)
+            .putExtra(RulesActivity.EXTRA_ENGLISH, true)).use { assertKeyboardReachable() }
     }
 
     /** Окно «Решение проблем» и «О программе». */

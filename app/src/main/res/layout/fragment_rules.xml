@@ -35,6 +35,7 @@
             android:visibility="gone" />
 
         <TextView
+            android:id="@+id/rulesHint"
             style="@style/SectionHint"
             android:text="@string/rules_hint" />
 
@@ -44,6 +45,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
 
+        <!-- Длина куска: на странице «Английский» (RulesFragment.ARG_ENGLISH) скрыта -->
+        <LinearLayout
+            android:id="@+id/chunkBlock"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
         <TextView
             style="@style/Section"
             android:text="@string/rules_section_chunk" />
@@ -63,5 +70,6 @@
                 android:layout_height="wrap_content"
                 android:inputType="number" />
         </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

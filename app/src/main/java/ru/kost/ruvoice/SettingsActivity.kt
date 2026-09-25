@@ -100,6 +100,7 @@ class SettingsActivity : AppCompatActivity() {
                 // как перед экспортом: refreshPages глушит save() старых фрагментов, правки вкладки иначе пропадут
                 R.id.voice_packs -> { saveAllVisiblePages(); showPacks(); true }
                 R.id.rules -> { startActivity(Intent(this, RulesActivity::class.java)); true }
+                R.id.english -> { startActivity(Intent(this, RulesActivity::class.java).putExtra(RulesActivity.EXTRA_ENGLISH, true)); true }
                 R.id.setup_help -> { showSetupHelp(); true }
                 R.id.troubleshoot -> { startActivity(Intent(this, TroubleshootActivity::class.java)); true }
                 R.id.about -> { startActivity(Intent(this, AboutActivity::class.java)); true }
