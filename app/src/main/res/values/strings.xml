@@ -364,9 +364,11 @@
     <string name="rule_en_proxy_books">Английский другим движком: книги и приложения</string>
     <string name="rule_en_proxy_books_hint">Английские слова и фразы из читалок и других приложений читает другой движок синтеза, установленный на телефоне, и их текст передаётся ему. Русский текст остаётся у RuVoice.</string>
     <string name="rule_en_proxy_sr">Английский другим движком: экранный чтец</string>
-    <string name="rule_en_proxy_sr_hint">То же для TalkBack и других экранных чтецов: пункты меню, кнопки, сообщения на английском. Можно включить только одно из двух.</string>
+    <string name="rule_en_proxy_sr_hint">То же для TalkBack и других экранных чтецов: пункты меню, кнопки, сообщения на английском. Включается отдельно от книг, можно включить оба.</string>
     <string name="en_voice">Голос для английского</string>
     <string name="en_voice_pick">Выбрать голос</string>
+    <string name="en_voice_choose">Выбрать</string>
+    <string name="en_voice_sample" translatable="false">Hello! This is how English will sound in your books.</string>
     <string name="en_voice_default">По умолчанию: офлайн-голос, если он есть у движка</string>
     <string name="en_voice_default_offline">По умолчанию: офлайн-голос движка</string>
     <string name="en_voice_default_online">По умолчанию. Офлайн-голоса для английского у движка нет, текст может уходить в интернет. Скачайте английский голос в настройках движка.</string>

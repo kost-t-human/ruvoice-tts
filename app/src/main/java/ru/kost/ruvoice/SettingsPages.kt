@@ -304,7 +304,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 findViewById<EditText>(R.id.focusLevel).setText(prefs.focusLevel.toString())
             }, getString(R.string.focus_level) + " " + getString(R.string.focus_level_hint))
         }
-        for (id in listOf(R.id.chunkBlock, R.id.rulesHint)) v.findViewById<View>(id).visibility = if (english) View.GONE else View.VISIBLE
+        for (id in listOf(R.id.chunkBlock, R.id.rulesHint, R.id.rulesFilterBox)) v.findViewById<View>(id).visibility = if (english) View.GONE else View.VISIBLE
         v.findViewById<EditText>(R.id.maxLen).setText(prefs.maxLen.toString())
         v.findViewById<EditText>(R.id.rulesFilter).apply {
             doAfterTextChanged { filter(v, it?.toString().orEmpty()) }
@@ -447,14 +447,24 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                         return@runOnUiThread
                     }
                     val labels = listOf(getString(R.string.en_voice_default)) + voices.map { voiceLabel(it) }
-                    val cur = voices.indexOfFirst { it.name == prefs.enVoice } + 1
+                    var picked = voices.indexOfFirst { it.name == prefs.enVoice } + 1
+                    // ползунки ещё не сохранены (Prefs пишутся в onPause) — берём с экрана
+                    val sample = EnglishSample(ctx, engine.pkg, voices, view?.findViewById<Slider>(R.id.enRate)?.value ?: prefs.enRate,
+                        view?.findViewById<Slider>(R.id.enVolume)?.value ?: prefs.enVolume)
+                    // с чтецом образец сам не играет — перебил бы «выбрано»; для этого кнопка «Прослушать»
+                    val auto = !ScreenReaders.anyActive(ctx)
                     MaterialAlertDialogBuilder(requireContext())
                         .setTitle(R.string.en_voice)
-                        .setSingleChoiceItems(labels.toTypedArray(), cur) { d, i ->
-                            prefs.enVoice = if (i == 0) "" else voices[i - 1].name; describeVoice(row); d.dismiss()
+                        .setSingleChoiceItems(labels.toTypedArray(), picked) { _, i -> picked = i; if (auto) sample.play(i) }
+                        .setPositiveButton(R.string.en_voice_choose) { _, _ ->
+                            prefs.enVoice = if (picked == 0) "" else voices[picked - 1].name; describeVoice(row)
                         }
+                        .setNeutralButton(R.string.preview, null)
                         .setNegativeButton(R.string.cancel, null)
+                        .setOnDismissListener { sample.release() }
                         .show()
+                        // нейтральная кнопка по умолчанию закрывает окно — здесь она только играет
+                        .getButton(android.content.DialogInterface.BUTTON_NEUTRAL).setOnClickListener { sample.play(picked) }
                 }
             }.start()
         }
@@ -557,4 +567,29 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     companion object {
         const val ARG_ENGLISH = "english"
     }
+}
+
+/** Образец английского голоса в окне выбора: свой клиент к движку [pkg], пункт 0 — «по умолчанию»
+ * (офлайн-голос, как у сервиса), остальные — [voices] по порядку. Темп и громкость — поправки для английского. */
+private class EnglishSample(private val ctx: android.content.Context, pkg: String, private val voices: List<EnglishProxy.VoiceInfo>,
+                            private val rate: Float, private val volume: Float) {
+    private var ready = false
+    private var pending: Int? = null
+    private val tts: android.speech.tts.TextToSpeech = android.speech.tts.TextToSpeech(ctx, { status ->
+        ready = status == android.speech.tts.TextToSpeech.SUCCESS
+        pending?.let { pending = null; if (ready) play(it) }
+    }, pkg)
+
+    fun play(item: Int) {
+        if (!ready) { pending = item; return }
+        val all = runCatching { tts.voices }.getOrNull().orEmpty()
+        val info = if (item == 0) EnglishProxy.pickOffline(voices, Locale.US) else voices.getOrNull(item - 1)
+        val voice = all.firstOrNull { it.name == info?.name }
+        if (voice != null) tts.voice = voice else tts.language = Locale.US
+        tts.setSpeechRate(rate)
+        val params = Bundle().apply { putFloat(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceAtMost(1f)) }
+        tts.speak(ctx.getString(R.string.en_voice_sample), android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "sample")
+    }
+
+    fun release() { runCatching { tts.stop(); tts.shutdown() } }
 }

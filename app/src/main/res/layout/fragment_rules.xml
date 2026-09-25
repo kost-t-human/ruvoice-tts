@@ -15,6 +15,7 @@
         <!-- Поиск по названиям и подписям правил: строки и заголовки без совпадений прячутся,
              «Найдено: N» — живая область, TalkBack читает её сам после набора. -->
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/rulesFilterBox"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
