@@ -363,9 +363,10 @@
     <string name="rule_en_proxy_sr">Английский другим движком: экранный чтец</string>
     <string name="rule_en_proxy_sr_hint">То же для TalkBack и других экранных чтецов: пункты меню, кнопки, сообщения на английском. Можно включить только одно из двух.</string>
     <string name="en_voice">Голос для английского</string>
-    <string name="en_voice_pick">Голос для английского</string>
+    <string name="en_voice_pick">Выбрать голос</string>
     <string name="en_voice_default">Голос движка по умолчанию</string>
-    <string name="en_voice_value">%1$s. Нажмите, чтобы выбрать другой.</string>
+    <string name="en_voice_value">Сейчас: %1$s</string>
+    <string name="en_voice_word">голос</string>
     <string name="en_voice_loading">Спрашиваю голоса у движка…</string>
     <string name="en_voice_none">У движка «%1$s» не нашлось английских голосов. Их можно скачать в настройках самого движка.</string>
     <string name="en_voice_network">нужен интернет</string>
@@ -374,8 +375,8 @@
     <string name="en_min_words_hint">Сколько английских слов подряд внутри русского текста нужно, чтобы их прочитал другой движок. 1 — любое слово; 2–3 — отдельные названия вроде «Microsoft Word» останутся русскому голосу. Текст целиком на английском уходит другому движку всегда. Сокращения капсом («USB», «OK») и римские числа читаются по-русски. От 1 до 10.</string>
     <string name="en_engine">Движок для английского</string>
     <string name="en_engine_none">Других движков синтеза на телефоне нет. Английский читается по-русски, как раньше.</string>
-    <string name="en_engine_value">%1$s. Нажмите, чтобы выбрать другой.</string>
-    <string name="en_engine_pick">Движок для английского</string>
+    <string name="en_engine_value">Сейчас: %1$s</string>
+    <string name="en_engine_pick">Выбрать движок</string>
     <string name="en_proxy_confirm_title">Английский другим движком</string>
     <string name="en_proxy_confirm">Английские фразы будет читать «%1$s». Сам RuVoice по-прежнему работает без интернета, но текст этих фраз передаётся тому движку.\n\nЕсли у него не скачан офлайн-голос для английского, он может отправить текст в интернет. Офлайн-голос обычно скачивается в настройках самого движка.\n\nРусский текст остаётся на телефоне и читается как прежде.</string>
     <string name="en_proxy_enable">Включить</string>

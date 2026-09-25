@@ -13,6 +13,9 @@ import android.widget.TextView
 import java.util.Locale
 import androidx.fragment.app.Fragment
 import androidx.core.widget.doAfterTextChanged
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -261,9 +264,9 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             // английский другим движком: при включении — предупреждение, под тумблером — выбор движка
             if (key == "en_proxy_books" || key == "en_proxy_sr") toggle.setOnCheckedChangeListener { _, on -> if (on) confirmEnglish(toggle) }
             if (key == "en_proxy_sr") {
-                val voiceRow = inflater.inflate(R.layout.item_rule, list, false)
+                val voiceRow = voiceRow(inflater, list)
                 extra(engineRow(inflater, list) { describeVoice(voiceRow) }, getString(R.string.en_engine))
-                extra(voiceRow.also { setupVoiceRow(it) }, getString(R.string.en_voice))
+                extra(voiceRow, getString(R.string.en_voice))
                 extra(inflater.inflate(R.layout.item_en_words, list, false).apply {
                     findViewById<EditText>(R.id.enMinWords).setText(prefs.enMinWords.toString())
                 }, getString(R.string.en_min_words) + " " + getString(R.string.en_min_words_hint))
@@ -363,33 +366,54 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             .show()
     }
 
-    /** Строка «Движок для английского»: какой сейчас и выбор из установленных. */
+    /** Строка выбора без тумблера («Движок…», «Голос…»): для TalkBack — кнопка с названием и значением.
+     * Подпись со значением — живая область: сменили движок или голос, ждём список — чтец скажет сам,
+     * фокус остаётся на строке. */
+    private fun pickerRow(inflater: LayoutInflater, parent: LinearLayout, title: Int, pickLabel: Int): View =
+        inflater.inflate(R.layout.item_rule, parent, false).apply {
+            findViewById<View>(R.id.toggle).visibility = View.GONE
+            findViewById<TextView>(R.id.title).setText(title)
+            ViewCompat.setAccessibilityLiveRegion(findViewById(R.id.hint), ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE)
+            isFocusable = true
+            ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.className = Button::class.java.name
+                }
+            })
+            clickLabel(getString(pickLabel))
+        }
+
+    private fun message(title: Int, text: String) =
+        MaterialAlertDialogBuilder(requireContext()).setTitle(title).setMessage(text).setPositiveButton(R.string.close, null).show()
+
     /** Строка «Голос для английского»: голоса движка грузятся в фоне (клиент подключается до пяти секунд). */
-    private fun setupVoiceRow(row: View) {
-        row.findViewById<View>(R.id.toggle).visibility = View.GONE
-        row.findViewById<TextView>(R.id.title).setText(R.string.en_voice)
+    private fun voiceRow(inflater: LayoutInflater, parent: LinearLayout): View {
+        val row = pickerRow(inflater, parent, R.string.en_voice, R.string.en_voice_pick)
         describeVoice(row)
-        row.isFocusable = true
-        row.clickLabel(getString(R.string.en_voice_pick))
+        var loading = false
         row.setOnClickListener {
+            if (loading) return@setOnClickListener
             val ctx = requireContext().applicationContext
-            val engine = EnglishProxy.resolve(ctx, prefs.enEngine) ?: return@setOnClickListener
+            val engine = EnglishProxy.resolve(ctx, prefs.enEngine)
+                ?: return@setOnClickListener message(R.string.en_voice, getString(R.string.en_engine_none)).let { }
             val hint = row.findViewById<TextView>(R.id.hint)
             hint.setText(R.string.en_voice_loading)
+            loading = true
             Thread {
                 val voices = EnglishProxy.shared(ctx).voices(engine.pkg)
                 activity?.runOnUiThread {
+                    loading = false
                     if (!isAdded) return@runOnUiThread
                     describeVoice(row)
                     if (voices.isNullOrEmpty()) {
-                        MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.en_voice_pick)
-                            .setMessage(getString(R.string.en_voice_none, engine.label)).setPositiveButton(R.string.close, null).show()
+                        message(R.string.en_voice, getString(R.string.en_voice_none, engine.label))
                         return@runOnUiThread
                     }
                     val labels = listOf(getString(R.string.en_voice_default)) + voices.map { voiceLabel(it) }
                     val cur = voices.indexOfFirst { it.name == prefs.enVoice } + 1
                     MaterialAlertDialogBuilder(requireContext())
-                        .setTitle(R.string.en_voice_pick)
+                        .setTitle(R.string.en_voice)
                         .setSingleChoiceItems(labels.toTypedArray(), cur) { d, i ->
                             prefs.enVoice = if (i == 0) "" else voices[i - 1].name; describeVoice(row); d.dismiss()
                         }
@@ -398,38 +422,37 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 }
             }.start()
         }
+        return row
     }
 
-    /** «Английский (Великобритания), en-gb-x-rjs-local» и пометки: нужен интернет, не скачан. */
+    /** Пункт списка голосов словами, без «·» и без технического имени целиком: «Английский (США), голос iol,
+     * нужен интернет». Имя вида en-us-x-iol-local TalkBack читал бы по кускам. */
     private fun voiceLabel(v: EnglishProxy.VoiceInfo): String =
-        listOfNotNull("${v.locale.getDisplayName(Locale("ru")).replaceFirstChar { it.uppercase() }}, ${v.name}",
+        listOfNotNull(EnglishProxy.voiceTitle(v.name, v.locale, Locale("ru"), getString(R.string.en_voice_word)),
             getString(R.string.en_voice_network).takeIf { v.network },
-            getString(R.string.en_voice_not_installed).takeIf { !v.installed }).joinToString(" · ")
+            getString(R.string.en_voice_not_installed).takeIf { !v.installed }).joinToString(", ")
 
     private fun describeVoice(row: View) {
-        row.findViewById<TextView>(R.id.hint).text =
-            if (prefs.enVoice.isEmpty()) getString(R.string.en_voice_default) else getString(R.string.en_voice_value, prefs.enVoice)
+        row.findViewById<TextView>(R.id.hint).text = if (prefs.enVoice.isEmpty()) getString(R.string.en_voice_default)
+            else getString(R.string.en_voice_value, EnglishProxy.voiceTitle(prefs.enVoice, null, Locale("ru"), getString(R.string.en_voice_word)))
     }
 
+    /** Строка «Движок для английского»: какой сейчас и выбор из установленных. */
     private fun engineRow(inflater: LayoutInflater, parent: LinearLayout, onChange: () -> Unit): View {
-        val row = inflater.inflate(R.layout.item_rule, parent, false)
-        row.findViewById<View>(R.id.toggle).visibility = View.GONE
-        row.findViewById<TextView>(R.id.title).setText(R.string.en_engine)
+        val row = pickerRow(inflater, parent, R.string.en_engine, R.string.en_engine_pick)
         val hint = row.findViewById<TextView>(R.id.hint)
         fun describe() {
             val e = EnglishProxy.resolve(requireContext(), prefs.enEngine)
             hint.text = if (e == null) getString(R.string.en_engine_none) else getString(R.string.en_engine_value, e.label)
         }
         describe()
-        row.isFocusable = true
-        row.clickLabel(getString(R.string.en_engine_pick))
         row.setOnClickListener {
             EnglishProxy.forget()
             val engines = EnglishProxy.engines(requireContext())
-            if (engines.isEmpty()) { describe(); return@setOnClickListener }
+            if (engines.isEmpty()) { describe(); message(R.string.en_engine, getString(R.string.en_engine_none)); return@setOnClickListener }
             val cur = EnglishProxy.resolve(requireContext(), prefs.enEngine)
             MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.en_engine_pick)
+                .setTitle(R.string.en_engine)
                 .setSingleChoiceItems(engines.map { it.label }.toTypedArray(), engines.indexOfFirst { it.pkg == cur?.pkg }) { d, i ->
                     // голос прежнего движка новому не подходит
                     if (prefs.enEngine != engines[i].pkg) prefs.enVoice = ""

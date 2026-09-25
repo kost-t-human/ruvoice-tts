@@ -129,6 +129,19 @@ class EnglishProxy private constructor(private val context: Context) {
     }
 
     companion object {
+        // голоса Google и многих других: en-us-x-iol-local, en-gb-x-rjs-network
+        private val voiceNameRe = Regex("([a-z]{2,3})-([a-z]{2,3})-x-([a-z0-9]+)(?:-(?:local|network))?")
+
+        /** Имя голоса для человека и TalkBack: «Английский (США), голос iol». Язык — из [locale], иначе из
+         * имени; имя не по шаблону остаётся как есть («Английский (США), голос Alex»). */
+        fun voiceTitle(name: String, locale: Locale?, display: Locale, word: String): String {
+            val m = voiceNameRe.matchEntire(name.lowercase())
+            val loc = locale ?: m?.let { Locale(it.groupValues[1], it.groupValues[2].uppercase()) }
+            val id = m?.groupValues?.get(3) ?: name
+            val lang = loc?.getDisplayName(display)?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() }
+            return if (lang == null) id else "$lang, $word $id"
+        }
+
         /** Движок по умолчанию, если в настройках не выбран другой: есть почти на всех телефонах. */
         const val GOOGLE = "com.google.android.tts"
         private const val INIT_TIMEOUT_S = 5L
