@@ -1225,14 +1225,42 @@ object Normalizer {
         return s
     }
 
-    // 11. Сокращения. Предложные формы («на стр.» → «на странице») — раньше общего списка.
-    // «тыс./млн/млрд» после числа — со склонением через plural(), «тыс.» ещё и с родом (жен.).
-    private val abbrevPrepRe =
-        Regex("""(?<![\p{L}\d])(на|в|во|о|об|при)\s+(стр|гл|табл|рис)\.""", RegexOption.IGNORE_CASE)
-    private val abbrevPrepWord = mapOf("стр" to "странице", "гл" to "главе", "табл" to "таблице", "рис" to "рисунке")
+    // 11. Сокращения. Падеж по предлогу («на стр.» → «на странице», «до стр. 5» → «до страницы») — раньше
+    // общего списка. «тыс./млн/млрд» после числа — со склонением через plural(), «тыс.» ещё и с родом (жен.).
+    // Формы [NOM, GEN, DAT, ACC, INS, PRE].
+    private val abbrevNounForms = mapOf(
+        "стр" to arrayOf("страница", "страницы", "странице", "страницу", "страницей", "странице"),
+        "гл" to arrayOf("глава", "главы", "главе", "главу", "главой", "главе"),
+        "табл" to arrayOf("таблица", "таблицы", "таблице", "таблицу", "таблицей", "таблице"),
+        "рис" to arrayOf("рисунок", "рисунка", "рисунку", "рисунок", "рисунком", "рисунке"),
+        "ст" to arrayOf("статья", "статьи", "статье", "статью", "статьёй", "статье"),
+        "п" to arrayOf("пункт", "пункта", "пункту", "пункт", "пунктом", "пункте"),
+    )
+    // «с» — родительный («со стр. 5»), не творительный; «по» — дательный только у «ст./п.» («по ст. 105»):
+    // «со стр. 5 по стр. 10» — диапазон, там винительный, оставляем общему списку.
+    private val abbrevPrepCase = listOf("до", "от", "из", "для", "без", "после", "около", "у", "вместо", "кроме", "с", "со",
+        "возле").associateWith { Case.GEN } +
+        listOf("к", "ко", "согласно", "по").associateWith { Case.DAT } +
+        listOf("через", "про").associateWith { Case.ACC } +
+        listOf("под", "над", "перед").associateWith { Case.INS } +
+        listOf("на", "в", "во", "о", "об", "при").associateWith { Case.PRE }
+    // Без номера следом — только «на/в/о/при» и «стр./гл./табл./рис.», как раньше («на стр.» → «на странице»):
+    // «из рис.», «у ст.» без числа — скорее крупа и станица.
+    private val abbrevPrepRe = Regex(
+        """(?<![\p{L}\d])(${abbrevPrepCase.keys.joinToString("|")})\s+(стр|гл|табл|рис|ст|п)\.(\s*(?=(?:№\s*)?\d))?""",
+        RegexOption.IGNORE_CASE
+    )
+    private val abbrevPrepNoNumber = setOf("на", "в", "во", "о", "об", "при")
     private fun abbrevPrep(text: String) = abbrevPrepRe.replace(text) { m ->
         val (prep, abbr) = m.destructured
-        "$prep ${abbrevPrepWord.getValue(abbr.lowercase())}"
+        val p = prep.lowercase(); val a = abbr.lowercase()
+        val numbered = m.groups[3] != null
+        if (!numbered && (p !in abbrevPrepNoNumber || a == "ст" || a == "п")) return@replace m.value
+        if (p == "по" && a != "ст" && a != "п") return@replace m.value
+        val word = abbrevNounForms.getValue(a)[abbrevPrepCase.getValue(p).ordinal]
+        // «с стр. 5» → «со страницы», «с ст. 5» → «со статьи»
+        val pr = if (p == "с" && word[0] == 'с') prep + "о" else prep
+        "$pr $word" + if (numbered) " " else ""
     }
 
     private val scaleAbbrevRe = Regex("""(\d+(?:[.,]\d+)?)\s*(тыс|млн|млрд)\.?(?![\p{L}])""", RegexOption.IGNORE_CASE)
@@ -1320,7 +1348,8 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])г-жа(?![\p{L}])""", RegexOption.IGNORE_CASE) to "госпожа",
         Regex("""(?<![\p{L}\d])н\.\s*э\.?(?![\p{L}])""", RegexOption.IGNORE_CASE) to "нашей эры",
         Regex("""(?<![\p{L}\d])т\.\s*о\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "таким образом",
-        Regex("""(?<![\p{L}\d])кол-во(?![\p{L}])""", RegexOption.IGNORE_CASE) to "количество",
+        // «кол-во», «кол-ва», «кол-ву», «кол-вом», «кол-ве» — окончание переносим
+        Regex("""(?<![\p{L}\d])кол-в(о|а|у|ом|е)(?![\p{L}])""", RegexOption.IGNORE_CASE) to "количеств$1",
         Regex("""(?<![\p{L}\d])ж/д(?![\p{L}])""", RegexOption.IGNORE_CASE) to "железнодорожный",
         Regex("""(?<![\p{L}\d])б/у(?![\p{L}])""", RegexOption.IGNORE_CASE) to "бывший в употреблении",
         // «ок.»/«кв.» только перед числом, пробел — часть замены (как у «п.» выше)
@@ -1348,14 +1377,29 @@ object Normalizer {
         "мат" to "математическ", "ист" to "историческ", "экон" to "экономическ", "соц" to "социальн", "фед" to "федеральн",
         "муниц" to "муниципальн", "тех" to "техническ", "мед" to "медицинск", "юр" to "юридическ", "воен" to "военн",
         "англ" to "английск", "нем" to "немецк", "фр" to "французск", "рус" to "русск", "рос" to "российск",
-        "науч" to "научн", "лит" to "литературн")
+        "науч" to "научн", "лит" to "литературн", "ж/д" to "железнодорожн")
+    // Слова следом необязательны: «ж/д» без существительного после предлога — «железная дорога» (railNoun).
     private val adjAbbrevRe = Regex(
-        """(?<![\p{L}\d])((?:${adjAbbrevStems.keys.joinToString("|")})\.)(?=\s+(\p{L}+)(?:\s+(\p{L}+))?(?:\s+(\p{L}+))?)""",
+        """(?<![\p{L}\d])((?:${adjAbbrevStems.keys.filter { it != "ж/д" }.joinToString("|")})\.|ж/д)""" +
+            """(?:(?=\s+(\p{L}+)(?:\s+(\p{L}+))?(?:\s+(\p{L}+))?))?(?![\p{L}\d/])""",
         RegexOption.IGNORE_CASE
     )
     private val prevWordRe = Regex("""(\p{L}+)(\s+(?:и|или))?\s*$""", RegexOption.IGNORE_CASE)
+    // «по ж/д», «до ж/д», «на ж/д» — существительное «железная дорога» в падеже предлога.
+    private val railNounForms = arrayOf("железная дорога", "железной дороги", "железной дороге", "железную дорогу",
+        "железной дорогой", "железной дороге")
+    private val railPrepCase = listOf("до", "от", "у", "из", "с", "со", "около", "вдоль", "возле", "для", "без", "после",
+        "кроме", "вместо").associateWith { Case.GEN } + listOf("по", "к", "ко").associateWith { Case.DAT } +
+        listOf("через", "за", "про").associateWith { Case.ACC } + listOf("перед", "над", "под", "между").associateWith { Case.INS } +
+        listOf("на", "в", "во", "о", "об", "при").associateWith { Case.PRE }
+    private val prevOnlyWordRe = Regex("""(?<![\p{L}\d])(\p{L}+)\s+$""")
+    private fun railNoun(before: String): String? {
+        val prep = prevOnlyWordRe.find(before)?.groupValues?.get(1)?.lowercase() ?: return null
+        return railNounForms[(railPrepCase[prep] ?: return null).ordinal]
+    }
     private fun adjAbbrev(s: String, morph: Morph) = adjAbbrevRe.replace(s) { m ->
-        val stem = adjAbbrevStems.getValue(m.groupValues[1].dropLast(1).lowercase())
+        val key = m.groupValues[1].removeSuffix(".").lowercase()
+        val stem = adjAbbrevStems.getValue(key)
         val adjs = mutableListOf<Int>()
         var tn = 0
         for (i in 2..4) {
@@ -1368,7 +1412,7 @@ object Normalizer {
             if (!Morph.isAdjective(t)) break
             adjs += t
         }
-        if (tn == 0) return@replace m.value
+        if (tn == 0) return@replace (if (key == "ж/д") railNoun(s.substring(0, m.range.first)) else null) ?: m.value
         val anim = Morph.animate(tn)
         val forms = LinkedHashMap<String, Case>() // форма прилагательного → падеж, ед. ч. раньше мн. ч.
         // род перебираем: у формы-омонима двух лемм («стрелки» — стрелка и стрелок) он в таблице общий
