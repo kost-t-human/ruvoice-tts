@@ -16,6 +16,16 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.hamcrest.Matchers.allOf
+import androidx.test.espresso.Espresso.onData
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
+import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isClickable
+import org.hamcrest.Matchers.anything
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.BeforeClass
@@ -79,6 +89,49 @@ class AccessibilityChecksTest {
         // страница «Английский»: тумблеры, пороги, рамки выбора движка и голоса
         ActivityScenario.launch<RulesActivity>(android.content.Intent(InstrumentationRegistry.getInstrumentation().targetContext, RulesActivity::class.java)
             .putExtra(RulesActivity.EXTRA_ENGLISH, true)).use { assertKeyboardReachable() }
+    }
+
+    /** Путь незрячего на странице «Английский»: строка «Голос для английского» — кнопка с понятным действием,
+     * в окне пункт выбирается, «Прослушать» играет и окно не закрывает, «Выбрать» сохраняет. Проверки ATF — на
+     * каждом нажатии, в том числе в окне. Настройки пользователя возвращаются как были. */
+    @Test fun englishVoicePick() {
+        val prefs = Prefs(ctx)
+        val engine = EnglishProxy.suggest(ctx, "")
+        org.junit.Assume.assumeTrue("нет другого движка", engine != null)
+        val saved = Triple(prefs.rulesOff, prefs.enEngine, prefs.enVoice)
+        try {
+            prefs.enEngine = engine!!.pkg; prefs.enVoice = ""
+            prefs.rulesOff = ru.kost.ruvoice.text.Rules(prefs.rulesOff).with("en_proxy_books", true).off
+            ActivityScenario.launch<RulesActivity>(android.content.Intent(ctx, RulesActivity::class.java).putExtra(RulesActivity.EXTRA_ENGLISH, true)).use {
+                // для TalkBack: кнопка, действие «Выбрать голос», в тексте — название и текущее значение
+                onView(allOf(isAssignableFrom(android.widget.LinearLayout::class.java), isClickable(), hasDescendant(withText(R.string.en_voice)))).check { v, _ ->
+                    val info = v.createAccessibilityNodeInfo()
+                    assertEquals(android.widget.Button::class.java.name, info.className)
+                    assertTrue("нет фокуса", v.isFocusable)
+                    val click = info.actionList.firstOrNull { it.id == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK }
+                    assertEquals(ctx.getString(R.string.en_voice_pick), click?.label?.toString())
+                }.perform(androidx.test.espresso.action.ViewActions.scrollTo(), click())
+                waitFor(withText(R.string.en_voice_choose), 15_000) // голоса грузятся в фоне
+                onData(anything()).inRoot(isDialog()).atPosition(1).perform(click())
+                onView(withText(R.string.preview)).inRoot(isDialog()).perform(click())
+                onView(withText(R.string.en_voice_choose)).inRoot(isDialog()).check(matches(isDisplayed())) // «Прослушать» не закрыл окно
+                onView(withText(R.string.en_voice_choose)).inRoot(isDialog()).perform(click())
+                assertTrue("голос не сохранён", prefs.enVoice.isNotEmpty())
+                assertKeyboardReachable()
+            }
+        } finally {
+            prefs.rulesOff = saved.first; prefs.enEngine = saved.second; prefs.enVoice = saved.third
+        }
+    }
+
+    private fun waitFor(m: org.hamcrest.Matcher<View>, ms: Long) {
+        val end = System.currentTimeMillis() + ms
+        while (true) {
+            val ok = runCatching { onView(m).inRoot(isDialog()).check(matches(isDisplayed())) }.isSuccess
+            if (ok) return
+            if (System.currentTimeMillis() > end) fail("не дождался окна выбора голоса")
+            Thread.sleep(200)
+        }
     }
 
     /** Окно «Решение проблем» и «О программе». */

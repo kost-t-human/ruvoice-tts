@@ -1,44 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Строка выбора («Движок для английского», «Голос для английского»): в рамке, значение цветом акцента,
-     стрелка раскрытия — глазами видно, что это выбор, а не подпись. Для TalkBack карточка — кнопка
-     (RulesFragment.pickerRow), id title/hint как у item_rule. -->
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+     стрелка раскрытия — глазами видно, что это выбор, а не подпись. Для TalkBack строка — кнопка
+     (RulesFragment.pickerRow), id title/hint как у item_rule. Не MaterialCardView: та перетирает
+     className на CardView, и чтец не говорил «кнопка». -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    style="?attr/materialCardViewOutlinedStyle"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_picker"
+    android:foreground="?attr/selectableItemBackground"
+    android:padding="12dp"
+    android:minHeight="56dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginVertical="6dp">
     <LinearLayout
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="12dp"
-        android:minHeight="56dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <LinearLayout
-            android:orientation="vertical"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp">
-            <TextView
-                android:id="@+id/title"
-                style="?attr/textAppearanceLabelLarge"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-            <TextView
-                android:id="@+id/hint"
-                style="?attr/textAppearanceBodyLarge"
-                android:textColor="?attr/colorPrimary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_arrow_drop_down"
-            app:tint="?attr/colorOnSurfaceVariant"
-            android:importantForAccessibility="no" />
+        android:orientation="vertical"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp">
+        <TextView
+            android:id="@+id/title"
+            style="?attr/textAppearanceLabelLarge"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        <TextView
+            android:id="@+id/hint"
+            style="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorPrimary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
     </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_arrow_drop_down"
+        app:tint="?attr/colorOnSurfaceVariant"
+        android:importantForAccessibility="no" />
+</LinearLayout>
