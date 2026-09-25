@@ -210,4 +210,20 @@ class PipelineTest {
         val s = Pipeline.plan("«Nice to meet you», — сказала она.", d, 0, 0, englishWords = 1)
         assertEquals(listOf("Nice to meet you" to true, "сказала она." to false), s.map { it.text to it.en })
     }
+
+    @Test fun letterEchoWithActionWord() {
+        fun first(t: String) = Pipeline.plan(t, d, 0, 0).single().text
+        assertEquals("удаление, +ээр, заглавная", first("Удаление заглавная Р"))
+        assertEquals("удаление, +ээр, заглавная", first("Удаление Р заглавная"))
+        assertEquals("удаление, +ээр", first("Удаление р"))
+        assertEquals("+ээр, удалено", first("р удалено"))                         // Jieshuo msg_deleted
+        assertEquals("+ээр, заглавная буква, удалено", first("Р Заглавная буква Р удалено"))  // upper_case_format
+        assertEquals("удаление, в+э", first("Удаление в"))                        // буква, не предлог: других слов нет
+        assertEquals("удаление, +ар, заглавная", first("Удаление заглавная R"))
+        // обычный текст не трогаем
+        assertEquals("Удаление в два этапа.", first("Удаление в два этапа."))
+        assertEquals("Удаление файла Р.", first("Удаление файла Р."))
+        // выключено правило — как раньше
+        assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().with("letter_name", false)).single().text)
+    }
 }

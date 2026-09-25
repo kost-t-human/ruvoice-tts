@@ -98,6 +98,8 @@ object Pipeline {
                         // запятая — пауза между буквой и словом
                         if (pre.startsWith("заглавная")) "$name, ${pre.trim()}" else pre + name + if (post.isEmpty()) "" else ", $post"
                     } }
+                // эхо ввода/удаления: «Удаление заглавная Р», «Р удалено» — буква с именем, иначе «ррр»
+                ?: LetterEcho.rewrite(t)
                 // одиночный знак (клавиша «#», знак под курсором) — по имени, иначе фильтр оставит тишину
                 ?: t.trim().singleOrNull()?.let { SymbolNames.of(it) } ?: t
         }
