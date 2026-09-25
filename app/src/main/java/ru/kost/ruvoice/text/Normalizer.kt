@@ -447,6 +447,10 @@ object Normalizer {
             val (name, token) = m.destructured
             val lower = token.lowercase()
             if (!romanStrictRe.matches(lower) || romanNounBeforeRe.matches(name.lowercase()) || name.lowercase() in notNames) return@replace m.value
+            // Одна буква после неодушевлённого слова или повеления — буква, не номер: «Буква X», «Ось X», «Нажмите X».
+            // Имён монархов в morph.bin нет (0), «Карл» одушевлённый; без morph.bin — как раньше
+            if (token.length == 1 && (name.lowercase().let { it.endsWith("ите") || it.endsWith("йте") } ||
+                    morph?.tags(name.lowercase())?.let { it != 0 && !Morph.animate(it) } == true)) return@replace m.value
             // Явный суффикс после числа («VII-го», «II-я») — берём его как есть.
             val explicit = m.value.substringAfter(token, "").removePrefix("-")
             if (explicit.isNotEmpty()) return@replace "$name ${romanToInt(lower)}-$explicit"

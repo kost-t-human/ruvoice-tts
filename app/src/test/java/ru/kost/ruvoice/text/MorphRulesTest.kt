@@ -97,4 +97,12 @@ class MorphRulesTest {
         assertEquals("в двухтысячные годы", n("в 2000-е годы"))
         assertEquals("второе сентября", n("2-е сентября"))
     }
+    @Test fun lonelyRomanLetterAfterThingIsLetter() {
+        val p = { t: String -> Normalizer.prepare(t, TestData.data().allowed) }
+        assertEquals("буквы экс, уай и зэдд.", p("Буквы X, Y и Z."))
+        assertEquals("ось экс и ось уай.", p("Ось X и ось Y."))
+        assertEquals("нажмите экс.", p("Нажмите X."))
+        assertEquals("карл пятый отрёкся.", p("Карл V отрёкся."))
+        assertEquals("при людовике десятом было тихо.", p("При Людовике X было тихо."))
+    }
 }
