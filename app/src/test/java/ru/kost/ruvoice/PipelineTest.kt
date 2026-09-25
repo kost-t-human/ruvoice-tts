@@ -147,6 +147,8 @@ class PipelineTest {
         assertEquals("прописная буква в+э", first("прописная буква В."))
         assertEquals("м+ягкий знак", first("ь"))
         assertEquals("б+и", first("b"))
+        assertEquals("у+ай", first("Y"))
+        assertEquals("з+эдд, заглавная", first("Заглавная Z"))
         assertEquals("в+э.", first("в"))
         assertEquals("ч+э", first("Ч"))
         assertEquals("ч+э, заглавная", first("Ч Заглавная"))

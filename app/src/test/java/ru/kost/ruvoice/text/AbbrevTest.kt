@@ -61,7 +61,7 @@ class AbbrevTest {
     }
 
     @Test fun threeLettersWithEdgeVowelSpelled() {
-        assertEquals("испытания эл ка +и и тэ эм +а", Abbrev.apply("испытания ЛКИ и ТМА"))
+        assertEquals("испытания эл ка +и и тэ эмм +а", Abbrev.apply("испытания ЛКИ и ТМА"))
         assertEquals("а ка +эс", Abbrev.apply("АКС"))
     }
 
@@ -72,13 +72,13 @@ class AbbrevTest {
 
     @Test fun cyrillicTechnicalCodes() {
         val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
-        assertEquals("эл ка +и ракеты +эр-девять.", Normalizer.prepare("ЛКИ ракеты Р-9.", allowed))
-        assertEquals("восемь к+а семьдесят четыре и эр т+э-один.", Normalizer.prepare("8К74 и РТ-1.", allowed))
-        assertEquals("+эр-семь +а и у +эр-сто +эн.", Normalizer.prepare("Р-7А и УР-100Н.", allowed))
-        assertEquals("т+э-семьдесят два б+э три, одиннадцать к+а шестьдесят пять +эм.", Normalizer.prepare("Т-72Б3, 11К65М.", allowed))
+        assertEquals("эл ка +и ракеты +ээр-девять.", Normalizer.prepare("ЛКИ ракеты Р-9.", allowed))
+        assertEquals("восемь к+а семьдесят четыре и ээр т+э-один.", Normalizer.prepare("8К74 и РТ-1.", allowed))
+        assertEquals("+ээр-семь +а и у +ээр-сто +энн.", Normalizer.prepare("Р-7А и УР-100Н.", allowed))
+        assertEquals("т+э-семьдесят два б+э три, одиннадцать к+а шестьдесят пять +эмм.", Normalizer.prepare("Т-72Б3, 11К65М.", allowed))
         assertEquals("а к+а-семьдесят четыре, газ-шестьдесят шесть, ту-сто пятьдесят четыре.",
             Normalizer.prepare("АК-74, ГАЗ-66, Ту-154.", allowed))
         assertEquals("сила сто ньютонов.", Normalizer.prepare("Сила 100Н.", allowed)) // число с единицей — не код
-        assertEquals("тэ эм +а-ноль один +эм и +эр-ноль ноль семь.", Normalizer.prepare("ТМА-01М и Р-007.", allowed))
+        assertEquals("тэ эмм +а-ноль один +эмм и +ээр-ноль ноль семь.", Normalizer.prepare("ТМА-01М и Р-007.", allowed))
     }
 }

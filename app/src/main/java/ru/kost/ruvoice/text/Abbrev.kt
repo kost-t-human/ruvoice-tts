@@ -51,12 +51,14 @@ object Abbrev {
     private fun edgeVowel(t: String) = t.length == 3 && t.count { it in CYR_VOWELS } == 1 &&
         (t[0] in CYR_VOWELS || t[2] in CYR_VOWELS) && t.none { it in "ЙЬЪ" } && t.lowercase() !in edgeVowelWords
 
+    // «эр», «эн», «эм» модель читает как «р», «н», «м», «че» как «чо» (на слух 24.09.2026, TalkBack);
+    // латиница: «зед» звучит «зет» (25.09.2026). Эти имена и в аббревиатурах
     private val cyrLetterNames = mapOf(
         'А' to "а", 'Б' to "бэ", 'В' to "вэ", 'Г' to "гэ", 'Д' to "дэ", 'Е' to "е",
         'Ё' to "ё", 'Ж' to "жэ", 'З' to "зэ", 'И' to "и", 'Й' to "и краткое",
-        'К' to "ка", 'Л' to "эл", 'М' to "эм", 'Н' to "эн", 'О' to "о", 'П' to "пэ",
-        'Р' to "эр", 'С' to "эс", 'Т' to "тэ", 'У' to "у", 'Ф' to "эф", 'Х' to "ха",
-        'Ц' to "цэ", 'Ч' to "че", 'Ш' to "ша", 'Щ' to "ща", 'Ъ' to "твёрдый знак",
+        'К' to "ка", 'Л' to "эл", 'М' to "эмм", 'Н' to "энн", 'О' to "о", 'П' to "пэ",
+        'Р' to "ээр", 'С' to "эс", 'Т' to "тэ", 'У' to "у", 'Ф' to "эф", 'Х' to "ха",
+        'Ц' to "цэ", 'Ч' to "чэ", 'Ш' to "ша", 'Щ' to "ща", 'Ъ' to "твёрдый знак",
         'Ы' to "ы", 'Ь' to "мягкий знак", 'Э' to "э", 'Ю' to "ю", 'Я' to "я"
     )
 
@@ -65,7 +67,7 @@ object Abbrev {
         'G' to "джи", 'H' to "эйч", 'I' to "ай", 'J' to "джей", 'K' to "кей", 'L' to "эл",
         'M' to "эм", 'N' to "эн", 'O' to "оу", 'P' to "пи", 'Q' to "кью", 'R' to "ар",
         'S' to "эс", 'T' to "ти", 'U' to "ю", 'V' to "ви", 'W' to "дабл ю", 'X' to "экс",
-        'Y' to "уай", 'Z' to "зед"
+        'Y' to "уай", 'Z' to "зэдд"
     )
 
     // (?<!\d-)...(?!-\d) — не матчить токен, если он приклеен к цифре через дефис
@@ -112,10 +114,6 @@ object Abbrev {
         return parts.joinToString(" ")
     }
 
-    // Отдельно стоящее «эр», «эн», «эм» модель читает как «р», «н», «м» (на слух 24.09.2026, жалоба из TalkBack);
-    // в аббревиатурах соседние буквы это держат, там имена прежние
-    private val loneCyrNames = mapOf('Р' to "ээр", 'Н' to "энн", 'М' to "эмм", 'Ч' to "чэ")   // «че» — «чо»
-
     // Запрос из одной буквы без слов вокруг (эхо ввода Jieshuo, на телефоне на слух 25.09.2026): «вэ» звучит «вы»,
     // «ы» — «пы»; точка у остальных букв хуже, поэтому только эти
     private val loneRequestNames = mapOf('В' to "в+э.", 'Ы' to "— +ы")
@@ -126,9 +124,10 @@ object Abbrev {
     /** Имя буквы с ударением для любой кириллической/латинской буквы; null — не буква из таблиц.
      * Для одиночной буквы (TalkBack, посимвольная TtsSpan), не для аббревиатур. */
     fun letterName(c: Char): String? =
-        (loneCyrNames[c.uppercaseChar()] ?: cyrLetterNames[c.uppercaseChar()] ?: latLetterNames[c.uppercaseChar()])?.let(::withStress)
+        (cyrLetterNames[c.uppercaseChar()] ?: latLetterNames[c.uppercaseChar()])?.let(::withStress)
 
     private fun withStress(name: String): String {
+        if (name == "уай") return "у+ай"   // ударение не на первой гласной
         val i = name.indexOfFirst { it in VOWELS_IN_NAMES }
         return if (i < 0) name else name.substring(0, i) + "+" + name.substring(i)
     }
