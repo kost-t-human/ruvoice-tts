@@ -212,7 +212,7 @@ class PipelineTest {
     }
 
     @Test fun letterEchoWithActionWord() {
-        fun first(t: String) = Pipeline.plan(t, d, 0, 0).single().text
+        fun first(t: String) = Pipeline.plan(t, d, 0, 0, rules = Rules().screenReader()).single().text
         assertEquals("удаление, +ээр, заглавная", first("Удаление заглавная Р"))
         assertEquals("удаление, +ээр, заглавная", first("Удаление Р заглавная"))
         assertEquals("удаление, +ээр", first("Удаление р"))
@@ -227,6 +227,9 @@ class PipelineTest {
         assertEquals("Удаление в два этапа.", first("Удаление в два этапа."))
         assertEquals("Удаление файла Р.", first("Удаление файла Р."))
         // выключено правило — как раньше
-        assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().with("letter_name", false)).single().text)
+        assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().screenReader().with("letter_name", false)).single().text)
+        // книги и приложения — только по тумблеру
+        assertEquals("Удаление заглавная Р", Pipeline.plan("Удаление заглавная Р", d, 0, 0).single().text)
+        assertEquals("удаление, +ээр, заглавная", Pipeline.plan("Удаление заглавная Р", d, 0, 0, rules = Rules().with("letter_echo_all", true)).single().text)
     }
 }
