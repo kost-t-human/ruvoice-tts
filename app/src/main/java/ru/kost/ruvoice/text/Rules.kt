@@ -38,7 +38,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         const val FOCUS_MAX = 3
 
         /** Правила, выключенные по умолчанию. */
-        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails")
+        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails", "en_proxy_books", "en_proxy_sr")
 
         /** Порядок списка = порядок на экране. Вверху «Чтение с экрана» (только запросы экранного чтеца),
          * за ней «Разное» — для настроек без своего раздела. */
@@ -48,12 +48,13 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "phones", "codes", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
+            "en_proxy_books", "en_proxy_sr",
             "dehyphen", "soft_break", "punct", "ssml",
             "gram", "first_pl", "homo", "accentor", "yo", "hard_e", "prefix_space", "intonation", "focus", "exclaim", "question",
             "pause_semicolon", "pause_parens", "fast_cores",
         )
         /** Ключ, с которого начинается новая секция → её заголовок (rules_section_<имя> в strings.xml). */
-        val SECTIONS = mapOf("sr_symbols" to "talkback", "symbol_names" to "misc", "phones" to "numbers", "abbrev" to "abbrev", "dehyphen" to "split",
+        val SECTIONS = mapOf("sr_symbols" to "talkback", "symbol_names" to "misc", "phones" to "numbers", "abbrev" to "abbrev", "en_proxy_books" to "english", "dehyphen" to "split",
             "gram" to "stress", "pause_semicolon" to "audio")
     }
 }

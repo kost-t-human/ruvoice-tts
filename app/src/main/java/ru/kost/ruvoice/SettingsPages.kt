@@ -19,6 +19,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import ru.kost.ruvoice.text.English
 import ru.kost.ruvoice.text.Rules
 
 /**
@@ -257,6 +258,16 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 }, getString(R.string.sr_rate) + " " + getString(R.string.sr_pitch) + " " + getString(R.string.sr_volume) + " " + getString(R.string.sr_sliders_hint))
                 extra(callersBlock(inflater, list), getString(R.string.callers_title) + " " + getString(R.string.callers_hint) + " " + prefs.recentCallers().joinToString(" ") { it.first.label + " " + it.first.pkg })
             }
+            // английский другим движком: при включении — предупреждение, под тумблером — выбор движка
+            if (key == "en_proxy_books" || key == "en_proxy_sr") toggle.setOnCheckedChangeListener { _, on -> if (on) confirmEnglish(toggle) }
+            if (key == "en_proxy_sr") {
+                val voiceRow = inflater.inflate(R.layout.item_rule, list, false)
+                extra(engineRow(inflater, list) { describeVoice(voiceRow) }, getString(R.string.en_engine))
+                extra(voiceRow.also { setupVoiceRow(it) }, getString(R.string.en_voice))
+                extra(inflater.inflate(R.layout.item_en_words, list, false).apply {
+                    findViewById<EditText>(R.id.enMinWords).setText(prefs.enMinWords.toString())
+                }, getString(R.string.en_min_words) + " " + getString(R.string.en_min_words_hint))
+            }
             // поле силы ударения — сразу под своим тумблером
             if (key == "focus") extra(inflater.inflate(R.layout.item_focus_level, list, false).apply {
                 findViewById<EditText>(R.id.focusLevel).setText(prefs.focusLevel.toString())
@@ -332,6 +343,104 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         return card
     }
 
+    /** Включили «Английский другим движком» — спокойно объясняем, куда уйдёт текст. «Отмена» или
+     * закрытие окна тумблер возвращают; без других движков включать нечего. */
+    private fun confirmEnglish(toggle: MaterialSwitch) {
+        val engine = EnglishProxy.resolve(requireContext(), prefs.enEngine)
+        if (engine == null) {
+            toggle.isChecked = false
+            MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.en_proxy_confirm_title)
+                .setMessage(R.string.en_engine_none).setPositiveButton(R.string.close, null).show()
+            return
+        }
+        var accepted = false
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.en_proxy_confirm_title)
+            .setMessage(getString(R.string.en_proxy_confirm, engine.label))
+            .setPositiveButton(R.string.en_proxy_enable) { _, _ -> accepted = true }
+            .setNegativeButton(R.string.cancel, null)
+            .setOnDismissListener { if (!accepted) toggle.isChecked = false }
+            .show()
+    }
+
+    /** Строка «Движок для английского»: какой сейчас и выбор из установленных. */
+    /** Строка «Голос для английского»: голоса движка грузятся в фоне (клиент подключается до пяти секунд). */
+    private fun setupVoiceRow(row: View) {
+        row.findViewById<View>(R.id.toggle).visibility = View.GONE
+        row.findViewById<TextView>(R.id.title).setText(R.string.en_voice)
+        describeVoice(row)
+        row.isFocusable = true
+        row.clickLabel(getString(R.string.en_voice_pick))
+        row.setOnClickListener {
+            val ctx = requireContext().applicationContext
+            val engine = EnglishProxy.resolve(ctx, prefs.enEngine) ?: return@setOnClickListener
+            val hint = row.findViewById<TextView>(R.id.hint)
+            hint.setText(R.string.en_voice_loading)
+            Thread {
+                val voices = EnglishProxy.shared(ctx).voices(engine.pkg)
+                activity?.runOnUiThread {
+                    if (!isAdded) return@runOnUiThread
+                    describeVoice(row)
+                    if (voices.isNullOrEmpty()) {
+                        MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.en_voice_pick)
+                            .setMessage(getString(R.string.en_voice_none, engine.label)).setPositiveButton(R.string.close, null).show()
+                        return@runOnUiThread
+                    }
+                    val labels = listOf(getString(R.string.en_voice_default)) + voices.map { voiceLabel(it) }
+                    val cur = voices.indexOfFirst { it.name == prefs.enVoice } + 1
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.en_voice_pick)
+                        .setSingleChoiceItems(labels.toTypedArray(), cur) { d, i ->
+                            prefs.enVoice = if (i == 0) "" else voices[i - 1].name; describeVoice(row); d.dismiss()
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
+                }
+            }.start()
+        }
+    }
+
+    /** «Английский (Великобритания), en-gb-x-rjs-local» и пометки: нужен интернет, не скачан. */
+    private fun voiceLabel(v: EnglishProxy.VoiceInfo): String =
+        listOfNotNull("${v.locale.getDisplayName(Locale("ru")).replaceFirstChar { it.uppercase() }}, ${v.name}",
+            getString(R.string.en_voice_network).takeIf { v.network },
+            getString(R.string.en_voice_not_installed).takeIf { !v.installed }).joinToString(" · ")
+
+    private fun describeVoice(row: View) {
+        row.findViewById<TextView>(R.id.hint).text =
+            if (prefs.enVoice.isEmpty()) getString(R.string.en_voice_default) else getString(R.string.en_voice_value, prefs.enVoice)
+    }
+
+    private fun engineRow(inflater: LayoutInflater, parent: LinearLayout, onChange: () -> Unit): View {
+        val row = inflater.inflate(R.layout.item_rule, parent, false)
+        row.findViewById<View>(R.id.toggle).visibility = View.GONE
+        row.findViewById<TextView>(R.id.title).setText(R.string.en_engine)
+        val hint = row.findViewById<TextView>(R.id.hint)
+        fun describe() {
+            val e = EnglishProxy.resolve(requireContext(), prefs.enEngine)
+            hint.text = if (e == null) getString(R.string.en_engine_none) else getString(R.string.en_engine_value, e.label)
+        }
+        describe()
+        row.isFocusable = true
+        row.clickLabel(getString(R.string.en_engine_pick))
+        row.setOnClickListener {
+            EnglishProxy.forget()
+            val engines = EnglishProxy.engines(requireContext())
+            if (engines.isEmpty()) { describe(); return@setOnClickListener }
+            val cur = EnglishProxy.resolve(requireContext(), prefs.enEngine)
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.en_engine_pick)
+                .setSingleChoiceItems(engines.map { it.label }.toTypedArray(), engines.indexOfFirst { it.pkg == cur?.pkg }) { d, i ->
+                    // голос прежнего движка новому не подходит
+                    if (prefs.enEngine != engines[i].pkg) prefs.enVoice = ""
+                    prefs.enEngine = engines[i].pkg; describe(); onChange(); d.dismiss()
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+        }
+        return row
+    }
+
     override fun save(v: View) {
         val list = v.findViewById<LinearLayout>(R.id.rulesList)
         // тумблеры правил помечены ключом; у строк «Кто читает через движок» тега нет
@@ -343,6 +452,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
         v.findViewById<Slider>(R.id.srRate)?.let { prefs.srRate = it.value }
         v.findViewById<Slider>(R.id.srPitch)?.let { prefs.srPitch = it.value }
         v.findViewById<Slider>(R.id.srVolume)?.let { prefs.srVolume = it.value }
+        v.findViewById<EditText>(R.id.enMinWords)?.let { prefs.enMinWords = (it.str().toIntOrNull() ?: English.MIN_WORDS).coerceIn(English.MIN_WORDS, English.MAX_WORDS) }
         prefs.focusLevel = (v.findViewById<EditText>(R.id.focusLevel).str().toIntOrNull() ?: Rules.FOCUS_DEFAULT)
             .coerceIn(Rules.FOCUS_MIN, Rules.FOCUS_MAX)
     }

@@ -83,8 +83,11 @@ object Pipeline {
     // Jieshuo шлёт заглавную как «Ц Заглавная» (logcat 25.09.2026); «заглавная» принимаем и перед буквой.
     private val loneLetter = Regex("""^\s*((?:(?:прописная|заглавная)(?:\s+буква)?\s+)?)(\p{L})(\s*,?\s+(?:заглавная|прописная)(?:\s+буква)?)?\s*[.)]?\s*$""", RegexOption.IGNORE_CASE)
 
+    /** englishWords > 0 — выделять английские куски от стольких слов в отдельные сегменты (Segment.en,
+     * правила en_proxy_*): решает сервис, только когда есть движок для английского. 0 — не выделять,
+     * «Книге с ударениями» они не нужны. */
     fun plan(text: CharSequence, d: SileroData, sentencePauseMs: Int, paragraphPauseMs: Int,
-             replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules()): List<Segment> {
+             replacements: Replacements = Replacements.parse(emptyList()), rules: Rules = Rules(), englishWords: Int = 0): List<Segment> {
         val src = text.toString().let { t ->
             if (!rules.on("letter_name")) t else loneLetter.matchEntire(t)?.let { m ->
                 m.groupValues[2][0].let { c -> if (m.groupValues[1].isEmpty() && m.groupValues[3].isEmpty()) Abbrev.loneLetterName(c) else Abbrev.letterName(c) }
@@ -136,8 +139,16 @@ object Pipeline {
                     openReply = parts.last().second && !closingQuote.containsMatchIn(parts.last().first.trimEnd())
                     for ((k, part) in parts.withIndex()) {
                         val lastPart = k == parts.size - 1
-                        out += Segment(part.first, breakMs = if (lastPart) breakMs else 0,
-                            paragraph = lastPart && last && seg.paragraph, speech = part.second)
+                        // английский кусок посреди реплики — свой сегмент; обрывки из одних знаков («», »)
+                        // русскому движку читать нечего, их пауза уходит соседу
+                        val langs = if (englishWords <= 0) listOf(part.first to false) else English.split(part.first, englishWords).let { l ->
+                            if (l.size == 1) l else l.filter { it.second || !English.isNoise(it.first) }.map { it.first.trim() to it.second } }
+                        for ((li, lp) in langs.withIndex()) {
+                            val lastLang = lastPart && li == langs.size - 1
+                            out += Segment(lp.first, breakMs = if (lastLang) breakMs else 0,
+                                paragraph = lastLang && last && seg.paragraph, speech = part.second, en = lp.second)
+                        }
+                        if (langs.isEmpty() && lastPart && breakMs > 0) out += Segment("", breakMs = breakMs, paragraph = last && seg.paragraph)
                     }
                 }
                 if (sents.isEmpty()) {
@@ -163,7 +174,7 @@ object Pipeline {
         if (i < 0 || out[i].text.length <= Rules.FAST_START_LEN) return
         val seg = out[i]; val c = Splitter.cut(seg.text, Rules.FAST_START_LEN)
         out[i] = seg.copy(text = seg.text.substring(c + 1).trim())
-        out.add(i, Segment(seg.text.substring(0, c + 1).trim().trimEnd(','), speech = seg.speech))
+        out.add(i, Segment(seg.text.substring(0, c + 1).trim().trimEnd(','), speech = seg.speech, en = seg.en))
     }
 
     /** Текст сегмента → слова для модели с ударениями (до Stress.forModel), тем же путём, что synthSegment. */
@@ -191,8 +202,9 @@ class SileroTtsService : TextToSpeechService() {
     // Выгрузка на отдельном потоке: release() и synthesize() делят монитор models, поэтому
     // release() просто дождётся текущего forward, а не заблокирует main на его время.
     private val unload = Runnable {
-        Thread { models.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }.start()
+        Thread { models.release(); english.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }.start()
     }
+    private val english: EnglishProxy by lazy { EnglishProxy.shared(this) }
 
     /** Пока идёт чтение, сервис — foreground. Без этого при погасшем экране процесс
      * уезжает в sched group Restricted (cpuset может не включать быстрые ядра), forward замедляется в разы
@@ -267,7 +279,7 @@ class SileroTtsService : TextToSpeechService() {
         if (prefs.idleOn) handler.postDelayed(unload, prefs.idleMinutes.coerceAtLeast(1) * 60_000L)
     }
 
-    override fun onDestroy() { handler.removeCallbacks(unload); handler.removeCallbacks(fgOff); leaveForeground(); stopped = true; synthPool.shutdownNow(); models.release(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(unload); handler.removeCallbacks(fgOff); leaveForeground(); stopped = true; synthPool.shutdownNow(); models.release(); english.release(); super.onDestroy() }
 
     // Binder-loadLanguage у TextToSpeechService отдаёт клиенту именно этот ответ (onLoadLanguage
     // в очереди, его результат выбрасывается), поэтому «голосов нет» (lite без пака) — здесь.
@@ -374,7 +386,12 @@ class SileroTtsService : TextToSpeechService() {
             // TtsSpan (пунктуация TalkBack «Все») — текстом; смещения rangeStart считаются по нему же
             val spoken = spokenText(request.charSequenceText)
             val reqText = spoken.text
-            val segments = Pipeline.plan(reqText, d, if (noPauses) 0 else prefs.sentencePauseMs, if (noPauses) 0 else prefs.paragraphPauseMs, replacements, rules)
+            // Английские куски — другому движку, отдельно для экранного чтеца и для книг (en_proxy_sr / en_proxy_books);
+            // нет движка — читаем по-русски, как раньше
+            val enEngine = if (baseRules.on(if (screenReader) "en_proxy_sr" else "en_proxy_books")) EnglishProxy.resolve(this, prefs.enEngine) else null
+            val enVoice = prefs.enVoice
+            val enWords = if (enEngine == null) 0 else prefs.enMinWords.coerceIn(English.MIN_WORDS, English.MAX_WORDS)
+            val segments = Pipeline.plan(reqText, d, if (noPauses) 0 else prefs.sentencePauseMs, if (noPauses) 0 else prefs.paragraphPauseMs, replacements, rules, enWords)
             // Паузы после запятой и на тире — явная длительность самого знака в кадрах модели (Marks.frames);
             // ноль — как решит модель. Дефис/минус в пробелах Normalizer.punctuation уже свёл к «–».
             val pauseFrames = HashMap<Int, Long>()
@@ -410,6 +427,21 @@ class SileroTtsService : TextToSpeechService() {
                 return
             }
             val recorder = cacheKey?.let { PhraseCache.Recorder() }
+            var enCount = 0
+            // Английский кусок чужим движком: готовый PCM на нашей частоте и слова с долей позиции для подсветки.
+            // null — не вышло; тогда сегмент читает Silero, латиница транслитерируется, как без правила.
+            fun proxySegment(seg: Segment, engine: EnglishProxy.Engine): Proxied? {
+                val text = Marks.parse(seg.text, 0).text.trim()
+                if (text.isEmpty()) return null
+                val segRate = rate * (if (seg.speech) quoteRate else 1f)
+                val segPitch = pitch * (if (seg.speech) quotePitch else 1f)
+                val a = english.synth(text, engine.pkg, enVoice, segRate, segPitch) { stopped } ?: return null
+                val audio = Pcm.toFloat(Pcm.resample(a.pcm, a.sampleRate, sr))
+                Pcm.gain(audio, volume)
+                Pcm.fadeEdges(audio, sr, 5)
+                enCount++
+                return Proxied(Pcm.toPcm16(audio), Regex("\\S+").findAll(text).map { Marks.key(it.value) to it.range.first.toDouble() / text.length }.toList())
+            }
             // Звук сегмента и токены для подсветки; null — нечего читать или синтез упал.
             fun synthSegment(seg: Segment): Pair<SileroModels.Synth, List<Marks.Token>>? {
                 if (stopped) return null
@@ -454,11 +486,34 @@ class SileroTtsService : TextToSpeechService() {
             // Сегмент N+1 считается, пока звук сегмента N уходит плееру: audioAvailable блокирует,
             // пока непроигранного звука больше 500 мс (SynthesisPlaybackQueueItem), и без опережения
             // перед каждым куском была бы пауза в его время счёта.
-            var next: Future<Pair<SileroModels.Synth, List<Marks.Token>>?>? = null
+            fun unit(seg: Segment): Any? {
+                if (seg.en && enEngine != null && !stopped) {
+                    val t = System.currentTimeMillis()
+                    val p = try { proxySegment(seg, enEngine) } finally { synthMs.addAndGet(System.currentTimeMillis() - t) }
+                    if (p != null || stopped) return p
+                }
+                return synthSegment(seg)
+            }
+            var next: Future<Any?>? = null
             for ((si, seg) in segments.withIndex()) {
                 if (stopped) { next?.cancel(false); break }
-                val synth = (next ?: synthPool.submit(Callable { synthSegment(seg) })).get()
-                next = if (si + 1 < segments.size) synthPool.submit(Callable { synthSegment(segments[si + 1]) }) else null
+                val res = (next ?: synthPool.submit(Callable { unit(seg) })).get()
+                next = if (si + 1 < segments.size) synthPool.submit(Callable { unit(segments[si + 1]) }) else null
+                if (res is Proxied) {
+                    for ((key, at) in res.words) {
+                        val j = matcher.next(key)
+                        if (j < 0) continue
+                        val pos = Math.round(at * res.pcm.size).toInt()
+                        recorder?.range(pos, srcWords[j].second, srcWords[j].third)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) callback.rangeStart((written + pos).toInt(), srcWords[j].second, srcWords[j].third)
+                    }
+                    recorder?.audio(res.pcm)
+                    if (!write(callback, res.pcm)) return
+                    written += res.pcm.size
+                    audioMs += res.pcm.size * 1000L / sr
+                }
+                @Suppress("UNCHECKED_CAST")
+                val synth = res as? Pair<SileroModels.Synth, List<Marks.Token>>
                 if (synth != null) {
                     val (out, tokens) = synth
                     val audio = out.audio
@@ -495,6 +550,7 @@ class SileroTtsService : TextToSpeechService() {
             note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс, звук $audioMs мс, синтез ${synthMs.get()} мс" +
                 (if (audioMs > 0) ", RTF %.2f".format(synthMs.get().toDouble() / audioMs) else "") +
                 (if (!foreground) ", без foreground" else "") +
+                (if (enCount > 0) ", по-английски $enCount через ${enEngine?.pkg}" else "") +
                 (caller?.let { ", от ${it.pkg}" + if (screenReader) " (экранный чтец)" else "" } ?: ""))
         } catch (e: Exception) {
             Log.e(SileroModels.TAG, "onSynthesizeText", e)
@@ -517,6 +573,9 @@ class SileroTtsService : TextToSpeechService() {
         lastAudioAt = System.currentTimeMillis()
         return true
     }
+
+    /** Английский кусок от чужого движка: звук на нашей частоте и слова (ключ, доля длины текста до слова). */
+    private class Proxied(val pcm: ShortArray, val words: List<Pair<String, Double>>)
 
     companion object {
         const val LEAD_GAP_MS = 2500L

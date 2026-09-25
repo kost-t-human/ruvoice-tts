@@ -189,4 +189,25 @@ class PipelineTest {
         assertEquals(listOf(Segment("Раз.", breakMs = 100), Segment("Два!", breakMs = 100)), on)
     }
 
+
+    @Test fun englishPhraseBecomesOwnSegment() {
+        val t = "Он сказал: «I don't know what you mean», и ушёл. Потом вернулся."
+        val s = Pipeline.plan(t, d, 100, 0, englishWords = 1)
+        assertEquals(listOf(
+            Segment("Он сказал: «"), Segment("I don't know what you mean", en = true), Segment("», и ушёл.", breakMs = 100),
+            Segment("Потом вернулся.", breakMs = 100)), s)
+        // без движка для английского — как раньше
+        assertEquals(2, Pipeline.plan(t, d, 100, 0).size)
+    }
+
+    @Test fun englishSentenceKeepsPauseAndParagraph() {
+        val s = Pipeline.plan("Эпиграф.\nHello, world!\nДальше.", d, 0, 300, englishWords = 1)
+        assertEquals(listOf(Segment("Эпиграф.", breakMs = 300, paragraph = true), Segment("Hello, world!", breakMs = 300, paragraph = true, en = true),
+            Segment("Дальше.")), s)
+    }
+
+    @Test fun punctuationOnlyPieceDropped() {
+        val s = Pipeline.plan("«Nice to meet you», — сказала она.", d, 0, 0, englishWords = 1)
+        assertEquals(listOf("Nice to meet you" to true, "сказала она." to false), s.map { it.text to it.en })
+    }
 }
