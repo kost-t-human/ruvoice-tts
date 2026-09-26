@@ -25,7 +25,7 @@ class PresetsTest {
         assertEquals("бывший в употреблении", n("б/у"))
         assertEquals("около пятисот человек", n("ок. 500 человек"))
         assertEquals("квартира пять", n("кв. 5"))
-        assertEquals("телефон", n("тел."))
+        assertEquals("телефон пять", n("тел. 5"))
         assertEquals("максимум", n("макс."))
     }
 

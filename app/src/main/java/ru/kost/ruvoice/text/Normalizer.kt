@@ -145,6 +145,7 @@ object Normalizer {
     // ударения считались по склейке двух слов. Точка — только перед русской заглавной («будет.У нас», «А.С.Пушкин»; «IP.Board»,
     // «site.ru» не трогаем); запятая — только между буквами («3,5» — число).
     private val missingSpaceStopRe = Regex("""(?<=\p{L})([.!?…])(?=[А-ЯЁ])""")
+    private val ellipsisGlueRe = Regex("""(?<=\p{L})…(?=\p{L})""")
     private val missingSpaceCommaRe = Regex("""(?<=\p{L}),(?=\p{L})""")
     private val asciiArrowRe = Regex("""(?<![-=<>])(?:-+>|=+>|>>)(?![>=])""")
     // Черта из знаков — подпись на форуме («--------------------»), разделитель в тексте («=====», «_____», «***»):
@@ -155,6 +156,8 @@ object Normalizer {
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
         s = ellipsisRe.replace(s, "…")
         s = missingSpaceStopRe.replace(s, "$1 ")
+        // «Ну…ладно» — многоточие вплотную к любой букве: без пробела слово после него шло без ударения и паузы
+        s = ellipsisGlueRe.replace(s, "… ")
         s = missingSpaceCommaRe.replace(s, ", ")
         s = asciiArrowRe.replace(s, " → ")
         // черта в начале или в конце фразы — ни о чём, только висячее тире; между словами — пауза
@@ -839,6 +842,11 @@ object Normalizer {
     // «=» словом только рядом с числом: «x = y» остаётся как есть.
     private val equalsRe = Regex("""(?<=\d)\s*=\s*(?=[-−]?[\p{L}\d(])|(?<=[\p{L}\d)])\s*=\s*(?=[-−]?[\d(])""")
     private val minusBeforeEqualsRe = Regex("""(?<=\d)\s*[-–]\s*(?=\d+(?:[.,]\d+)?\s*=)""")
+    // Размер «5х10 м», «3x4x5» — «пять на десять»: буквой «х»/«x» пишут размер, «×» остаётся умножением (arithmetic).
+    // Не трогаем «0x1F» (одиночный «0») и латиницу за числом: «5800X3D».
+    private val dimensionRe = Regex("""(?<=\d)(?<!(?<![\d.,])0)\s*[xXхХ]\s*(?=\d++(?:[.,]\d++)?+(?![A-Za-z](?!\d)))""")
+    private fun dimensions(text: String) = dimensionRe.replace(text, " на ")
+
     private fun arithmetic(text: String): String {
         var s = minusBeforeEqualsRe.replace(text, " минус ")
         s = arithRe.replace(s) { m -> " ${arithOps.getValue(m.groupValues[1])} " }
@@ -1320,12 +1328,13 @@ object Normalizer {
         Regex("""(?<![\p{L}\d])Vol\.\s*(?=\d)""") to "том ",
         Regex("""(?<![\p{L}\d])No\.\s*(?=\d)""") to "номер ",
         // последнюю точку забывают: «и т.д не произносятся»
-        Regex("""(?<![\p{L}\d])и\s+т\.\s*д(?:\.|(?![\p{L}.]))(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и так далее",
-        Regex("""(?<![\p{L}\d])и\s+т\.\s*п(?:\.|(?![\p{L}.]))(?![\p{L}])""", RegexOption.IGNORE_CASE) to "и тому подобное",
-        Regex("""(?<![\p{L}\d])в\s+т\.\s*ч\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "в том числе",
-        Regex("""(?<![\p{L}\d])т\.\s*е\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "то есть",
-        Regex("""(?<![\p{L}\d])т\.\s*к\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так как",
-        Regex("""(?<![\p{L}\d])т\.\s*н\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "так называемый",
+        Regex("""(?<![\p{L}\d])[иИ]\s+[тТ]\.\s*д(?:\.|(?![\p{L}.]))(?![\p{L}])""") to "и так далее",
+        Regex("""(?<![\p{L}\d])[иИ]\s+[тТ]\.\s*п(?:\.|(?![\p{L}.]))(?![\p{L}])""") to "и тому подобное",
+        Regex("""(?<![\p{L}\d])[вВ]\s+[тТ]\.\s*ч\.(?![\p{L}])""") to "в том числе",
+        // т. е., т. к., т. н., т. о.: вторая буква строчная, иначе инициалы («Артемьев Т. Е.», «Т.К. Иванов»)
+        Regex("""(?<![\p{L}\d])[тТ]\.\s*е\.(?![\p{L}])""") to "то есть",
+        Regex("""(?<![\p{L}\d])[тТ]\.\s*к\.(?![\p{L}])""") to "так как",
+        Regex("""(?<![\p{L}\d])[тТ]\.\s*н\.(?![\p{L}])""") to "так называемый",
         Regex("""(?<![\p{L}\d])пп\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "подпункт",
         // Пробел — часть замены (review final-fix п.12): «п.5» без пробела иначе даёт «пункт5»,
         // сам regex съедает исходный пробел, если он был, чтобы не задвоить его.
@@ -1350,8 +1359,9 @@ object Normalizer {
         // task 28 п.6
         Regex("""(?<![\p{L}\d])г-н(?![\p{L}])""", RegexOption.IGNORE_CASE) to "господин",
         Regex("""(?<![\p{L}\d])г-жа(?![\p{L}])""", RegexOption.IGNORE_CASE) to "госпожа",
-        Regex("""(?<![\p{L}\d])н\.\s*э\.?(?![\p{L}])""", RegexOption.IGNORE_CASE) to "нашей эры",
-        Regex("""(?<![\p{L}\d])т\.\s*о\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "таким образом",
+        // «Н. Э. Бауман» — инициалы; заглавные только после «до»: «IV в. до Н. Э.»
+        Regex("""(?<![\p{L}\d])(?:[нН]\.\s*э|(?<=[дД]о\s)Н\.\s*Э)\.?(?![\p{L}])""") to "нашей эры",
+        Regex("""(?<![\p{L}\d])[тТ]\.\s*о\.(?![\p{L}])""") to "таким образом",
         // «кол-во», «кол-ва», «кол-ву», «кол-вом», «кол-ве» — окончание переносим
         Regex("""(?<![\p{L}\d])кол-в(о|а|у|ом|е)(?![\p{L}])""", RegexOption.IGNORE_CASE) to "количеств$1",
         Regex("""(?<![\p{L}\d])ж/д(?![\p{L}])""", RegexOption.IGNORE_CASE) to "железнодорожный",
@@ -1359,7 +1369,6 @@ object Normalizer {
         // «ок.»/«кв.» только перед числом, пробел — часть замены (как у «п.» выше)
         Regex("""(?<![\p{L}\d])ок\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "около ",
         Regex("""(?<![\p{L}\d])кв\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "квартира ",
-        Regex("""(?<![\p{L}\d])тел\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "телефон",
         Regex("""(?<![\p{L}\d])доб\.\s*(?=\d)""", RegexOption.IGNORE_CASE) to "добавочный ",
         Regex("""(?<![\p{L}\d])макс\.(?![\p{L}])""") to "максимум",  // без IGNORE_CASE: «Его звали Макс.»
         // «вкл.» не трогаем: в тексте это чаще «включительно» («с 1 по 5 вкл.»)
@@ -1956,6 +1965,7 @@ object Normalizer {
         return out
     }
 
+    private val telRe = Regex("""(?<![\p{L}\d])тел\.(?=\s*[:/+(\d])""", RegexOption.IGNORE_CASE)
     private val unaryPlusRe = Regex("""(?<![\p{L}\d)+])(?<![\d)] )\+ ?(?=\d)""")
     private val dotThousandsRe = Regex("""(?<![\d.])(?<!\d,)\d{1,3}\.\d{3}\.\d{3}(?![\d.]|,\d)""")
 
@@ -2140,6 +2150,8 @@ object Normalizer {
         }
         s = precomposedStressRe.replace(s) { "" + precomposedBase.getValue(it.value[0]) + '\u0301' }
         s = combiningAcuteRe.replace(s) { "+" + it.groupValues[1] }.replace(zeroWidthRe, "")
+        // «тел.» — «телефон» только перед номером (до phones, пока он цифрами): «лежало множество тел.» — слово.
+        s = step("abbrev") { t -> telRe.replace(t, "телефон") }(s)
         // Телефоны — первыми: дальше разряды тысяч, минус и диапазоны разобрали бы номер на куски.
         s = step("phones", ::phones)(s)
         s = step("codes", ::codes)(s)
@@ -2177,6 +2189,7 @@ object Normalizer {
         s = step("gen_suffix", ::cardinalGenitiveSuffix)(s)
         s = step("gen_suffix", ::cardinalGenitiveSuffixBareH)(s)
         s = step("numbers", ::compounds)(s)
+        s = step("arith", ::dimensions)(s)
         s = step("arith", ::arithmetic)(s)
         s = step("spoons", ::spoons)(s)
         s = step("units", ::unitRange)(s)
