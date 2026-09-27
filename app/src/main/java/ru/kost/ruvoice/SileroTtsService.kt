@@ -199,16 +199,22 @@ class SileroTtsService : TextToSpeechService() {
     private val handler = Handler(Looper.getMainLooper())
     private val synthPool = Executors.newSingleThreadExecutor()
     @Volatile private var stopped = false
+    /** Номер запроса: сегмент, посчитанный заранее для прошлого запроса, видит, что его запрос уже не текущий, — даже
+     * когда новый запрос снова сбросил [stopped]. Иначе он занимал бы synthPool (английский — до срока ожидания
+     * движка) и новая фраза чтеца стояла бы за ним в тишине. */
+    @Volatile private var generation = 0
     private var foreground = false
     // Аудиовыход телефона уходит в standby через ~3 с тишины, а после пробуждения HAL плавно
     // поднимает громкость — первое слово фразы выходит тихим. Если с прошлого звука прошло
     // больше LEAD_GAP_MS, начинаем с LEAD_IN_MS тишины, чтобы подъём пришёлся на неё (правило lead_in).
     // ponytail: пороги под AOSP standby 3 с; сделать настройкой, если на другом телефоне не совпадёт.
     private var lastAudioAt = 0L
+    /** Когда запрос отдал первый звук (0 — ещё не отдал): в журнале «первый звук через», задержка до речи. */
+    private var firstAudioAt = 0L
     // Выгрузка на отдельном потоке: release() и synthesize() делят монитор models, поэтому
     // release() просто дождётся текущего forward, а не заблокирует main на его время.
     private val unload = Runnable {
-        Thread { models.release(); english.release(); Log.i(SileroModels.TAG, "модели выгружены по простою") }.start()
+        Thread { models.release(); english.release(); note("модели выгружены по простою") }.start()
     }
     private val english: EnglishProxy by lazy { EnglishProxy.shared(this) }
 
@@ -248,7 +254,11 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onCreate() {
         super.onCreate()
+        note("сервис запущен")
         Thread { runCatching { warmUp() }.onFailure { Log.e(SileroModels.TAG, "прогрев", it) } }.start()
+        // английский для чтеца: подключаемся к движку сейчас, а не на первой фразе с латиницей
+        Thread { runCatching { if (prefs.rules().on("en_proxy_sr")) EnglishProxy.chosen(this, prefs.enEngine)?.let {
+            english.warm(it.pkg, prefs.enSrTimeoutMs.coerceIn(EnglishProxy.SR_TIMEOUT_MIN, EnglishProxy.SR_TIMEOUT_MAX).toLong()) } } }.start()
         // 0.14.18 по ошибке ушёл с отладочной записью всего звука в files/tee/*.pcm — вычищаем
         Thread { runCatching { getExternalFilesDir(null)?.let { java.io.File(it, "tee").deleteRecursively() } } }.start()
     }
@@ -306,7 +316,9 @@ class SileroTtsService : TextToSpeechService() {
         // TextToSpeechService.onCreate() зовёт этот метод синхронно на главном потоке — грузить
         // модели прямо тут нельзя, это надолго заблокирует главный поток. Прогрев (onCreate выше)
         // и так грузит их отдельным потоком, поэтому с главного потока просто отвечаем по языку.
-        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE && Looper.myLooper() != Looper.getMainLooper()) {
+        // Загружен любой голос — не трогаем: запрос сам загрузит свой (request.voiceName), а голос из настроек здесь
+        // выгнал бы голос чтеца, и следующая фраза снова грузила бы модель — секунды тишины на каждой.
+        if (r == TextToSpeech.LANG_COUNTRY_AVAILABLE && Looper.myLooper() != Looper.getMainLooper() && !models.loaded) {
             val s = currentSpeaker() ?: return TextToSpeech.LANG_MISSING_DATA   // lite без пака: читалка предложит установить данные
             runCatching { models.ensureLoaded(s.pack) }.onFailure {
                 Log.e(SileroModels.TAG, "загрузка моделей", it); return TextToSpeech.LANG_NOT_SUPPORTED
@@ -359,6 +371,8 @@ class SileroTtsService : TextToSpeechService() {
 
     override fun onSynthesizeText(request: SynthesisRequest, callback: SynthesisCallback) {
         stopped = false
+        val gen = ++generation
+        fun gone() = stopped || gen != generation
         handler.removeCallbacks(unload)
         handler.removeCallbacks(fgOff)
         // Поднимаем сразу: при погасшем экране система запрещает старт foreground-сервиса из фона
@@ -366,6 +380,7 @@ class SileroTtsService : TextToSpeechService() {
         // в Restricted и синтез перестаёт успевать за воспроизведением.
         handler.post { enterForeground() }
         val t0 = System.currentTimeMillis()
+        firstAudioAt = 0L
         try {
             val d = models.data
             val sr = prefs.sampleRate
@@ -436,7 +451,7 @@ class SileroTtsService : TextToSpeechService() {
             // непроигранного больше 500 мс), поэтому RTF = синтез / звук показывает, успевает ли телефон.
             val synthMs = java.util.concurrent.atomic.AtomicLong()
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
-            if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size }
+            if (rules.on("lead_in") && System.currentTimeMillis() - lastAudioAt > LEAD_GAP_MS) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size; firstAudioAt = 0L }
             // Короткая фраза уже звучала с теми же голосом, темпом и настройками — отдаём готовый звук.
             // Сбор имён («Проверка») и прослушивание без словаря идут мимо кэша.
             val cacheKey = if (reqText.length <= PhraseCache.MAX_TEXT && !noDict && !auditNames)
@@ -461,7 +476,7 @@ class SileroTtsService : TextToSpeechService() {
                 if (text.isEmpty()) return null
                 val segRate = rate * enRate * (if (seg.speech) quoteRate else 1f)
                 val segPitch = pitch * (if (seg.speech) quotePitch else 1f)
-                val a = english.synth(text, engine.pkg, enVoice, segRate, segPitch, enLimits) { stopped } ?: return null
+                val a = english.synth(text, engine.pkg, enVoice, segRate, segPitch, enLimits) { gone() } ?: return null
                 val audio = Pcm.toFloat(Pcm.resample(a.pcm, a.sampleRate, sr))
                 Pcm.gain(audio, Pcm.matchGain(sileroLevel, Pcm.voicedRms(audio, sr)) * enVolume * volume)
                 Pcm.fadeEdges(audio, sr, 5)
@@ -470,7 +485,7 @@ class SileroTtsService : TextToSpeechService() {
             }
             // Звук сегмента и токены для подсветки; null — нечего читать или синтез упал.
             fun synthSegment(seg: Segment): SegOut.Model? {
-                if (stopped) return null
+                if (gone()) return null
                 val tSeg = System.currentTimeMillis()
                 try {
                 // Замены Pipeline.plan уже применил к seg.text; тип предложения классифицируется
@@ -513,15 +528,17 @@ class SileroTtsService : TextToSpeechService() {
             // пока непроигранного звука больше 500 мс (SynthesisPlaybackQueueItem), и без опережения
             // перед каждым куском была бы пауза в его время счёта.
             fun unit(seg: Segment): SegOut? {
-                if (seg.en && enEngine != null && !stopped) {
+                if (gone()) return null
+                if (seg.en && enEngine != null) {
                     val t = System.currentTimeMillis()
                     val p = try { proxySegment(seg, enEngine) } finally { synthMs.addAndGet(System.currentTimeMillis() - t) }
-                    if (p != null || stopped) return p
+                    if (p != null || gone()) return p
                 }
                 return synthSegment(seg)
             }
             var next: Future<SegOut?>? = null
-            for ((si, seg) in segments.withIndex()) {
+            // выход посреди запроса (чтец перебил) — заранее поставленный сегмент не нужен
+            try { for ((si, seg) in segments.withIndex()) {
                 if (stopped) { next?.cancel(false); break }
                 val res = (next ?: synthPool.submit(Callable { unit(seg) })).get()
                 next = if (si + 1 < segments.size) synthPool.submit(Callable { unit(segments[si + 1]) }) else null
@@ -567,13 +584,14 @@ class SileroTtsService : TextToSpeechService() {
                     Log.d(SileroModels.TAG, "unit ${audio.size * 1000L / sr} мс")
                 }
                 if (seg.breakMs > 0) { val sil = Pcm.silence(sr, seg.breakMs); recorder?.audio(sil); if (!write(callback, sil)) return; written += sil.size }
-            }
+            } } finally { next?.cancel(false) }
             callback.done()
             // в кэш — только доведённое до конца: оборванный TalkBack-ом звук был бы неполным
             if (recorder != null && cacheKey != null && !stopped && audioMs > 0) phrases.put(cacheKey, recorder.entry())
             audit.flush()
             val ms = System.currentTimeMillis() - t0
-            note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс, звук $audioMs мс, синтез ${synthMs.get()} мс" +
+            note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс" +
+                (if (firstAudioAt > 0) ", первый звук через ${firstAudioAt - t0} мс" else "") + ", звук $audioMs мс, синтез ${synthMs.get()} мс" +
                 (if (audioMs > 0) ", RTF %.2f".format(synthMs.get().toDouble() / audioMs) else "") +
                 (if (!foreground) ", без foreground" else "") +
                 (if (enCount > 0) ", по-английски $enCount через ${enEngine?.pkg}" else "") +
@@ -597,6 +615,7 @@ class SileroTtsService : TextToSpeechService() {
             off += n
         }
         lastAudioAt = System.currentTimeMillis()
+        if (firstAudioAt == 0L) firstAudioAt = lastAudioAt
         return true
     }
 

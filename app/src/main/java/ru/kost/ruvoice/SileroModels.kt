@@ -46,7 +46,7 @@ class SileroModels(private val context: Context) : StressModels {
                 head = loadLite(pack, "head.ptl")
                 backbone = loadBackbone()
                 loadedPack = pack?.id
-                Log.i(TAG, "модель ${pack?.id ?: "v5_5_ru"} загружена за ${System.currentTimeMillis() - t} мс")
+                SileroTtsService.note("модель ${pack?.id ?: "v5_5_ru"} загружена за ${System.currentTimeMillis() - t} мс")
             }
             ensureStress()
         } catch (e: Exception) {
@@ -84,9 +84,14 @@ class SileroModels(private val context: Context) : StressModels {
     var threads = 0
         @Synchronized set(n) {
             if (n == field) return
-            field = n; LitePyTorchAndroid.setNumThreads(n); Log.i(TAG, "потоков синтеза: $n")
-            if (backbone != null) { backbone?.destroy(); backbone = loadBackbone() }
+            // прогрев грузит бэкбон при field = 0, то есть на fastCores: первый запрос с тем же числом не перегружает его
+            val was = field.takeIf { it > 0 } ?: fastCores
+            field = n; LitePyTorchAndroid.setNumThreads(n); SileroTtsService.note("потоков синтеза: $n")
+            if (backbone != null && n != was) { backbone?.destroy(); backbone = loadBackbone() }
         }
+
+    /** Загружена ли тройка синтеза (какого голоса — не важно). */
+    val loaded: Boolean @Synchronized get() = mel != null
 
     private fun releaseTts() {
         mel?.destroy(); head?.destroy(); backbone?.destroy()
