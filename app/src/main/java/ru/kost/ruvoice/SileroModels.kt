@@ -72,7 +72,7 @@ class SileroModels(private val context: Context) : StressModels {
             val len = context.assets.openFd("silero/backbone.pte").use { it.length }
             if (f.length() != len) context.assets.open("silero/backbone.pte").use { i -> f.outputStream().use { i.copyTo(it) } }
         }
-        return org.pytorch.executorch.Module.load(f.absolutePath, org.pytorch.executorch.Module.LOAD_MODE_MMAP, threads.takeIf { it > 0 } ?: fastCores)
+        return org.pytorch.executorch.Module.load(f.absolutePath, if (resident) org.pytorch.executorch.Module.LOAD_MODE_FILE else org.pytorch.executorch.Module.LOAD_MODE_MMAP, threads.takeIf { it > 0 } ?: fastCores)
     }
 
     /** Потоки forward. Правило fast_cores (вкл. по умолчанию) — по числу быстрых ядер, выключено — все.
@@ -88,6 +88,16 @@ class SileroModels(private val context: Context) : StressModels {
             val was = field.takeIf { it > 0 } ?: fastCores
             field = n; LitePyTorchAndroid.setNumThreads(n); SileroTtsService.note("потоков синтеза: $n")
             if (backbone != null && n != was) { backbone?.destroy(); backbone = loadBackbone() }
+        }
+
+    /** Бэкбон целиком в памяти (LOAD_MODE_FILE), а не отображением файла (MMAP): страницы отображения система
+     * после простоя выкидывает, и первая фраза снова читает их с флеш-памяти. Дороже на размер бэкбона в памяти,
+     * поэтому только пока работает экранный чтец (SileroTtsService.srHold). Смена — перезагрузка бэкбона. */
+    var resident = false
+        @Synchronized set(v) {
+            if (v == field) return
+            field = v
+            if (backbone != null) { backbone?.destroy(); backbone = loadBackbone(); SileroTtsService.note("бэкбон ${if (v) "в памяти" else "отображением файла"}") }
         }
 
     /** Загружена ли тройка синтеза (какого голоса — не важно). */

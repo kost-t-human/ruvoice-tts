@@ -64,6 +64,10 @@ class Prefs(private val context: Context) {
      * Журнал отправителей не в счёт — он пишется сам по себе раз в час. */
     fun stamp(): Int = p.all.filterKeys { it != "recent_callers" }.hashCode()
 
+    /** Отпечаток включённых словарей (путь, время правки, размер) — одинаковый в разных процессах, для кэша фраз на диске. */
+    fun dictStamp(): String = Dicts.Kind.values().flatMap { enabledDictFiles(it) }
+        .joinToString("|") { "${it.path}:${it.lastModified()}:${it.length()}" }
+
     /** Справка «Как включить» показана при первом запуске. */
     var setupShown: Boolean get() = p.getBoolean("setup_shown", false); set(v) = p.edit().putBoolean("setup_shown", v).apply()
     /** Множители темпа/высоты поверх того, что просит читалка; 1 — без изменений. */

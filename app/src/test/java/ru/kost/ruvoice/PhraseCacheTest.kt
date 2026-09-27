@@ -37,4 +37,33 @@ class PhraseCacheTest {
         assertNull(c.get("long"))
         assertEquals(0, c.size)
     }
+
+    // фразы чтеца на диске переживают процесс: новый PhraseCache (как после перезапуска) находит их по тому же ключу
+    @Test fun diskSurvivesNewProcess() {
+        val dir = kotlin.io.path.createTempDirectory("phrases").toFile()
+        try {
+            val a = PhraseCache(diskBytes = 1 shl 20).apply { this.dir = dir }
+            a.put("кнопка", PhraseCache.Entry(ShortArray(300) { it.toShort() }, intArrayOf(0, 0, 6)), disk = true)
+            a.put("только память", PhraseCache.Entry(ShortArray(10), IntArray(0)))
+            val b = PhraseCache(diskBytes = 1 shl 20).apply { this.dir = dir }
+            assertNotNull(b.get("кнопка", disk = true)); val hit = b.get("кнопка")!!
+            assertArrayEquals(ShortArray(300) { it.toShort() }, hit.pcm)
+            assertArrayEquals(intArrayOf(0, 0, 6), hit.ranges)
+            assertNull(b.get("кнопка-2", disk = true))
+            assertNull(b.get("только память", disk = true))
+            b.clearDisk()
+            assertNull(PhraseCache().apply { this.dir = dir }.get("кнопка", disk = true))
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun diskBudgetDropsOldest() {
+        val dir = kotlin.io.path.createTempDirectory("phrases").toFile()
+        try {
+            val c = PhraseCache(diskBytes = 2500).apply { this.dir = dir }
+            for (k in 1..3) { c.put("f$k", PhraseCache.Entry(ShortArray(500), IntArray(0)), disk = true); Thread.sleep(20) }
+            val fresh = PhraseCache().apply { this.dir = dir }
+            assertNull(fresh.get("f1", disk = true))
+            assertNotNull(fresh.get("f3", disk = true))
+        } finally { dir.deleteRecursively() }
+    }
 }
