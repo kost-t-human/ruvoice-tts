@@ -1639,19 +1639,22 @@ object Normalizer {
         val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
         val word = m.groupValues[2].lowercase()
         val t = morph.tags(word)
-        // стоп-слова — расхождения таблицы с узусом («евро» в AOT среднего рода) и «1 года»/«1 раза»
-        if (!Morph.isNoun(t) || word in nomOneStop) return@replace m.value
-        // «2 новых сообщения», «5 новых сообщений», «2 учёных»: форма на -ых/-их — ещё и прилагательное (в таблице
-        // «новых» и субстантив), после числа это род. мн., а не предложный «о двух новых» — было «двух новых
+        // «2 новых сообщения», «5 новых сообщений», «2 учёных»: форма на -ых/-их — прилагательное (в таблице
+        // «новых» ещё и субстантив), после числа это род. мн., а не предложный «о двух новых» — было «двух новых
         // сообщения» (экранный чтец в Telegram). Падеж — по существительному следом, как в morphAdj:
         // «в 2 новых домах» → «двух»; им./вин./род. или слова нет — число как есть.
         if (Morph.isAdjective(t) && Case.GEN in Morph.adjCases(t, null, plural = true)) {
             val tn = morph.tags(m.groupValues[3].lowercase())
             if (!Morph.isNoun(tn) || Morph.isAdjective(tn)) return@replace m.value
             val c = (Morph.adjCases(t, null, plural = true) intersect Morph.nounCases(tn, plural = true)).singleOrNull()
-            if (c == null || c == Case.NOM || c == Case.ACC || c == Case.GEN) return@replace m.value
+            // им./вин. при существительном женского рода — «две»: «2 непрочитанных заявки», «22 новых записи»
+            if (c == null || c == Case.NOM || c == Case.ACC || c == Case.GEN)
+                return@replace if (Morph.genders(tn) == listOf(Gender.F) && n % 10 == 2L && n % 100 != 12L)
+                    m.withGroupReplaced(1 to Declension.cardinal(n, Case.NOM, feminine = true)) else m.value
             return@replace m.withGroupReplaced(1 to Declension.cardinal(n, c, Morph.gender(tn) == Gender.F))
         }
+        // стоп-слова — расхождения таблицы с узусом («евро» в AOT среднего рода) и «1 года»/«1 раза»
+        if (!Morph.isNoun(t) || word in nomOneStop) return@replace m.value
         m.withGroupReplaced(1 to (numeralByNoun(n, t) ?: return@replace m.value))
     }
     // Прилагательное перед числом задаёт падеж вместе с существительным после (task spec-morph п.2):
