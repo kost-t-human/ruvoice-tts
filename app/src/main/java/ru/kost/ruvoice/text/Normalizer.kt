@@ -1599,9 +1599,18 @@ object Normalizer {
     private val accThousandRe = Regex(
         """(?<![\p{L}])(по|за|на|в|во|через|про|спустя|сто(?:ит|ил|ила|ило|ят|или)|вес(?:ит|ил|ила|ят|или)|""" +
         """(?:заплат|потрат|получ|заработ|выиграл|проиграл|отда|верну|привез|принес|наш)[а-яё]*|име(?:ть|ет|ем|ю|ешь|ете|ют|л|ла|ли))""" +
-        """(?![\p{L}])\s+(\d+)$numTailExclude""",
+        """(?![\p{L}])\s+(\d+)$numTailExclude(?=(?:\s+(\p{L}+))?(?:\s+(\p{L}+))?)""",
         RegexOption.IGNORE_CASE
     )
+    /** Существительное за числом (прилагательное перед ним пропускаем) стоит в косвенном падеже — не им./вин./род.:
+     * «в 1000 новых чатах» — предложный, число склоняет morphNoun («в одной тысяче»), а не винительный «в одну тысячу». */
+    private fun obliqueNounAfter(m: MatchResult, first: Int): Boolean {
+        val morph = morph ?: return false
+        val t = listOf(m.groupValues[first], m.groupValues[first + 1]).filter { it.isNotEmpty() }
+            .map { morph.tags(it.lowercase()) }.firstOrNull { Morph.isNoun(it) && !Morph.isAdjective(it) } ?: return false
+        val cases = Morph.nounCases(t, plural = false) + Morph.nounCases(t, plural = true)
+        return cases.isNotEmpty() && cases.none { it == Case.NOM || it == Case.ACC || it == Case.GEN }
+    }
     // «по 1000 рублей» — дательный: «по одной тысяче».
     // Число на 1 (не 11) + слово на -у/-ю → винительный женского рода («1 книгу» → «одну книгу»).
     private val accFemEndingRe = Regex(
@@ -1652,6 +1661,14 @@ object Normalizer {
                 return@replace if (Morph.genders(tn) == listOf(Gender.F) && n % 10 == 2L && n % 100 != 12L)
                     m.withGroupReplaced(1 to Declension.cardinal(n, Case.NOM, feminine = true)) else m.value
             return@replace m.withGroupReplaced(1 to Declension.cardinal(n, c, Morph.gender(tn) == Gender.F))
+        }
+        // Прилагательное только в косвенном падеже мн. ч. («новыми», «новым») — тот же падеж у числа, если его
+        // подтверждает существительное следом: «с 21 новыми сообщениями» — «с двадцатью одним», было «с двадцать один».
+        val adjPl = if (Morph.isAdjective(t)) Morph.adjCases(t, null, plural = true) else emptySet()
+        if (adjPl.isNotEmpty() && adjPl.none { it == Case.NOM || it == Case.ACC || it == Case.GEN }) {
+            val tn = morph.tags(m.groupValues[3].lowercase())
+            val c = if (Morph.isNoun(tn) && !Morph.isAdjective(tn)) (adjPl intersect Morph.nounCases(tn, plural = true)).singleOrNull() else null
+            if (c != null) return@replace m.withGroupReplaced(1 to Declension.cardinal(n, c, Morph.gender(tn) == Gender.F))
         }
         // стоп-слова — расхождения таблицы с узусом («евро» в AOT среднего рода) и «1 года»/«1 раза»
         if (!Morph.isNoun(t) || word in nomOneStop) return@replace m.value
@@ -1755,8 +1772,14 @@ object Normalizer {
     // «от -5 до 3» — минус перед числом после триггера: «от минус пяти».
     private fun applyCase(text: String, re: Regex, case: Case) = re.replace(text) { m ->
         val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
-        m.withGroupReplaced(1 to (if (n < 0) "минус " else "") + Declension.cardinal(kotlin.math.abs(n), case))
+        // род — по существительному следом (прилагательное перед ним пропускаем): «о 1 заявке» — «об одной», не «одном»
+        val fem = kotlin.math.abs(n) % 10 == 1L && kotlin.math.abs(n) % 100 != 11L &&
+            nextWordsRe.find(text, m.range.last + 1)?.groupValues?.drop(1)?.filter { it.isNotEmpty() }
+                ?.firstNotNullOfOrNull { w -> morph?.tags(w.lowercase())?.takeIf { Morph.isNoun(it) && !Morph.isAdjective(it) } }
+                ?.let { Morph.gender(it) == Gender.F } == true
+        m.withGroupReplaced(1 to (if (n < 0) "минус " else "") + Declension.cardinal(kotlin.math.abs(n), case, fem))
     }
+    private val nextWordsRe = Regex("""\G\s+(\p{L}+)(?:\s+(\p{L}+))?""")
 
     private fun cases(text: String): String {
         var s = text
@@ -1815,11 +1838,12 @@ object Normalizer {
         s = accThousandRe.replace(s) { m ->
             val n = m.groupValues[2].toLongOrNull() ?: return@replace m.value
             val k = n / 1000
-            if (n % 1000 != 0L || k % 10 != 1L || k % 100 == 11L) return@replace m.value
+            if (n % 1000 != 0L || k % 10 != 1L || k % 100 == 11L || obliqueNounAfter(m, 3)) return@replace m.value
             val case = if (m.groupValues[1].equals("по", true)) Case.DAT else Case.ACC
             m.withGroupReplaced(2 to Declension.cardinal(n, case, feminine = true))
         }
         morph?.let { s = morphNoun(morphAdj(s, it), it) }
+
         s = accFemEndingRe.replace(s) { m ->
             val n = m.groupValues[1].toLongOrNull() ?: return@replace m.value
             if (n % 10 != 1L || n % 100 == 11L || morphGender(m.groupValues[2]).let { it == Gender.M || it == Gender.N }) return@replace m.value
@@ -1966,7 +1990,7 @@ object Normalizer {
     // без цифр и букв, чтобы «5Mb» внутри не стало числом, потом возвращаем.
     fun numbers(text: String, rules: Rules = Rules()): String {
         val hasUrl = text.contains("http", ignoreCase = true) || text.contains("www.", ignoreCase = true) || '@' in text
-        if (!hasUrl) return numbersInner(text, rules)
+        if (!hasUrl) return aboutOne(numbersInner(text, rules))
         val kept = mutableListOf<String>()
         val masked = urlRe.replace(text) {
             when {
@@ -1975,10 +1999,14 @@ object Normalizer {
                 else -> { kept += it.value; "\u0001${"\u0002".repeat(kept.size)}\u0001" }
             }
         }
-        var out = numbersInner(masked, rules)
+        var out = aboutOne(numbersInner(masked, rules))
         for ((k, url) in kept.withIndex()) out = out.replace("\u0001${"\u0002".repeat(k + 1)}\u0001", url)
         return out
     }
+
+    // «о 1 заявке», «о 11 письмах» — перед числом словами на гласную предлог «об»: «об одной», «об одиннадцати».
+    private val aboutOneRe = Regex("""(?<![\p{L}\d])([оО])(?=\s+(?:одн(?:ом|ой|их|ого|ому|им|ими)|одиннадцат[иью]\p{L}*)(?![\p{L}]))""")
+    private fun aboutOne(s: String) = aboutOneRe.replace(s, "$1б")
 
     private val telRe = Regex("""(?<![\p{L}\d])тел\.(?=\s*[:/+(\d])""", RegexOption.IGNORE_CASE)
     private val unaryPlusRe = Regex("""(?<![\p{L}\d)+])(?<![\d)] )\+ ?(?=\d)""")
