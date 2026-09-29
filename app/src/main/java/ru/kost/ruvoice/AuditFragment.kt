@@ -209,7 +209,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         val hardE = CheckBox(ctx).apply { setText(R.string.accent_book_hard_e); isChecked = prefs.accentBookHardE }
         val abbr = CheckBox(ctx).apply { setText(R.string.accent_book_abbr); isChecked = prefs.accentBookAbbr }
         val homoOnly = CheckBox(ctx).apply { setText(R.string.accent_book_homo_only); isChecked = prefs.accentBookHomoOnly }
-        bodyDialog(R.string.accent_book, getString(R.string.accent_book_help), listOf(group, hardE, abbr, homoOnly), R.string.cancel to {}, R.string.audit_scan_pick to {
+        bodyDialog(R.string.accent_book, getText(R.string.accent_book_help), listOf(group, hardE, abbr, homoOnly), R.string.cancel to {}, R.string.audit_scan_pick to {
             prefs.accentBookPlus = group.checkedRadioButtonId == plus.id
             prefs.accentBookHardE = hardE.isChecked
             prefs.accentBookAbbr = abbr.isChecked
@@ -222,7 +222,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
      * Диалог, где кнопки, поля и текст справки — одна прокручиваемая область. Штатные кнопки при крупном шрифте
      * уезжали за экран или прокручивались отдельной полосой; здесь они сверху, [extra] (подпись, кнопка) — под чертой.
      */
-    private fun bodyDialog(title: Int, message: String, views: List<View>, vararg buttons: Pair<Int, () -> Unit>, extra: Triple<Int, Int, () -> Unit>? = null) {
+    private fun bodyDialog(title: Int, message: CharSequence, views: List<View>, vararg buttons: Pair<Int, () -> Unit>, extra: Triple<Int, Int, () -> Unit>? = null) {
         val ctx = requireContext()
         val pad = (24 * resources.displayMetrics.density).toInt()
         lateinit var dialog: androidx.appcompat.app.AlertDialog
