@@ -336,7 +336,8 @@ class PipelineTest {
         val sr = Pipeline.plan(msg, d, 0, 0, rules = r)
         assertTrue(sr.all { model(it.text, r).length <= 200 })
         // книги: по исходнику, как было (предел 200 для сравнения)
-        val books = Pipeline.plan(msg, d, 0, 0, rules = Rules(maxLen = 200))
-        assertTrue(books.any { model(it.text, Rules()).length > 200 })
+        val parts = Rules(setOf("link_domain"), maxLen = 200) // ссылка по частям — длинная
+        val books = Pipeline.plan(msg, d, 0, 0, rules = parts)
+        assertTrue(books.any { model(it.text, parts).length > 200 })
     }
 }

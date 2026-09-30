@@ -9,7 +9,8 @@ import org.junit.Test
  */
 class ForumTextTest {
     private val allowed = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя .,!?-–—:;«»()'\"́+"
-    private fun p(s: String) = Normalizer.prepare(s, allowed)
+    // ссылки — по частям, без книжного link_domain
+    private fun p(s: String) = Normalizer.prepare(s, allowed, Rules(setOf("link_domain")))
     private fun sr(s: String) = Normalizer.prepare(s, allowed, Rules().screenReader())
 
     @Test fun postHeader() {

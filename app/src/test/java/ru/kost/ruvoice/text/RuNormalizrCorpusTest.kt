@@ -17,7 +17,8 @@ import java.io.File
 class RuNormalizrCorpusTest {
     private fun canon(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
 
-    private fun ours(text: String) = Abbrev.apply(Normalizer.numbers(Normalizer.punctuation(text)))
+    // эталон читает ссылки по частям — без книжного link_domain
+    private fun ours(text: String) = Abbrev.apply(Normalizer.numbers(Normalizer.punctuation(text), Rules(setOf("link_domain"))))
 
     /** Число совпадений по режимам; расхождения — в diff. */
     private fun run(diff: StringBuilder): Pair<Map<String, Int>, Map<String, Int>> {

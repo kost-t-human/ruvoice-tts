@@ -1,11 +1,14 @@
 package ru.kost.ruvoice.text
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Правила, добавленные по корпусу ru-normalizr (см. RuNormalizrCorpusTest). Ядро без latin(). */
 class CorpusRulesTest {
-    private fun n(s: String) = Abbrev.apply(Normalizer.numbers(Normalizer.punctuation(s)))
+    // ссылки здесь — по частям, без книжного link_domain («ссылка» и сайт), он проверен отдельно
+    private val parts = Rules(setOf("link_domain"))
+    private fun n(s: String) = Abbrev.apply(Normalizer.numbers(Normalizer.punctuation(s), parts))
 
     @Test fun ordinalSuffixesWithoutHyphen() {
         assertEquals("пятая группа", n("5я группа"))
@@ -132,15 +135,16 @@ class CorpusRulesTest {
         // сайт без схемы и www — адрес, если после зоны идёт путь; drop_links выкидывает его целиком
         assertEquals("смотрите и тут", Normalizer.numbers("смотрите habr.com/ru/articles/123456 и t.me/c/1/2 тут", Rules(setOf("drop_links"))))
         assertEquals("Node.js/Express и vk.com", Normalizer.numbers("Node.js/Express и vk.com", Rules(setOf("drop_links"))))
-        // link_domain — книжный: «ссылка» и сайт, важнее drop_links; чтецу не передаётся
-        val bookLink = Rules(setOf("link_domain", "drop_links"))
+        // link_domain — книжный, включён по умолчанию: «ссылка» и сайт; drop_links важнее; чтецу не передаётся
         assertEquals("Подробнее: ссылка, youtube точка com и ссылка, habr точка com, почта эй собака би точка ru",
-            Normalizer.numbers("Подробнее: https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=4 и habr.com/ru/1, почта a@b.ru", bookLink))
-        assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", bookLink.screenReader()))
+            Normalizer.numbers("Подробнее: https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=4 и habr.com/ru/1, почта a@b.ru", Rules()))
+        assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules(setOf("drop_links"))))
+        assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules(setOf("drop_links")).screenReader()))
+        assertTrue(Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules().screenReader()).contains("слэш"))
         assertEquals("Ryzen пять тысяч восемьсот экс три ди, джи пи т+и-четыре оу, экран одна тысяча восемьдесят пи, витамин-ди",
             n("Ryzen 5800X3D, GPT-4o, экран 1080p, витамин-D"))
         assertEquals("пиши на mail точка ru собака example точка com, не на тот", n("пиши на mail.ru@example.com, не на тот"))
-        assertEquals("Откройте https://a.b/5Mb/s и пять штук", Normalizer.numbers("Откройте https://a.b/5Mb/s и 5 штук", Rules(setOf("read_links"))))
+        assertEquals("Откройте https://a.b/5Mb/s и пять штук", Normalizer.numbers("Откройте https://a.b/5Mb/s и 5 штук", Rules(setOf("read_links", "link_domain"))))
         assertEquals("два + три = пять", Normalizer.numbers("2 + 3 = 5", Rules(setOf("arith"))))
         assertEquals("пиши на www точка ya точка ru, не на",
             Normalizer.numbers("пиши на a@b.ru www.ya.ru, не на", Rules(setOf("drop_emails"))))

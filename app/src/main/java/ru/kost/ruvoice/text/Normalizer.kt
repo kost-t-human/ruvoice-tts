@@ -1981,8 +1981,8 @@ object Normalizer {
     // Ссылка читается по частям, как у ru-normalizr: буквы словами (транслит ниже), цифры по одной,
     // разделители названиями; схема «https://» и хвостовая пунктуация не читаются. Правила
     // drop_links / drop_emails выкидывают ссылку или почту целиком; у чтеца с sr_link_word (Rules.LINK_WORD)
-    // и в книгах с link_domain ссылка — словом «ссылка» и сайтом без «www.» («ссылка, youtube точка com»),
-    // это важнее drop_links. Почту не трогает.
+    // ссылка — словом «ссылка» и сайтом без «www.» («ссылка, youtube точка com»), это важнее drop_links.
+    // В книгах так же читает link_domain (включено по умолчанию), но там включённый drop_links важнее. Почту не трогает.
     // Почта — тем же способом: «mail@example.com» → «мейл собака ексампл точка ком».
     // Адрес без схемы и «www.» — сайт с известной зоной и путём после неё («habr.com/ru/articles/1», «t.me/c/1»):
     // без пути «vk.com» остаётся словом, а зона из списка не даёт принять за адрес «Node.js/Express».
@@ -2013,7 +2013,7 @@ object Normalizer {
         val kept = mutableListOf<String>()
         val masked = urlRe.replace(text) {
             when {
-                '@' !in it.value && (rules.on(Rules.LINK_WORD) || rules.on("link_domain")) -> "ссылка, " + spellUrl(urlHost(it.value))
+                '@' !in it.value && (rules.on(Rules.LINK_WORD) || rules.on("link_domain") && !rules.on("drop_links")) -> "ссылка, " + spellUrl(urlHost(it.value))
                 rules.on(if ('@' in it.value) "drop_emails" else "drop_links") -> ""
                 rules.on("read_links") -> spellUrl(it.value)
                 else -> { kept += it.value; "\u0001${"\u0002".repeat(kept.size)}\u0001" }
