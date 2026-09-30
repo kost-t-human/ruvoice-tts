@@ -36,6 +36,9 @@ object Abbrev {
     // с реальным произношением («гэ и бэ дэ дэ» никто так не говорит — только «ги-бэ-дэ-дэ»)
     // США по традиции «сэ-шэ-а», не по именам букв; СМИ — словом («см+и»), а не «эс эм и» (жалоба 30.09.2026)
     private val cyrExceptions = mapOf("ГИБДД" to "ги бэ дэ д+э", "США" to "сэ шэ +а", "СМИ" to "см+и")
+    // Латиница без A/E/O/U, которую говорят словом, а не по буквам: SIM — «сим», не «эс ай эм» (жалоба 30.09.2026).
+    // «SIM-карта», «PIN-код» тоже: дефис со словом токену не мешает
+    private val latExceptions = mapOf("SIM" to "с+им", "PIN" to "п+ин", "GIF" to "г+иф", "MIDI" to "м+иди", "WIFI" to "вайф+ай")
 
     // Три буквы с единственной гласной с краю («ЛКИ», «ТМА», «ШПУ», «АКС») слогом не произносятся —
     // по буквам. Обычные слова того же вида и заголовки капсом не трогаем.
@@ -120,6 +123,7 @@ object Abbrev {
         "CE", "BC", "AD")
 
     private fun spellLat(token: String): String {
+        latExceptions[token]?.let { return it }
         val spell = token.none { it in LAT_VOWELS_FOR_AUTO_SPELL } || token in latSpellSet ||
             token.length == 2 && token !in latTwoLetterWords
         return if (spell) spellOut(token, latLetterNames) else token

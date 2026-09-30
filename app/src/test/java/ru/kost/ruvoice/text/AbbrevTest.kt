@@ -54,6 +54,11 @@ class AbbrevTest {
         assertEquals("доверие к см+и падает, пишут см+и.", Abbrev.apply("доверие к СМИ падает, пишут СМИ."))
     }
 
+    @Test fun latinExceptionsReadAsWord() {
+        assertEquals("вставьте с+им-карту, введите п+ин-код", Abbrev.apply("вставьте SIM-карту, введите PIN-код"))
+        assertEquals("две с+им и г+иф по вайф+ай", Abbrev.apply("две SIM и GIF по WIFI"))
+    }
+
     @Test fun tokenGluedToDigitByHyphenLeftUntouched() {
         assertEquals("С-300", Abbrev.apply("С-300"))
     }
@@ -73,6 +78,7 @@ class AbbrevTest {
         val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
         assertEquals("агент эф эс б+э и порт ю эс б+и.", Normalizer.prepare("Агент ФСБ и порт USB.", allowed))
         assertEquals("служил в нато.", Normalizer.prepare("Служил в НАТО.", allowed))
+        assertEquals("нет с+им-карты, п+ин-код один два, три четыре.", Normalizer.prepare("Нет SIM-карты, PIN-код 1234.", allowed))
     }
 
     @Test fun threeLettersWithEdgeVowelSpelled() {
