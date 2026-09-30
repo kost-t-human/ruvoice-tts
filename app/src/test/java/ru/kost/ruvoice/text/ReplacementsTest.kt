@@ -32,6 +32,7 @@ class ReplacementsTest {
         assertEquals("всё съ+ем", r.apply("всё съем"))
         assertEquals("б+ело-голубая", r.apply("бело-голубая"))
         assertEquals("св+етло-серый", r.apply("светло-серый"))
+        assertEquals("распад +эс+эсэс+эр.", r.apply("распад СССР."))
     }
 
     @Test fun phraseWithStressOnNeighbourWord() {
