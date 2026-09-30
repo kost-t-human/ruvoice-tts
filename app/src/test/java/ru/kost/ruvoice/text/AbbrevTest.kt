@@ -79,6 +79,8 @@ class AbbrevTest {
         assertEquals("агент эф эс б+э и порт ю эс б+и.", Normalizer.prepare("Агент ФСБ и порт USB.", allowed))
         assertEquals("служил в нато.", Normalizer.prepare("Служил в НАТО.", allowed))
         assertEquals("нет с+им-карты, п+ин-код один два, три четыре.", Normalizer.prepare("Нет SIM-карты, PIN-код 1234.", allowed))
+        // «Wi-Fi» транслитом шло «ви-фи» (жалоба 30.09.2026)
+        assertEquals("по вай-фай, вайфай и вайфай, хай-фай.", Normalizer.prepare("По Wi-Fi, wifi и WiFi, hi-fi.", allowed))
     }
 
     @Test fun threeLettersWithEdgeVowelSpelled() {

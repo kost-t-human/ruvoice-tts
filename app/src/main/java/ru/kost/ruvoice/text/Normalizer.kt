@@ -2330,7 +2330,7 @@ object Normalizer {
         "computer" to "компьютер", "internet" to "интернет", "online" to "онлайн", "offline" to "офлайн",
         "email" to "имейл", "mail" to "мейл", "ok" to "окей", "okay" to "окей", "hello" to "хеллоу", "hi" to "хай",
         "love" to "лав", "one" to "уан", "two" to "ту", "time" to "тайм", "life" to "лайф", "game" to "гейм",
-        "wifi" to "вайфай", "bluetooth" to "блютус", "chrome" to "хром", "github" to "гитхаб", "steam" to "стим",
+        "wifi" to "вайфай", "wi" to "вай", "fi" to "фай", "bluetooth" to "блютус", "chrome" to "хром", "github" to "гитхаб", "steam" to "стим",
         "xbox" to "иксбокс", "playstation" to "плейстейшн", "nike" to "найк", "adidas" to "адидас", "sony" to "сони",
         "intel" to "интел", "nvidia" to "энвидиа", "audi" to "ауди", "toyota" to "тойота", "coca" to "кока",
         "cola" to "кола", "pepsi" to "пепси", "store" to "стор", "play" to "плей", "cloud" to "клауд",
