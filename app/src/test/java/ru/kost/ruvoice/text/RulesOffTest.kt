@@ -151,4 +151,26 @@ class RulesOffTest {
         assertEquals("Из п+од по др+угому кт+о-то в+о-п+ервых", stress.forModel(accented))
         assertEquals(accented, Stress(d, firstVowel, rules = off("prefix_space")).forModel(accented))
     }
+
+    /** Конец входа модели: кусок без знака — с точкой, кроме слова с ударением на последний слог; end_oxy снимает точку
+     * после такого слова (по умолчанию выключено). */
+    @Test fun modelEnd() {
+        val st = Stress(d, firstVowel)
+        assertEquals("страд+ала." to true, st.modelEnd("страд+ала"))
+        assertEquals("+она страд+ала." to true, st.modelEnd("+она страд+ала "))
+        assertEquals("страд+ала." to false, st.modelEnd("страд+ала."))
+        assertEquals("ст+ол." to true, st.modelEnd("ст+ол"))
+        assertEquals("+ухо востр+о" to false, st.modelEnd("+ухо востр+о"))
+        assertEquals("+ухо востр+о." to false, st.modelEnd("+ухо востр+о."))
+        assertEquals("т+ы ид+ёшь?" to false, st.modelEnd("т+ы ид+ёшь?"))
+        assertEquals("страд+ала" to false, Stress(d, firstVowel, rules = off("end_dot")).modelEnd("страд+ала"))
+        val oxy = Stress(d, firstVowel, rules = Rules().with("end_oxy", true))
+        assertEquals("+ухо востр+о" to false, oxy.modelEnd("+ухо востр+о."))
+        assertEquals("он+и пошл+и дом+ой" to false, oxy.modelEnd("он+и пошл+и дом+ой."))
+        assertEquals("н+а ст+ол." to false, oxy.modelEnd("н+а ст+ол."))
+        assertEquals("+она страд+ала." to false, oxy.modelEnd("+она страд+ала."))
+        assertEquals("востр+о…" to false, oxy.modelEnd("востр+о…"))
+        assertEquals("востр+о!" to false, oxy.modelEnd("востр+о!"))
+        assertEquals("востр+о..." to false, oxy.modelEnd("востр+о..."))
+    }
 }

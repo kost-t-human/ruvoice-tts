@@ -458,6 +458,22 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private val prefixHyphenRe = Regex("(?<![а-яё+])(во|по|из)-(?=[а-яё])", RegexOption.IGNORE_CASE)
     fun forModel(accented: String) = if (rules.on("prefix_space")) prefixHyphenRe.replace(accented, "$1 ") else accented
 
+    /** Последняя гласная входа модели всегда тянется (13 кадров) и без знака в конце перетягивает ударение:
+     * «страд+ала» звучит «страдал+а», с точкой — верно. Перед точкой наоборот: ударная последняя гласная
+     * («востр+о.») глохнет и падает по высоте, громче звучит предударная — слышно «в+остро» (v5_5_ru, все голоса).
+     * end_dot: кусок без знака в конце — точка (second = true: ей кадр длины, чтобы не добавлять тишины);
+     * end_oxy: точку после слова с ударением на последний слог снимаем. Такому слову точку и не добавляем. */
+    fun modelEnd(accented: String): Pair<String, Boolean> {
+        val t = accented.trimEnd()
+        if (t.isEmpty()) return accented to false
+        val oxy = oxytoneEndRe.containsMatchIn(t.removeSuffix("."))
+        if (t.last().isLetter()) return if (rules.on("end_dot") && !oxy) "$t." to true else accented to false
+        if (rules.on("end_oxy") && oxy && t.endsWith(".") && !t.endsWith("..")) return t.dropLast(1) to false
+        return accented to false
+    }
+    /** Последнее слово: есть гласная до ударной, после ударной — только согласные. */
+    private val oxytoneEndRe = Regex("[аеёиоуыэюя]\\S*\\+[аеёиоуыэюя][^\\sаеёиоуыэюя]*$", RegexOption.IGNORE_CASE)
+
     private fun tokenize(sentence: String): Triple<List<String>, List<String>, List<Boolean>> {
         val tokens = ArrayList<String>(); val inputs = ArrayList<String>(); val mask = ArrayList<Boolean>()
         for (word in splitKeep(sentence)) {

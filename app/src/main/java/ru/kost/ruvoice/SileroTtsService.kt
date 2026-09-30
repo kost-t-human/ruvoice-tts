@@ -561,7 +561,7 @@ class SileroTtsService : TextToSpeechService() {
                 return synchronized(models) {
                     try {
                         models.ensureLoaded(voice.pack)
-                        val accented = stress.apply(prepared, marks.text)
+                        val (accented, endDot) = stress.modelEnd(stress.apply(prepared, marks.text))
                         if (auditNames) audit.names(seg.text, accented, known)
                         val forModel = stress.forModel(accented)
                         if (!screenReader && rules.on("verbose_log")) note("в модель: «${visible(forModel)}»")
@@ -578,7 +578,7 @@ class SileroTtsService : TextToSpeechService() {
                         val symbDurs = (2 until seq.size).mapNotNull { i ->
                             val fr = pauseFrames[seq[i].toInt()] ?: return@mapNotNull null
                             if (accented[i - 1] in "–—" && accented.substring(0, i - 1).trimEnd().lastOrNull()?.let { it in Marks.PUNCT } == true) null else i.toLong() to fr
-                        }.toMap() + al.symbDurs
+                        }.toMap() + (if (endDot) mapOf((seq.size - 2).toLong() to 1L) else emptyMap()) + al.symbDurs
                         SegOut.Model(models.synthesize(seq, curSpeakerId, sr, al.rates, al.pitches, typeIds, al.focus, symbDurs, voice.types), Marks.tokens(accented, sym))
                     } catch (e: Throwable) {
                         // Throwable, не Exception: OOM на длинном forward не должен убивать сервис.
