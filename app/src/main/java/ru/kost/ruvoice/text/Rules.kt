@@ -23,6 +23,8 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         // быстрый старт чтеца — своим правилом, независимо от книжного fast_start
         var r = with("fast_start", on("sr_fast_start"))
         if (on("sr_symbols")) r = r.with("symbol_names", true)
+        // ссылки у чтеца решает sr_link_word; книжный link_domain («только сайт») сюда не переходит
+        r = r.with("link_domain", false)
         if (on("sr_link_word")) r = r.with(LINK_WORD, true)
         if (on("sr_quote_off")) r = r.with("speech", false)
         if (on("sr_lead_in_off")) r = r.with("lead_in", false)
@@ -53,13 +55,13 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         const val FOCUS_MAX = 3
 
         /** Правила, выключенные по умолчанию. */
-        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails", "en_proxy_books", "en_proxy_sr", "letter_echo_all", LETTER_ECHO, "verbose_log", "sr_link_word", LINK_WORD, SCREEN_READER)
+        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "link_domain", "drop_emails", "en_proxy_books", "en_proxy_sr", "letter_echo_all", LETTER_ECHO, "verbose_log", "sr_link_word", LINK_WORD, SCREEN_READER)
 
         /** Порядок списка = порядок на экране. Вверху «Чтение с экрана» (только запросы экранного чтеца),
          * за ней «Разное» — для настроек без своего раздела. */
         val KEYS = listOf(
             "sr_fast_start", "sr_symbols", "sr_link_word", "sr_quote_off", "sr_lead_in_off", "sr_pauses_off", "sr_keep_loaded", "sr_phrase_disk",
-            "symbol_names", "emoji", "letter_name", "letter_echo_all", "lead_in", "fast_start", "drop_links", "drop_emails", "read_links",
+            "symbol_names", "emoji", "letter_name", "letter_echo_all", "lead_in", "fast_start", "drop_links", "link_domain", "drop_emails", "read_links",
             "phones", "codes", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
             "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",

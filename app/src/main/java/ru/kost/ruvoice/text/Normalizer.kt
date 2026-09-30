@@ -158,7 +158,8 @@ object Normalizer {
         for (m in urlRe.findAll(s)) { sb.append(f(s.substring(at, m.range.first))).append(m.value); at = m.range.last + 1 }
         return sb.append(f(s.substring(at))).toString()
     }
-    fun hasUrl(s: String) = s.contains("http", ignoreCase = true) || s.contains("www.", ignoreCase = true) || '@' in s
+    fun hasUrl(s: String) = s.contains("http", ignoreCase = true) || s.contains("www.", ignoreCase = true) || '@' in s ||
+        ('/' in s && '.' in s) // сайт без схемы: «habr.com/ru/…»
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
@@ -1980,9 +1981,14 @@ object Normalizer {
     // Ссылка читается по частям, как у ru-normalizr: буквы словами (транслит ниже), цифры по одной,
     // разделители названиями; схема «https://» и хвостовая пунктуация не читаются. Правила
     // drop_links / drop_emails выкидывают ссылку или почту целиком; у чтеца с sr_link_word (Rules.LINK_WORD)
-    // ссылка — словом «ссылка» и сайтом без «www.» («ссылка, youtube точка com»), это важнее drop_links. Почту не трогает.
+    // и в книгах с link_domain ссылка — словом «ссылка» и сайтом без «www.» («ссылка, youtube точка com»),
+    // это важнее drop_links. Почту не трогает.
     // Почта — тем же способом: «mail@example.com» → «мейл собака ексампл точка ком».
-    val urlRe = Regex("""(?:https?://|www\.)[^\s<>«»"']*[^\s<>«»"'.,;:!?)\]}/]|[\w.+-]+@[\w-]+(?:\.[\w-]+)+""", RegexOption.IGNORE_CASE)
+    // Адрес без схемы и «www.» — сайт с известной зоной и путём после неё («habr.com/ru/articles/1», «t.me/c/1»):
+    // без пути «vk.com» остаётся словом, а зона из списка не даёт принять за адрес «Node.js/Express».
+    private const val urlTail = """[^\s<>«»"']*[^\s<>«»"'.,;:!?)\]}/]"""
+    private const val urlZones = "com|ru|org|net|io|me|info|su|ua|by|kz|uz|de|uk|co|tv|dev|app|gov|edu|biz|pro|xyz|ai|cc|to|ly|gl|gg|fm|be|us|eu|site|online|store|blog|news"
+    val urlRe = Regex("""(?:https?://|www\.)$urlTail|(?<![\w@./-])(?:[a-z0-9][a-z0-9-]*\.)+(?:$urlZones)/$urlTail|[\w.+-]+@[\w-]+(?:\.[\w-]+)+""", RegexOption.IGNORE_CASE)
     private val urlSeparators = mapOf(':' to "двоеточие", '/' to "слэш", '.' to "точка", '?' to "вопрос", '&' to "амперсанд",
         '=' to "равно", '-' to "дефис", '_' to "нижнее подчёркивание", '#' to "решётка", '%' to "процент", '+' to "плюс",
         '@' to "собака", '~' to "тильда")
@@ -2007,7 +2013,7 @@ object Normalizer {
         val kept = mutableListOf<String>()
         val masked = urlRe.replace(text) {
             when {
-                '@' !in it.value && rules.on(Rules.LINK_WORD) -> "ссылка, " + spellUrl(urlHost(it.value))
+                '@' !in it.value && (rules.on(Rules.LINK_WORD) || rules.on("link_domain")) -> "ссылка, " + spellUrl(urlHost(it.value))
                 rules.on(if ('@' in it.value) "drop_emails" else "drop_links") -> ""
                 rules.on("read_links") -> spellUrl(it.value)
                 else -> { kept += it.value; "\u0001${"\u0002".repeat(kept.size)}\u0001" }

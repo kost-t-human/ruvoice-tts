@@ -129,6 +129,14 @@ class CorpusRulesTest {
         val srLink = Rules(setOf("sr_link_word", "drop_links")).screenReader()
         assertEquals("Откройте ссылка, эй точка би и ссылка, ya точка ru, почта эй собака би точка ru", Normalizer.numbers("Откройте https://a.b/5Mb/s и www.ya.ru, почта a@b.ru", srLink))
         assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules(setOf("sr_link_word", "drop_links"))))
+        // сайт без схемы и www — адрес, если после зоны идёт путь; drop_links выкидывает его целиком
+        assertEquals("смотрите и тут", Normalizer.numbers("смотрите habr.com/ru/articles/123456 и t.me/c/1/2 тут", Rules(setOf("drop_links"))))
+        assertEquals("Node.js/Express и vk.com", Normalizer.numbers("Node.js/Express и vk.com", Rules(setOf("drop_links"))))
+        // link_domain — книжный: «ссылка» и сайт, важнее drop_links; чтецу не передаётся
+        val bookLink = Rules(setOf("link_domain", "drop_links"))
+        assertEquals("Подробнее: ссылка, youtube точка com и ссылка, habr точка com, почта эй собака би точка ru",
+            Normalizer.numbers("Подробнее: https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=4 и habr.com/ru/1, почта a@b.ru", bookLink))
+        assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", bookLink.screenReader()))
         assertEquals("Ryzen пять тысяч восемьсот экс три ди, джи пи т+и-четыре оу, экран одна тысяча восемьдесят пи, витамин-ди",
             n("Ryzen 5800X3D, GPT-4o, экран 1080p, витамин-D"))
         assertEquals("пиши на mail точка ru собака example точка com, не на тот", n("пиши на mail.ru@example.com, не на тот"))
