@@ -25,6 +25,10 @@ class AbbrevTest {
         assertEquals("эмм чэ +эс и ээр +эф", Abbrev.apply("Мчс и рф"))
     }
 
+    @Test fun abbreviationsWithVowelsFromSpellList() {
+        assertEquals("а э +эс, о а +э, и п+э, у к+а", Abbrev.apply("АЭС, ОАЭ, ИП, УК"))
+    }
+
     @Test fun lowercaseUnitsInterjectionsAndWordsLeftUntouched() {
         assertEquals("хм, 5 км, см. гл. 2, тсс, ммм, в рот", Abbrev.apply("хм, 5 км, см. гл. 2, тсс, ммм, в рот"))
     }
