@@ -74,13 +74,31 @@ object Abbrev {
     private val cyrToken = Regex("""(?<!\d-)(?<![\p{L}\d])[А-ЯЁ]{2,6}(?![\p{L}\d])(?!-\d)""")
     private val latToken = Regex("""(?<!\d-)(?<![\p{L}\d])[A-Z]{2,5}(?![\p{L}\d])(?!-\d)""")
 
+    // Строчными: расшифровки YouTube, чаты пишут «ввп», «жкх», «ндс» (30.09.2026) — модель читает голые согласные.
+    // Русских слов без гласных нет, кроме предлогов из одной буквы, сокращений с точкой/после числа и междометий.
+    // «+» и знак ударения рядом — часть слова («Фр+идрих», «сл́ова»), дефис — составное слово или код
+    private val cyrLowerToken = Regex("""(?<![\p{L}\d+\u0301-])[А-ЯЁа-яё][а-яё]{1,4}(?![\p{L}\d+\u0301-])""")
+    // ponytail: стоп-лист, пополнять по жалобам
+    private val lowerNotAbbr = setOf(
+        // единицы и сокращения, которые раскрывает Normalizer или читают словом
+        "мм", "см", "км", "дм", "кг", "мг", "гр", "мл", "кв", "шт", "ст", "гг", "вв", "тт", "пп", "пр", "св", "гл", "стр",
+        "млн", "млрд", "трлн", "тг", "кб", "мб", "гб", "тб", "вт", "квт", "мвт", "гц", "кгц", "мгц", "кл", "дж", "тл", "вб", "гн", "сб", "вс", "пн", "чт", "пт",
+        "др", "тд", "тп", "вкл", "откл", "пж", "пжл", "плз", "спс", "нзч", "здр", "прв", "крч", "вщ", "лл",
+        // междометия
+        "хм", "гм", "кхм", "хмм", "тс", "тсс", "пст", "псс", "брр", "шш", "пф", "пфф", "фф", "чш", "цц", "мгм", "бр", "тпр"
+    )
+
+    // с заглавной — только от трёх букв: «Кл», «Вт», «Дж» — единицы, а «Ндс» в начале фразы — аббревиатура
+    private fun lowerAbbr(t: String) = (t.length > 2 || t[0].isLowerCase()) && t.none { it.uppercaseChar() in CYR_VOWELS || it in "йьъЙЬЪ" } &&
+        t.lowercase().toSet().size > 1 && t.lowercase() !in lowerNotAbbr
+
     fun apply(text: String, rules: Rules = Rules()): String {
-        val withCyr = if (rules.on("spell_cyr")) cyrToken.replace(text) { m ->
+        val withCyr = if (rules.on("spell_cyr")) cyrLowerToken.replace(cyrToken.replace(text) { m ->
             // соседнее слово капсом — заголовок или крик («ЧТО ДЕЛАТЬ»), не аббревиатура
             val caps = capsWordBefore.containsMatchIn(text.substring(maxOf(0, m.range.first - 40), m.range.first)) ||
                 capsWordAfter.containsMatchIn(text.substring(m.range.last + 1, minOf(text.length, m.range.last + 41)))
             spellCyr(m.value, !caps)
-        } else text
+        }) { m -> if (lowerAbbr(m.value)) spellOut(m.value.uppercase(), cyrLetterNames) else m.value } else text
         return if (rules.on("spell_lat")) latToken.replace(withCyr) { spellLat(it.value) } else withCyr
     }
 
