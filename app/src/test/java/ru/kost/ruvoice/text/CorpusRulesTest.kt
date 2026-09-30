@@ -147,7 +147,7 @@ class CorpusRulesTest {
         assertEquals("Откройте https://a.b/5Mb/s и пять штук", Normalizer.numbers("Откройте https://a.b/5Mb/s и 5 штук", Rules(setOf("read_links", "link_domain"))))
         assertEquals("два + три = пять", Normalizer.numbers("2 + 3 = 5", Rules(setOf("arith"))))
         assertEquals("пиши на www точка ya точка ru, не на",
-            Normalizer.numbers("пиши на a@b.ru www.ya.ru, не на", Rules(setOf("drop_emails"))))
+            Normalizer.numbers("пиши на a@b.ru www.ya.ru, не на", Rules(setOf("drop_emails", "link_domain"))))
         assertEquals("версия два точка ноль три точка один", n("версия 2.03.1"))
         assertEquals("GPT четыре точка пять", n("GPT-4.5").replace("джи пи т+и-", "GPT "))
     }
