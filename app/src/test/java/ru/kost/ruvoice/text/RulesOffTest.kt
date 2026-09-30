@@ -153,7 +153,7 @@ class RulesOffTest {
     }
 
     /** Конец входа модели: кусок без знака — с точкой, кроме слова с ударением на последний слог; end_oxy снимает точку
-     * после такого слова (по умолчанию выключено). */
+     * после такого слова. */
     @Test fun modelEnd() {
         val st = Stress(d, firstVowel)
         assertEquals("страд+ала." to true, st.modelEnd("страд+ала"))
@@ -161,10 +161,10 @@ class RulesOffTest {
         assertEquals("страд+ала." to false, st.modelEnd("страд+ала."))
         assertEquals("ст+ол." to true, st.modelEnd("ст+ол"))
         assertEquals("+ухо востр+о" to false, st.modelEnd("+ухо востр+о"))
-        assertEquals("+ухо востр+о." to false, st.modelEnd("+ухо востр+о."))
+        assertEquals("+ухо востр+о." to false, Stress(d, firstVowel, rules = off("end_oxy")).modelEnd("+ухо востр+о."))
         assertEquals("т+ы ид+ёшь?" to false, st.modelEnd("т+ы ид+ёшь?"))
         assertEquals("страд+ала" to false, Stress(d, firstVowel, rules = off("end_dot")).modelEnd("страд+ала"))
-        val oxy = Stress(d, firstVowel, rules = Rules().with("end_oxy", true))
+        val oxy = st
         assertEquals("+ухо востр+о" to false, oxy.modelEnd("+ухо востр+о."))
         assertEquals("он+и пошл+и дом+ой" to false, oxy.modelEnd("он+и пошл+и дом+ой."))
         assertEquals("н+а ст+ол." to false, oxy.modelEnd("н+а ст+ол."))

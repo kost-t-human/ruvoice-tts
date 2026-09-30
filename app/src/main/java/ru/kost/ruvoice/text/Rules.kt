@@ -55,7 +55,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
         const val FOCUS_MAX = 3
 
         /** Правила, выключенные по умолчанию. */
-        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails", "en_proxy_books", "en_proxy_sr", "letter_echo_all", LETTER_ECHO, "verbose_log", "end_oxy", "sr_link_word", LINK_WORD, SCREEN_READER)
+        val DEFAULT_OFF = setOf("symbol_names", "fast_start", "drop_links", "drop_emails", "en_proxy_books", "en_proxy_sr", "letter_echo_all", LETTER_ECHO, "verbose_log", "sr_link_word", LINK_WORD, SCREEN_READER)
 
         /** Порядок списка = порядок на экране. Вверху «Чтение с экрана» (только запросы экранного чтеца),
          * за ней «Разное» — для настроек без своего раздела. */
