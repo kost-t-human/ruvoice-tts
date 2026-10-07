@@ -24,6 +24,7 @@ import androidx.core.widget.NestedScrollView
 import androidx.core.widget.TextViewCompat
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.textfield.TextInputEditText
 import ru.kost.ruvoice.text.Rules
@@ -56,7 +57,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     // «куда сохранить», Android может уничтожить экран или весь процесс: исходник переживает это через
     // savedInstanceState и постоянное разрешение на чтение, иначе окно закрывалось и ничего не происходило
     private var accentIn: Uri? = null
-    private val accentOutLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-fictionbook+xml")) { out ->
+    private val accentOut = ActivityResultCallback<Uri?> { out ->
         val src = accentIn
         when {
             out == null -> src?.let { releaseRead(it) }
@@ -67,11 +68,14 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             else -> accentBook(src, out)
         }
     }
+    private val accentOutLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-fictionbook+xml"), accentOut)
+    private val accentTxtLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), accentOut)
     private val accentInLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             accentIn = uri
             runCatching { requireContext().contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            accentOutLauncher.launch(displayName(uri).replace(bookExt, "") + " (ударения).fb2")
+            val name = displayName(uri).replace(bookExt, "") + " (ударения)"
+            if (prefs.accentBookTxt) accentTxtLauncher.launch("$name.txt") else accentOutLauncher.launch("$name.fb2")
         }
     }
     private fun releaseRead(uri: Uri) = runCatching { requireContext().contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
@@ -206,10 +210,14 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         val acute = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_acute) }
         val plus = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_plus) }
         val group = RadioGroup(ctx).apply { addView(acute); addView(plus); check(if (prefs.accentBookPlus) plus.id else acute.id) }
+        val fb2 = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_fb2) }
+        val txt = RadioButton(ctx).apply { id = View.generateViewId(); setText(R.string.accent_book_txt) }
+        val format = RadioGroup(ctx).apply { addView(fb2); addView(txt); check(if (prefs.accentBookTxt) txt.id else fb2.id) }
         val hardE = CheckBox(ctx).apply { setText(R.string.accent_book_hard_e); isChecked = prefs.accentBookHardE }
         val abbr = CheckBox(ctx).apply { setText(R.string.accent_book_abbr); isChecked = prefs.accentBookAbbr }
         val homoOnly = CheckBox(ctx).apply { setText(R.string.accent_book_homo_only); isChecked = prefs.accentBookHomoOnly }
-        bodyDialog(R.string.accent_book, getText(R.string.accent_book_help), listOf(group, hardE, abbr, homoOnly), R.string.cancel to {}, R.string.audit_scan_pick to {
+        bodyDialog(R.string.accent_book, getText(R.string.accent_book_help), listOf(format, group, hardE, abbr, homoOnly), R.string.cancel to {}, R.string.audit_scan_pick to {
+            prefs.accentBookTxt = format.checkedRadioButtonId == txt.id
             prefs.accentBookPlus = group.checkedRadioButtonId == plus.id
             prefs.accentBookHardE = hardE.isChecked
             prefs.accentBookAbbr = abbr.isChecked
@@ -288,6 +296,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
     /** Книга целиком через конвейер сервиса (BookAccent), по абзацам; прервали или упало — недописанный файл удаляется. */
     private fun accentBook(src: Uri, out: Uri) {
         val ctx = requireContext().applicationContext
+        val asTxt = prefs.accentBookTxt
         scanCancelled = false
         val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.accent_book).setMessage(R.string.accent_book_loading)
             .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
@@ -310,7 +319,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                     !scanCancelled
                 }
                 if (done == null) ctx.getString(R.string.accent_book_cancelled) else {
-                    ctx.contentResolver.openOutputStream(out, "wt")?.use { it.write(done.toByteArray()) } ?: throw IllegalStateException("Не удалось записать файл")
+                    val text = if (asTxt) BookAccent.txt(done) else done
+                    ctx.contentResolver.openOutputStream(out, "wt")?.use { it.write(text.toByteArray()) } ?: throw IllegalStateException("Не удалось записать файл")
                     ok = true
                     ctx.getString(R.string.accent_book_done)
                 }

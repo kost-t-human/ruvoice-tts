@@ -279,6 +279,10 @@ object BookAccent {
         } finally { models.release() }
     }
 
+    /** fb2 с ударениями → txt: абзац — строка, без описания, сносок и картинок (как у «Имён из книги»). */
+    fun txt(fb2: String): String =
+        Book.text(fb2.toByteArray()).lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n", postfix = "\n")
+
     private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     private const val MAX_CELLS = 4_000_000L   // 16 МБ на абзац; длиннее — редкость (сплошной текст без абзацев)

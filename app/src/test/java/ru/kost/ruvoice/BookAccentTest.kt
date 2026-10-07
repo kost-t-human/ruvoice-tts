@@ -95,4 +95,10 @@ class BookAccentTest {
         val homo = { w: String -> w == "замок" }
         assertEquals("З+амок-крепость стоял на холме.", BookAccent.apply(src, BookAccent.edits(src, acc, homo = homo), BookAccent.Mode.PLUS))
     }
+
+    @Test fun fb2ToTxt() {
+        val fb2 = "<?xml version=\"1.0\" encoding=\"utf-8\"?><FictionBook><description><book-title>Имя</book-title></description>" +
+            "<body><section><p>  За́мок &amp; дом</p>\n\n<p>Второ́й</p></section></body><body name=\"notes\"><p>сноска</p></body></FictionBook>"
+        assertEquals("За́мок & дом\nВторо́й\n", BookAccent.txt(fb2))
+    }
 }
