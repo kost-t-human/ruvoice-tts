@@ -73,6 +73,18 @@ def load_lib(path, skip):
     return out
 
 
+def load_hyphen(path=os.path.join(HERE, 'hyphen_first.txt')):
+    """«темно = т+ёмно» — первая часть сложного слова; «по-моему = по-м+оему» — слово целиком."""
+    out = []
+    for line in open(path, encoding='utf-8'):
+        t = line.split('#', 1)[0].strip()
+        if '=' not in t: continue
+        k, v = (x.strip() for x in t.split('=', 1))
+        assert v.count('+') == 1 and v.replace('+', '').replace('ё', 'е') == k, line
+        out.append((k, v))
+    return out
+
+
 def main():
     import stress_fixes, phrases_extra
     drop = stress_fixes.load_drop()   # tools/dict_drop.txt: и ключи, и е-копии
@@ -102,6 +114,11 @@ def main():
         for a, b in COMPOUNDS: o.write(f'{a}-* = {b}-*\n')
         o.write('# Первые части сложных прилагательных, где модель ставит ударение на конец: «бел+о-голубая»\n')
         for a, b in COMPOUND_STRESS: o.write(f'{a}-* = {b}-*\n')
+        o.write('# То же из дефисных словарей Balamoote (tools/hyphen_first.txt): первые части «медико-*», вторые части «по-моему»\n')
+        done = {a for a, _ in COMPOUNDS + COMPOUND_STRESS + ORTHOEPY}
+        for a, b in load_hyphen():
+            if a in done: continue
+            o.write(f'{a} = {b}\n' if '-' in a else f'{a}-* = {b}-*\n'); n += 1
         o.write('# Орфоэпия: междометия без гласной подлиннее\n')
         for a, b in ORTHOEPY: o.write(f'{a} = {b}\n'); n += 1
         o.write('# Аббревиатуры с устоявшимся чтением\n')

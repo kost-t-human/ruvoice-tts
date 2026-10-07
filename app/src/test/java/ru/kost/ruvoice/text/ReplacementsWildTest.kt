@@ -73,6 +73,12 @@ class ReplacementsWildTest {
         assertEquals("чёрно-белый чёрного", Replacements.parse(listOf("черно-* = чёрно-*", "темно-* = тёмно-*", "желто-* = жёлто-*")).apply("черно-белый чёрного"))
     }
 
+    @Test fun stressOrYoMaskRuleKeepsCaseOfMatchedText() {
+        val r = Replacements.parse(listOf("темно-* = тёмно-*", "бело-* = б+ело-*", "туник* = тун+ик", "черт* = бес*"))
+        assertEquals("Тёмно-синий, Б+ело-голубая, ТЁМНО-СЕРЫЙ, Тун+ика", r.apply("Темно-синий, Бело-голубая, ТЕМНО-СЕРЫЙ, Туника"))
+        assertEquals("беси", r.apply("Черти"))   // замена другими буквами — как есть
+    }
+
     @Test fun stressOnlyRuleKeepsCaseOfMatchedText() {
         val r = Replacements.parse(listOf("старый замок = старый з+амок", "дорого = д+орого"))
         assertEquals("Старый з+амок. СТАРЫЙ З+АМОК, д+орого", r.apply("Старый замок. СТАРЫЙ ЗАМОК, дорого"))

@@ -114,7 +114,7 @@ class Replacements private constructor(private val rules: List<Rule>, private va
             if (to <= last) return
             m.region(maxOf(last, from), to)
             while (m.find()) {
-                (sb ?: StringBuilder(text.length).also { sb = it }).append(text, last, m.start()).append(expand(rule.value, m))
+                (sb ?: StringBuilder(text.length).also { sb = it }).append(text, last, m.start()).append(keepCase(expand(rule.value, m), m.group()))
                 last = m.end()
             }
         }
@@ -156,6 +156,17 @@ class Replacements private constructor(private val rules: List<Rule>, private va
             fun edge(c: Char) = wordChar(c) || (mask && c == '*')
             return edge(key.first()) && edge(key.last())
         }
+
+        /** Замена отличается от совпадения только «+» и «е/ё» («темно-* = т+ёмно-*»): регистр букв — из текста,
+         * «Темно-синий» → «Т+ёмно-синий», как у литерального stressOnly. Иначе замена как есть. */
+        private fun keepCase(rep: String, src: String): String {
+            val bare = rep.replace("+", "")
+            if (bare.length != src.length || !bare.indices.all { bare[it].lowercaseChar().yoE() == src[it].lowercaseChar().yoE() }) return rep
+            val out = StringBuilder(rep.length); var k = 0
+            for (c in rep) if (c == '+') out.append(c) else { out.append(if (src[k].isUpperCase()) c.uppercaseChar() else c.lowercaseChar()); k++ }
+            return out.toString()
+        }
+        private fun Char.yoE() = if (this == 'ё') 'е' else this
 
         /** «*» замены → захват такой же по счёту «*» ключа; лишние «*» — пусто. Без маски в ключе
          * «*» остаётся текстом: «*слово*» — маркер логического ударения для Marks. */
