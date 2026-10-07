@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 
-/** «Книга с ударениями» на живых настройках: книга из cache/book_in.fb2 → cache/book_out.fb2 (класть и забирать через run-as). */
+/** «Книга с ударениями» на живых настройках: книга из cache/book_in.fb2 → cache/book_out.fb2 и book_out.txt (класть и забирать через run-as). */
 @RunWith(AndroidJUnit4::class)
 class BookAccentDeviceTest {
     @Test fun book() {
@@ -24,6 +24,7 @@ class BookAccentDeviceTest {
         } } finally { prefs.accentBookAbbr = oldAbbr }
         assertNotNull(out)
         File(ctx.cacheDir, "book_out.fb2").writeText(out!!)
+        File(ctx.cacheDir, "book_out.txt").writeText(BookAccent.txt(out))
         Log.i("BookAccent", "готово за ${(System.currentTimeMillis() - t0) / 1000} с")
     }
 
