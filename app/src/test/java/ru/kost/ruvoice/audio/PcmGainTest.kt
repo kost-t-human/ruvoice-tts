@@ -14,10 +14,18 @@ class PcmGainTest {
         assertEquals(0.25f, a[0], 1e-6f); assertEquals(-0.45f, a[1], 1e-6f); assertEquals(0.5f, a[2], 1e-6f)
     }
 
-    @Test fun oneIsNoop() {
-        val a = floatArrayOf(0.3f, -1f)
+    @Test fun oneIsNoopUnderCeiling() {
+        val a = floatArrayOf(0.3f, -0.9f)
         Pcm.gain(a, 1f, sr)
-        assertEquals(0.3f, a[0]); assertEquals(-1f, a[1])
+        assertEquals(0.3f, a[0]); assertEquals(-0.9f, a[1])
+    }
+
+    /** ×1, но модель дала пик 1,0 (крик): ограничитель срабатывает и тут, иначе срез в toPcm16. */
+    @Test fun oneLimitsPeakAboveCeiling() {
+        val a = FloatArray(sr) { if (it == sr / 2) -1f else (0.2 * Math.sin(it * 0.05)).toFloat() }
+        Pcm.gain(a, 1f, sr)
+        assertTrue(a.all { Math.abs(it) <= 0.97f })
+        assertEquals((0.2 * Math.sin(100 * 0.05)).toFloat(), a[100], 1e-6f)   // вдали от пика звук не тронут
     }
 
     /** Тихий звук при ×3 усиливается ровно в 3 раза: ограничителю нечего делать. */

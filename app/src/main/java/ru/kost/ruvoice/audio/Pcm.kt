@@ -14,12 +14,15 @@ object Pcm {
     /** Потолок усиления: и ползунка «Громкость», и всей суммы поправок английского. */
     const val MAX_GAIN = 3f
 
-    /** Громкость голоса: множитель поверх того, что даёт модель. Тише — ровно в g раз. Громче — ограничитель
+    /** Громкость голоса: множитель поверх того, что даёт модель. Если пик и после множителя под [CEIL] — ровно в g раз
+     * (при ×1 без изменений). Иначе, при любом g, — ограничитель
      * с упреждением: там, где пик вылез бы за [CEIL], плавно (за ~[LIMIT_MS] мс до и после) убавляется усиление
      * всего звука, форма волны не гнётся. Изгиб каждого сэмпла (tanh) при ×3 уже слышен как хрип. */
     fun gain(samples: FloatArray, g: Float, sampleRate: Int) {
-        if (g == 1f || samples.isEmpty()) return
-        if (g < 1f) { for (i in samples.indices) samples[i] *= g; return }
+        if (samples.isEmpty()) return
+        // и при ×1: крик («Стой!») модель выдаёт с пиком 1,0 — без потолка он срезается в toPcm16
+        var peak = 0f; for (s in samples) peak = maxOf(peak, Math.abs(s))
+        if (peak * g <= CEIL) { if (g != 1f) for (i in samples.indices) samples[i] *= g; return }
         val n = samples.size
         // сколько можно дать каждому сэмплу, чтобы он остался под потолком
         val need = FloatArray(n) { val a = Math.abs(samples[it]) * g; if (a > CEIL) CEIL / a else 1f }
