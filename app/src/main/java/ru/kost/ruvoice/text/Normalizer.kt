@@ -2565,5 +2565,11 @@ object Normalizer {
     // всё как раньше (review t17 round2 п.1).
     // Abbrev до latin(): latin() лоуэркейсит текст, а аббревиатуры узнаются по КАПСУ.
     fun prepare(text: String, allowed: String, rules: Rules = Rules()): String =
-        symbols(latin(Abbrev.apply(camelCase(numbers(punctuation(text, rules), rules), rules), rules), rules), allowed, rules)
+        symbols(latin(Abbrev.apply(camelCase(numbers(punctuation(imageMark(text, rules), rules), rules), rules), rules), rules), allowed, rules)
+
+    // Пометка картинки от AlReaderX «(- Иллюстрация -)»: с дефисами вокруг модель на быстром темпе комкала слово
+    // (жалоба 08.10.2026). Чистым словом с точкой, по drop_images — не читаем вовсе.
+    private val imageMarkRe = Regex("""\(\s*[-–—]?\s*Иллюстрация\s*[-–—]?\s*\)""")
+    private fun imageMark(text: String, rules: Rules) =
+        if ('(' !in text) text else imageMarkRe.replace(text, if (rules.on("drop_images")) "" else "Иллюстрация.")
 }

@@ -44,6 +44,12 @@ class RulesTest {
         assertEquals("от латинского homo", n("от лат. homo"))
     }
 
+    @Test fun imageMark() {
+        // «(- Иллюстрация -)» от AlReaderX комкалось на быстром темпе (жалоба 08.10.2026)
+        assertEquals("иллюстрация.", p("(- Иллюстрация -)"))
+        assertEquals("", Normalizer.prepare("(- Иллюстрация -)", TestData.data().allowed, Rules(setOf("drop_images"))))
+    }
+
     @Test fun filePathIsLink() {
         // путь к книге в конце от AlReaderX (жалоба 08.10.2026): по read_links — по частям, иначе выкидываем
         val path = "/home/kost/Загрузки/Telegram Desktop/07 E TNOS. CHast pervaya Paradigma.fb2"
