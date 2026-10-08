@@ -30,6 +30,10 @@
         android:title="@string/troubleshoot_title"
         app:showAsAction="never" />
     <item
+        android:id="@+id/ui_settings"
+        android:title="@string/ui_title"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/about"
         android:title="@string/about_title"
         app:showAsAction="never" />

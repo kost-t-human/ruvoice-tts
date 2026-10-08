@@ -42,14 +42,14 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     fun apply(sentence: String, source: String = sentence): String {
         var s = sentence
         fun step(name: String, next: String) { trace?.add("$name: $next"); s = next }
-        trace?.add("вход: $sentence")
+        trace?.add("input: $sentence")
         // слова, пришедшие уже с «+» (фраза из словаря замен или ударение в самом тексте): словарь ударений их не трогает,
         // фраза конкретнее слова («обливаясь п+отом» против «потом = пот+ом»)
         val preset = wordRe.findAll(sentence).filter { '+' in it.value }.map { it.value.lowercase() }.toSet()
         if (rules.on("gram")) step("gram", gramPass(s, source = source))
         if (rules.on("homo")) step("homo", homographPass(s))
         if (rules.on("accentor")) step("accentor", accentorPass(s))
-        step("словарь", userDictPass(s, sentence, preset))
+        step("dict", userDictPass(s, sentence, preset))
         // твёрдое [э] в заимствованиях — после всех ударений, чтобы модель и словари видели обычное «е»
         if (rules.on("hard_e") && hardE != null) step("hard_e", hardE.apply(s))
         return s

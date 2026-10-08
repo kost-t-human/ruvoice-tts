@@ -149,7 +149,9 @@ class Profiles(private val context: Context) {
         if (raw != null) runCatching {
             val arr = JSONArray(raw)
             val l = (0 until arr.length()).map { arr.getJSONObject(it) }.map {
-                Profile(it.getString("id"), it.getString("name"), ProfileData.decode(it.optJSONObject("prefs") ?: JSONObject()))
+                // неизменённое имя основного — на языке интерфейса, а не того, на каком его создали
+                val name = it.getString("name").let { n -> if (it.getString("id") == MAIN && n in MAIN_NAMES) context.getString(R.string.profile_main) else n }
+                Profile(it.getString("id"), name, ProfileData.decode(it.optJSONObject("prefs") ?: JSONObject()))
             }
             if (l.any { it.main }) return l
         }
@@ -207,6 +209,8 @@ class Profiles(private val context: Context) {
 
     companion object {
         const val MAIN = "main"
+        /** profile_main во всех переводах (values, values-en, values-zh): добавили язык — добавить сюда. */
+        private val MAIN_NAMES = setOf("Основной", "Main", "主方案")
         private val LOCK = Any()
     }
 }

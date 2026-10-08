@@ -74,7 +74,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         if (uri != null) {
             accentIn = uri
             runCatching { requireContext().contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            val name = displayName(uri).replace(bookExt, "") + " (ударения)"
+            val name = getString(R.string.accent_book_file, displayName(uri).replace(bookExt, ""))
             if (prefs.accentBookTxt) accentTxtLauncher.launch("$name.txt") else accentOutLauncher.launch("$name.fb2")
         }
     }
@@ -104,8 +104,9 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         v.findViewById<CheckBox>(R.id.showHidden).setOnCheckedChangeListener { _, c -> hidden = c; refresh() }
         v.findViewById<View>(R.id.clear).setOnClickListener {
             val name = getString(R.string.audit_tab_names) + if (hidden) getString(R.string.audit_hidden_suffix) else ""
-            MaterialAlertDialogBuilder(requireContext()).setTitle(getString(R.string.audit_clear_confirm, name))
-                .setPositiveButton(R.string.delete) { _, _ ->
+            // «Имена» — и вкладка, и список ударений: говорим прямо, что словари не трогаем
+            MaterialAlertDialogBuilder(requireContext()).setTitle(getString(R.string.audit_clear_confirm, name)).setMessage(R.string.audit_clear_note)
+                .setPositiveButton(R.string.audit_clear) { _, _ ->
                     val before = prefs.audit.text(kind)
                     prefs.audit.clear(kind, hidden); refresh()
                     Snackbar.make(requireView(), R.string.audit_cleared, 6000)
@@ -158,6 +159,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
      * Проценты: первая половина — проход по строкам, вторая — батчи акцентора. */
     private fun scan(uri: Uri) {
         val ctx = requireContext().applicationContext
+        // строки — из ресурсов окна: у applicationContext на Android 6–12 язык системы, а не выбранный в «Язык и тема»
+        val res = requireContext().resources
         scanCancelled = false
         val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.audit_scan).setMessage("0 %")
             .setNegativeButton(R.string.cancel) { _, _ -> scanCancelled = true }.setCancelable(false).show()
@@ -167,7 +170,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             val audit = prefs.audit
             val before = audit.entries(kind).size
             val result = try {
-                val text = Book.text(ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл"))
+                val text = Book.text(ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException(res.getString(R.string.err_open_file)))
                 val d = SileroModels.data(ctx)
                 val userDict = prefs.userDict()
                 val r = prefs.rules()
@@ -196,7 +199,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                         if ('+' in v) audit.add(kind, w, v, context, count)
                     }
                 }
-                getString(R.string.audit_scan_done, audit.entries(kind).size - before)
+                res.getString(R.string.audit_scan_done, audit.entries(kind).size - before)
             } catch (e: Exception) { e.message ?: e.toString() } finally { audit.flush(); models.release() }
             activity?.runOnUiThread {
                 dialog.dismiss()
@@ -291,11 +294,12 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
 
     private fun displayName(uri: Uri): String = runCatching {
         requireContext().contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-    }.getOrNull() ?: "книга"
+    }.getOrNull() ?: getString(R.string.book_default)
 
     /** Книга целиком через конвейер сервиса (BookAccent), по абзацам; прервали или упало — недописанный файл удаляется. */
     private fun accentBook(src: Uri, out: Uri) {
         val ctx = requireContext().applicationContext
+        val res = requireContext().resources
         val asTxt = prefs.accentBookTxt
         scanCancelled = false
         val dialog = MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.accent_book).setMessage(R.string.accent_book_loading)
@@ -306,7 +310,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         Thread {
             var ok = false
             val result = try {
-                val bytes = ctx.contentResolver.openInputStream(src)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл")
+                val bytes = ctx.contentResolver.openInputStream(src)?.use { it.readBytes() } ?: throw IllegalStateException(res.getString(R.string.err_open_file))
                 // абзацы идут быстрее процента: счётчик обновляем и по времени, чтобы было видно, что работа идёт
                 var shownAt = 0L; var shownPct = -1
                 val done = BookAccent.make(ctx, bytes, displayName(src).replace(bookExt, "")) { i, n ->
@@ -314,15 +318,15 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                     val now = System.currentTimeMillis()
                     if (pct != shownPct || now - shownAt >= 400) {
                         shownPct = pct; shownAt = now
-                        activity?.runOnUiThread { live.show(pct, ctx.getString(R.string.accent_book_progress, pct, i, n)) }
+                        activity?.runOnUiThread { live.show(pct, res.getString(R.string.accent_book_progress, pct, i, n)) }
                     }
                     !scanCancelled
                 }
-                if (done == null) ctx.getString(R.string.accent_book_cancelled) else {
+                if (done == null) res.getString(R.string.accent_book_cancelled) else {
                     val text = if (asTxt) BookAccent.txt(done) else done
-                    ctx.contentResolver.openOutputStream(out, "wt")?.use { it.write(text.toByteArray()) } ?: throw IllegalStateException("Не удалось записать файл")
+                    ctx.contentResolver.openOutputStream(out, "wt")?.use { it.write(text.toByteArray()) } ?: throw IllegalStateException(res.getString(R.string.err_write_failed))
                     ok = true
-                    ctx.getString(R.string.accent_book_done)
+                    res.getString(R.string.accent_book_done)
                 }
             } catch (e: Exception) { e.message ?: e.toString() }
             if (!ok) runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, out) }
@@ -410,8 +414,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
             view.findViewById<View>(R.id.chipsLabel).visibility = chips.visibility
             valueLayout.visibility = if (replace) View.VISIBLE else View.GONE
             val names = lists()
-            target.setSimpleItems(names.toTypedArray())
-            target.setText((if (replace) prefs.auditReplaceDict else prefs.auditDict(kind)).takeIf { it in names } ?: names.firstOrNull() ?: Dicts.MAIN, false)
+            target.setSimpleItems(names.map { ctx.dictLabel(it) }.toTypedArray())
+            target.setText(ctx.dictLabel((if (replace) prefs.auditReplaceDict else prefs.auditDict(kind)).takeIf { it in names } ?: names.firstOrNull() ?: Dicts.MAIN), false)
         }
         mode.check(if (prefs.auditReplace) R.id.modeReplace else R.id.modeStress)
         mode.addOnButtonCheckedListener { _, _, isChecked -> if (isChecked) switchMode() }
@@ -419,7 +423,8 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
         val dialog = MaterialAlertDialogBuilder(ctx).setTitle(DictLines.accentDisplay(e.variant)).setView(view)
             .setPositiveButton(R.string.save) { _, _ ->
                 val replace = replaceMode(); prefs.auditReplace = replace
-                val name = target.text.toString().ifBlank { Dicts.MAIN }
+                // в поле подпись (dictLabel), имя файла — по ней
+                val name = target.text.toString().let { t -> lists().firstOrNull { ctx.dictLabel(it) == t } ?: t }.ifBlank { Dicts.MAIN }
                 val line = if (replace) {
                     val value = valueField.text.toString().trim().filter { it != '=' }.ifBlank { return@setPositiveButton }
                     prefs.auditReplaceDict = name
@@ -437,7 +442,7 @@ class AuditFragment : PageFragment(R.layout.fragment_audit) {
                 f.appendText((if (dictBefore != null && dictBefore.isNotEmpty() && !dictBefore.endsWith("\n")) "\n" else "") + line + "\n")
                 prefs.audit.remove(kind, e.word); refresh()
                 val shown = if (replace) line.substringAfter(" = ") else DictLines.accentDisplay(line.substringAfter(' '))
-                Snackbar.make(requireView(), getString(R.string.audit_added, shown, name), 6000)
+                Snackbar.make(requireView(), getString(R.string.audit_added, shown, ctx.dictLabel(name)), 6000)
                     .setAction(R.string.undo) {
                         if (dictBefore == null) f.delete() else f.writeText(dictBefore)
                         prefs.audit.load(kind, auditBefore); refresh()

@@ -54,10 +54,10 @@ object SettingsJson {
         val root = try {
             JSONObject(text)
         } catch (e: JSONException) {
-            throw IllegalArgumentException("Файл повреждён или это не JSON: ${e.message}")
+            throw UserError("Файл повреждён или это не JSON: ${e.message}", R.string.err_settings_json, e.message ?: "")
         }
         if (root.optString("app") != APP) {
-            throw IllegalArgumentException("Это не файл настроек RuVoice TTS")
+            throw UserError("Это не файл настроек RuVoice TTS", R.string.err_not_settings)
         }
         val prefsJson = root.optJSONObject("prefs")
         val prefs = mutableMapOf<String, Any>()

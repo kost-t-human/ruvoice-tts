@@ -21,6 +21,8 @@
         </intent>
     </queries>
     <application
+        android:name=".App"
+        android:localeConfig="@xml/locales_config"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -74,6 +76,10 @@
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
+        </service>
+        <!-- Язык из диалога «Язык и тема» на Android 6–12: AppCompat хранит его сам (на 13+ — система) -->
+        <service android:name="androidx.appcompat.app.AppLocalesMetadataHolderService" android:enabled="false" android:exported="false">
+            <meta-data android:name="autoStoreLocales" android:value="true" />
         </service>
         <activity android:name=".RulesActivity" android:exported="false" android:label="@string/rules_title" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".TroubleshootActivity" android:exported="false" android:label="@string/troubleshoot_title" />

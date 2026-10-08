@@ -1,0 +1,138 @@
+<!-- Regular expressions help for the Replacements dialog. Shown via
+     Html.fromHtml, so only simple tags: h3, p, b, tt, br, ul/li. -->
+
+<h3>What it is</h3>
+<p>A normal replacement looks for a word or phrase letter by letter. A regular expression (regex) is a pattern, such as "any digit", "one of these words" or "a period followed by a number". One rule covers hundreds of similar places in a book at once.</p>
+<p>Turn on the <b>"Regular expression"</b> switch. Write the pattern in the <b>"Text to replace"</b> field and the replacement in <b>"Replace with"</b>. At the bottom, paste a piece of text into the <b>"Test on sample text"</b> field (if it is hidden, open it with the <b>"Test"</b> button) and you will see the result right away. A mistake in the pattern is highlighted in red, and while it is there the "Save" button does not work.</p>
+
+<h3>Three things to know</h3>
+<ul>
+<li>Ordinary letters and digits in a pattern are matched as they are. The pattern <tt>гл.</tt> finds "гл." in the text (but also "глу", see the part about the period below).</li>
+<li>Capital and small letters are treated the same. <tt>бог</tt> finds both "Бог" and "БОГ".</li>
+<li>A pattern is found <b>inside words too</b>. <tt>кот</tt> (cat) finds "кот" inside "котлета" (cutlet). To match a whole word only, put word boundaries around it, <tt>\bкот\b</tt>.</li>
+</ul>
+
+<h3>Special characters</h3>
+<p><tt>.</tt> means any single character. <tt>к.т</tt> finds "кот", "кит", "к т".<br>
+<tt>\d</tt> means one digit. <tt>\d\d</tt> means two digits in a row.<br>
+<tt>\s</tt> means one space (or a line break).<br>
+<tt>\p{L}</tt> means one letter, any letter, Russian or Latin.<br>
+<tt>\w</tt> means a letter, a digit or "_".<br>
+<tt>[абв]</tt> means one character from the list. <tt>[аеиоуыэюя]</tt> is one Russian vowel.<br>
+<tt>[а-я]</tt> means one character from a range. <tt>[0-9]</tt> is the same as <tt>\d</tt>.<br>
+<tt>[^абв]</tt> means one character, anything <b>except</b> the listed ones.</p>
+
+<h3>How many times</h3>
+<p>Goes after a character or a group and says how many times it repeats.<br>
+<tt>*</tt> means zero or more times. <tt>\d*</tt> is as many digits as there are, possibly none.<br>
+<tt>+</tt> means one or more. <tt>\d+</tt> is a number of one or more digits.<br>
+<tt>?</tt> means zero or one time, "may or may not be there". <tt>шт\.?</tt> is "шт" (pcs) with or without a period.<br>
+<tt>{3}</tt> means exactly three. <tt>{2,4}</tt> means from two to four. <tt>{3,}</tt> means three or more.<br>
+<tt>*?</tt> and <tt>+?</tt> mean "as few as possible". <tt>\(.*?\)</tt> finds "(а)" and "(б)" separately, while <tt>\(.*\)</tt> takes everything from the first bracket to the last one.</p>
+
+<h3>A literal period, bracket or plus</h3>
+<p>The characters <tt>. + ? * ( ) [ ] { } | \ ^ $</tt> are special. To find one of them as an ordinary character, put <tt>\</tt> before it. <tt>гл\.</tt> is "гл" followed by a period, <tt>\(</tt> is an opening bracket, <tt>\+</tt> is a plus.</p>
+
+<h3>Where to look</h3>
+<p><tt>\b</tt> is a word boundary, the place where a letter meets a space, a punctuation mark or the edge of the text. <tt>\bгл\b</tt> finds "гл" but not "глава".<br>
+<tt>^</tt> is the start of the text, <tt>$</tt> is the end. To make them mean the start and end of <b>each line</b>, put <tt>(?m)</tt> at the very beginning of the pattern.<br>
+<tt>а|б</tt> means "or". <tt>кот|пёс</tt> (cat or dog) finds either of the two. Usually the "or" goes in brackets, <tt>\b(кот|пёс)\b</tt>.</p>
+
+<h3>Groups and replacement</h3>
+<p>Round brackets <tt>(…)</tt> remember the matched piece. You can insert it in the "Replace with" field. <tt>$1</tt> is the first group, <tt>$2</tt> the second, <tt>$0</tt> the whole match.</p>
+<p>The pattern <tt>(\d+)-(\d+)</tt> on the text "стр. 5-7" (pp. 5-7) remembers "5" and "7". The replacement <tt>$1 по $2</tt> gives "стр. 5 по 7" (pages 5 to 7).</p>
+<p>Everything that works in normal replacements works here too. <tt>+</tt> before a vowel marks stress, <tt>{pause:500}</tt> is a pause in milliseconds (inside a sentence it is a comma of that length and the phrase is not broken), <tt>*слово*</tt> is emphasis, <tt>{prosody:80:90}</tt> sets the rate to 80% and the pitch to 90% from here up to <tt>{prosody}</tt>, and an empty replacement cuts out the match. To insert an actual dollar sign, write <tt>\$</tt>.</p>
+<p>Spaces at the edges of a replacement are trimmed. If you need a space after the replacement, do not swallow it with the pattern. <tt>\bMr\.</tt> replaced with <tt>мистер</tt> turns "Mr. Smith" into "мистер Smith", while <tt>\bMr\.\s*</tt> would glue the words together.</p>
+
+<h3>Conditions around the match</h3>
+<p>These brackets do not replace anything, they only check the neighbors.<br>
+<tt>(?&lt;=…)</tt> means "if <b>before</b> the match there is…". <tt>(?&lt;=\d)\s*%</tt> is a percent sign after a digit.<br>
+<tt>(?&lt;!…)</tt> means "if before the match there is <b>not</b>…".<br>
+<tt>(?=…)</tt> means "if <b>after</b> the match comes…". <tt>замок(?=\s+на\s+двер)</tt> is "замок" (lock) only before "на двери" (on the door).<br>
+<tt>(?!…)</tt> means "if after the match there does <b>not</b> come…".</p>
+
+<h3>Switches at the start of a pattern</h3>
+<p><tt>(?-i)</tt> makes capital and small letters different. <tt>(?-i)\bБог\b</tt> finds "Бог" (God) but not "бог" (a god).<br>
+<tt>(?m)</tt> makes <tt>^</tt> and <tt>$</tt> work per line instead of for the whole text.<br>
+<tt>(?s)</tt> lets the period match line breaks too.</p>
+
+<h3>Examples</h3>
+<p><b>Abbreviation into a word.</b> Pattern <tt>\bгл\.\s*(\d+)</tt>, replacement <tt>глава $1</tt>.<br>
+"гл. 12" becomes "глава 12" (ch. 12 becomes chapter 12).</p>
+
+<p><b>Pieces.</b> <tt>(\d+)\s*шт\.?</tt> replaced with <tt>$1 штук</tt>.<br>
+"5 шт." becomes "5 штук", "12шт" becomes "12 штук" (pcs becomes pieces).</p>
+
+<p><b>Page range.</b> <tt>(\d+)-(\d+)</tt> replaced with <tt>$1 по $2</tt>.<br>
+"стр. 5-7" becomes "стр. 5 по 7" (pages 5 to 7).</p>
+
+<p><b>Percent after a number.</b> <tt>(\d+)\s*%</tt> replaced with <tt>$1 процентов</tt>.<br>
+"скидка 20%" becomes "скидка 20 процентов" (discount 20 percent).</p>
+
+<p><b>Speed.</b> <tt>(\d+)\s*км/ч</tt> replaced with <tt>$1 километров в час</tt>.<br>
+"90 км/ч" becomes "90 километров в час" (90 kilometers per hour).</p>
+
+<p><b>Whole abbreviation only.</b> <tt>\bСПб\b</tt> replaced with <tt>Санкт-Петербург</tt>.<br>
+Without <tt>\b</tt> it would also be replaced inside other words.</p>
+
+<p><b>Latin abbreviation.</b> <tt>\bIQ\b</tt> replaced with <tt>айкью</tt>.<br>
+"IQ 140" becomes "айкью 140" (IQ spelled the way it is pronounced in Russian).</p>
+
+<p><b>English name with stress.</b> <tt>\bSherlock\b</tt> replaced with <tt>Ш+ерлок</tt>.</p>
+
+<p><b>A character's name in all cases.</b> <tt>\bГарр(и|ю)\b</tt> replaced with <tt>Г+арр$1</tt>.<br>
+"Гарри" becomes "Г+арри", "Гаррю" becomes "Г+аррю". One rule instead of two.</p>
+
+<p><b>Stress in all forms of a word.</b> <tt>\bзамк(а|у|ом|е)\b</tt> replaced with <tt>з+амк$1</tt>.<br>
+"у замка" becomes "у з+амка", "в замке" becomes "в з+амке". Use it if every "замок" in the book is a castle (stressed on the first syllable), not a lock.</p>
+
+<p><b>Stress by the neighboring word.</b> <tt>\b(на|у)\s+берегу\b</tt> replaced with <tt>$1 берег+у</tt>.<br>
+"на берегу" (on the shore) becomes "на берег+у", while plain "берегу" (I keep, as in "я берегу") is left alone.</p>
+
+<p><b>Capitalized only.</b> <tt>(?-i)\bБог\b</tt> replaced with <tt>Б+ог</tt>.<br>
+"Бог" becomes "Б+ог", while "бог войны" (god of war) stays as is.</p>
+
+<p><b>Cut out notes.</b> <tt>\(прим\. (ред|пер)\.\)</tt> replaced with nothing.<br>
+"(прим. ред.)" and "(прим. пер.)" (editor's note, translator's note) disappear. Periods and brackets are escaped with <tt>\</tt>.</p>
+
+<p><b>Do not read anything in brackets.</b> <tt>\([^)]*\)</tt> replaced with nothing.<br>
+"текст (сноска) дальше" becomes "текст дальше" (the bracketed footnote is dropped). <tt>[^)]*</tt> is anything except a closing bracket.</p>
+
+<p><b>Pause at a scene break.</b> <tt>\*{3,}</tt> replaced with <tt>{pause:800}</tt>.<br>
+Three or more asterisks between scenes give a 0.8 second pause.</p>
+
+<p><b>A "whispering" stage note, lower and slower to the end of the paragraph.</b> <tt>\(шёпотом\)</tt> replaced with <tt>{prosody:80:90}</tt>.<br>
+In "(шёпотом) Не оборачивайся." ("(whispering) Don't turn around.") everything after the note is read with the rate at 80% and the pitch at 90%. To return to the normal voice before the paragraph ends, add a second rule with the replacement <tt>{prosody}</tt>.</p>
+
+<p><b>Emphasize a word with the voice.</b> <tt>\b(именно|только)\b</tt> replaced with <tt>*$1*</tt>.<br>
+The model stresses the matched word with intonation ("именно" and "только" mean "exactly" and "only"). The strength of emphasis is set in the More options menu (⋮) at the top right, under "Reading rules".</p>
+
+<p><b>Page number on its own line.</b> <tt>(?m)^\s*\d+\s*$</tt> replaced with nothing.<br>
+A line that has nothing but a number is cut out. Without <tt>(?m)</tt> the pattern would look for a number spanning the whole text from start to end.</p>
+
+<p><b>Links.</b> <tt>https?://\S+</tt> replaced with <tt>ссылка</tt>.<br>
+"см. https://example.com/page" becomes "см. ссылка" (see link). <tt>s?</tt> means the "s" may or may not be there, <tt>\S+</tt> is everything up to a space.</p>
+
+<p><b>Stretched vowels.</b> <tt>([аеиоуыэюя])\1{2,}</tt> replaced with <tt>$1-$1-$1</tt>.<br>
+"Нееет!" becomes "Не-е-ет!" (Nooo! becomes No-o-o!). <tt>\1</tt> inside the pattern means "the same letter as in the first group".</p>
+
+<p><b>Smileys.</b> <tt>[:;]-?[)(]+</tt> replaced with nothing.<br>
+":)", ";-)", ":((" are cut out.</p>
+
+<p><b>English titles.</b> <tt>\bMr\.</tt> replaced with <tt>мистер</tt>, <tt>\bMrs\.</tt> replaced with <tt>миссис</tt>.<br>
+"Mr. Smith" becomes "мистер Smith". The period is escaped, and the space after it is not touched by the pattern.</p>
+
+<p><b>Digit with a letter.</b> <tt>\b3D\b</tt> replaced with <tt>три дэ</tt>.</p>
+
+<p><b>Replace only in one context.</b> <tt>замок(?=\s+висел)</tt> replaced with <tt>зам+ок</tt>.<br>
+"замок висел на двери" (the lock hung on the door) becomes "зам+ок висел", while "замок стоял на холме" (the castle stood on the hill) is left alone. Brackets with <tt>?=</tt> only look ahead, so the word "висел" stays.</p>
+
+<h3>Common mistakes</h3>
+<ul>
+<li>Forgot <tt>\</tt> before a period. <tt>гл.</tt> finds "глу" in "глубокий". You need <tt>гл\.</tt>.</li>
+<li>Forgot <tt>\b</tt>. <tt>кот</tt> (cat) will spoil "котлету" (cutlet).</li>
+<li>The replacement has <tt>$2</tt> but the pattern has only one pair of brackets. The rule will not work, and an error appears under the field.</li>
+<li><tt>.*</tt> grabs too much, from the first match to the last one in the text. Usually you need <tt>.*?</tt> or <tt>[^)]*</tt>.</li>
+<li>Spaces at the edges of a replacement are trimmed. Leave them in the text, do not take them with the pattern.</li>
+<li>Rules are applied one by one: longer keys first, then shorter ones, and keys of equal length from top to bottom. If two rules hit the same place, the one applied first wins. If the same key appears on two lines, the lower one is used.</li>
+</ul>

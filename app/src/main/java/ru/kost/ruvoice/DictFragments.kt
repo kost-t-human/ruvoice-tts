@@ -1,5 +1,6 @@
 package ru.kost.ruvoice
 
+import android.content.Context
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
@@ -37,6 +38,13 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.io.File
 import ru.kost.ruvoice.text.Replacements
+
+/** Имя списка для показа: встроенные (Dicts.MAIN, SYSTEM, REMOVED, NAMES) на диске по-русски, на экране — на языке интерфейса. */
+fun Context.dictLabel(name: String): String = when (name) {
+    Dicts.MAIN -> getString(R.string.dict_main); Dicts.SYSTEM -> getString(R.string.dict_system)
+    Dicts.REMOVED -> getString(R.string.dict_removed); Dicts.NAMES -> getString(R.string.dict_names)
+    else -> name
+}
 
 /**
  * Общая часть вкладок «Ударения» и «Замены». У каждой вкладки несколько именных списков
@@ -102,9 +110,10 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         prefs.setCurrent(kind, name); loadLines()
         if (!readOnly) (0 until lineCount).firstOrNull { parsedAny(it) == parsed }?.let { showDialog(it) }
     }
-    /** Подпись строки из другого списка: «слово · Системный», имя приглушённым. */
+    /** Подпись строки из другого списка: «слово, Системный», имя приглушённым. Запятая, не «·»: чтец с правилом
+     * «Служебные символы словами» прочёл бы «точка посередине». */
     protected fun labeled(text: CharSequence, list: String?, view: TextView): CharSequence = if (list == null) text else buildSpannedString {
-        append(text); color(MaterialColors.getColor(view, com.google.android.material.R.attr.colorOnSurfaceVariant)) { append(" · $list") }
+        append(text); color(MaterialColors.getColor(view, com.google.android.material.R.attr.colorOnSurfaceVariant)) { append(", " + view.context.dictLabel(list)) }
     }
 
     private lateinit var recycler: RecyclerView
@@ -123,7 +132,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         pendingExport = null
         if (uri == null) return@registerForActivityResult
         try {
-            requireContext().contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IllegalStateException("Не удалось открыть файл для записи")
+            requireContext().contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IllegalStateException(getString(R.string.err_write_file))
             snack(getString(R.string.dict_exported))
             afterExport?.invoke(); afterExport = null
         } catch (e: Exception) { snack(e.message ?: e.toString()) }
@@ -202,9 +211,10 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
         order = null
         val off = prefs.off(kind)
         val names = prefs.dictFiles(kind).map { Dicts.name(it) }
-        nameField.setSimpleItems(names.map { if (it in off) getString(R.string.dict_off_suffix, it) else it }.toTypedArray())
+        nameField.setSimpleItems(names.map { requireContext().dictLabel(it).let { l -> if (it in off) getString(R.string.dict_off_suffix, l) else l } }.toTypedArray())
         val name = Dicts.name(f)
-        nameField.setText(if (name in off) getString(R.string.dict_off_suffix, name) else name, false)
+        val label = requireContext().dictLabel(name)
+        nameField.setText(if (name in off) getString(R.string.dict_off_suffix, label) else label, false)
         onSwitch.isChecked = name !in off
         onSwitch.setText(if (name in off) R.string.dict_off else R.string.dict_on)
         // удалённые в чтении не участвуют никогда — выключать нечего
@@ -358,7 +368,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                     Dicts.file(requireContext().filesDir, kind, newName).writeText("")
                     prefs.setCurrent(kind, newName); loadLines()
                 }
-                R.id.dict_rename -> nameDialog(R.string.dict_rename, name) { newName ->
+                R.id.dict_rename -> nameDialog(R.string.dict_rename, requireContext().dictLabel(name)) { newName ->
                     persist()
                     if (file.renameTo(Dicts.file(requireContext().filesDir, kind, newName))) {
                         prefs.off(kind).let { if (name in it) prefs.setOff(kind, it - name + newName) }
@@ -369,7 +379,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                     val count = parsedLines.count { it != null }
                     MaterialAlertDialogBuilder(requireContext())
                         .setTitle(R.string.dict_delete_title)
-                        .setMessage(getString(R.string.dict_delete_confirm, name, count))
+                        .setMessage(getString(R.string.dict_delete_confirm, requireContext().dictLabel(name), count))
                         .setPositiveButton(R.string.delete) { _, _ ->
                             file.delete()
                             prefs.setOff(kind, prefs.off(kind) - name)
@@ -419,7 +429,7 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
                 name.isEmpty() -> null
                 !Dicts.validName(name) -> getString(R.string.dict_name_bad)
                 // имена системных заняты всегда: «Системный удалённые» появляется только после первого смахивания
-                name != initial && (Dicts.isSystem(name) || Dicts.file(ctx.filesDir, kind, name).exists()) -> getString(R.string.dict_name_taken)
+                name != initial && (Dicts.isSystem(name) || name == ctx.dictLabel(Dicts.SYSTEM) || name == ctx.dictLabel(Dicts.REMOVED) || Dicts.file(ctx.filesDir, kind, name).exists()) -> getString(R.string.dict_name_taken)
                 else -> null
             }
             posButton?.isEnabled = name.isNotEmpty() && name != initial && layout.error == null
@@ -438,11 +448,11 @@ abstract class DictListFragment(layout: Int) : PageFragment(layout) {
     private fun importFrom(uri: Uri) {
         val ctx = requireContext()
         try {
-            val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("Не удалось открыть файл")
+            val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException(ctx.getString(R.string.err_open_file))
             val display = ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
-            } ?: "Импорт"
-            val base = display.substringBeforeLast('.').trim().take(60).ifEmpty { "Импорт" }.replace('/', ' ').replace('\\', ' ')
+            } ?: getString(R.string.dict_import_default)
+            val base = display.substringBeforeLast('.').trim().take(60).ifEmpty { getString(R.string.dict_import_default) }.replace('/', ' ').replace('\\', ' ')
             val name = Dicts.freeName(ctx.filesDir, kind, base)
             Dicts.file(ctx.filesDir, kind, name).writeText(Dicts.importText(Dicts.decode(bytes), kind))
             prefs.setCurrent(kind, name)
@@ -677,6 +687,9 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             holder.itemView.setOnClickListener { if (list != null) openIn(list, p) else if (!readOnly) showDialog(shown[position]) }
             holder.play.setOnClickListener { btn -> (activity as SettingsActivity).preview(btn, value) }
             holder.play.contentDescription = getString(R.string.preview_word, value)
+            // TalkBack без стрелки: «→» на слух — «стрелка вправо»
+            holder.itemView.contentDescription = (if (skip) getString(R.string.replace_row_skip_desc, key) else getString(R.string.replace_row_desc, key, value)) +
+                (list?.let { ", " + requireContext().dictLabel(it) } ?: "")
             rowActions(holder.itemView, list, position)
         }
     }
@@ -714,7 +727,13 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
             val key = keyField.text.toString().trim()
             val regex = regexSwitch.isChecked
             val keyErr = if (regex) Replacements.patternError(key) else null
-            val valErr = if (regex && keyErr == null) Replacements.replacementError(key, valueField.text.toString().trim()) else null
+            val valErr = if (regex && keyErr == null) Replacements.replacementError(key, valueField.text.toString().trim())?.let { e ->
+                when (e.kind) {
+                    Replacements.Companion.ValueErrorKind.TRAILING_BACKSLASH -> getString(R.string.regex_trailing_backslash)
+                    Replacements.Companion.ValueErrorKind.LONE_DOLLAR -> getString(R.string.regex_lone_dollar)
+                    Replacements.Companion.ValueErrorKind.NO_GROUP -> getString(R.string.regex_no_group, e.group, e.groups)
+                }
+            } else null
             keyLayout.error = keyErr
             valueLayout.error = valErr
             if (valErr == null) valueLayout.helperText = getString(if (regex) R.string.replace_value_helper_regex else R.string.replace_value_helper)
@@ -778,7 +797,7 @@ class ReplaceFragment : DictListFragment(R.layout.fragment_dict_list) {
 
         view.findViewById<Button>(R.id.regexHelp).setOnClickListener {
             // справка длинная — HTML из assets, сообщение диалога само прокручивается
-            val html = ctx.assets.open("regex_help.html").bufferedReader().readText()
+            val html = ctx.assets.open(getString(R.string.regex_help_file)).bufferedReader().readText()
             MaterialAlertDialogBuilder(ctx).setTitle(R.string.regex_help_title)
                 .setMessage(HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_COMPACT))
                 .setPositiveButton(android.R.string.ok, null).show()

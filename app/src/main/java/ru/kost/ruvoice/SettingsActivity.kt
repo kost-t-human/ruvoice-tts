@@ -9,16 +9,21 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.text.SpannableString
 import android.text.method.LinkMovementMethod
+import android.text.style.LocaleSpan
 import android.text.util.Linkify
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
@@ -106,6 +111,7 @@ class SettingsActivity : AppCompatActivity() {
                 R.id.english -> { startActivity(Intent(this, RulesActivity::class.java).putExtra(RulesActivity.EXTRA_ENGLISH, true)); true }
                 R.id.setup_help -> { showSetupHelp(); true }
                 R.id.troubleshoot -> { startActivity(Intent(this, TroubleshootActivity::class.java)); true }
+                R.id.ui_settings -> { showUiDialog(); true }
                 R.id.about -> { startActivity(Intent(this, AboutActivity::class.java)); true }
                 R.id.export_settings -> {
                     saveAllVisiblePages()
@@ -162,6 +168,37 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
+    /** «Язык и тема»: применяется по кнопке, не по выбору — смена языка или темы пересоздаёт окно,
+     * диалог на полпути закрылся бы. Пересоздание обычное (recreate): prefs не меняются, поля страниц
+     * сохраняются в onPause и загружаются заново. */
+    private fun showUiDialog() {
+        val v = layoutInflater.inflate(R.layout.dialog_ui, null)
+        v.markHeadings()
+        val langs = listOf(R.id.langSystem to "", R.id.langRu to "ru", R.id.langEn to "en", R.id.langZh to "zh")
+        val themes = listOf(R.id.themeSystem to AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
+            R.id.themeLight to AppCompatDelegate.MODE_NIGHT_NO, R.id.themeDark to AppCompatDelegate.MODE_NIGHT_YES)
+        // название языка — с его локалью: TalkBack прочтёт «中文» китайским голосом, а не голосом системы
+        for ((id, tag) in langs.drop(1)) v.findViewById<TextView>(id).let { b ->
+            b.text = SpannableString(b.text).apply { setSpan(LocaleSpan(Locale.forLanguageTag(tag)), 0, length, 0) }
+        }
+        val lang = v.findViewById<RadioGroup>(R.id.language)
+        val theme = v.findViewById<RadioGroup>(R.id.theme)
+        val curLang = AppCompatDelegate.getApplicationLocales().toLanguageTags().substringBefore('-')
+        lang.check(langs.firstOrNull { it.second == curLang }?.first ?: R.id.langSystem)
+        theme.check(themes.firstOrNull { it.second == App.nightMode(this) }?.first ?: R.id.themeSystem)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.ui_title)
+            .setView(v)
+            .setPositiveButton(R.string.ui_apply) { _, _ ->
+                // сначала язык: если тема пересоздаст окно раньше, смена языка до него не доходит (A32, Android 13)
+                val tag = langs.first { it.first == lang.checkedRadioButtonId }.second
+                if (tag != curLang) AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+                App.setNightMode(this, themes.first { it.first == theme.checkedRadioButtonId }.second)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
     /** Сохраняет поля всех сейчас созданных страниц (обычно это видимая и её соседи по
      * ViewPager2) — вызывается перед экспортом, чтобы в файл попали правки текущей вкладки,
      * которые иначе сохранились бы только в onPause при уходе со страницы. */
@@ -172,19 +209,19 @@ class SettingsActivity : AppCompatActivity() {
     private fun exportTo(uri: Uri) {
         try {
             contentResolver.openOutputStream(uri)?.use { it.write(prefs.exportJson().toByteArray()) }
-                ?: throw IllegalStateException("Не удалось открыть файл для записи")
+                ?: throw IllegalStateException(getString(R.string.err_write_file))
             showSnackbar(getString(R.string.export_done))
         } catch (e: Exception) {
-            showSnackbar(e.message ?: e.toString())
+            showSnackbar(errorText(e))
         }
     }
 
     private fun importFrom(uri: Uri) {
         val text = try {
             contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
-                ?: throw IllegalStateException("Не удалось открыть файл")
+                ?: throw IllegalStateException(getString(R.string.err_open_file))
         } catch (e: Exception) {
-            showSnackbar(e.message ?: e.toString())
+            showSnackbar(errorText(e))
             return
         }
         MaterialAlertDialogBuilder(this)
@@ -200,7 +237,7 @@ class SettingsActivity : AppCompatActivity() {
                     prefs.importJson(text)
                     restartAfterImport(Intent().putExtra(EXTRA_IMPORT_DONE, true))
                 } catch (e: Exception) {
-                    showSnackbar(e.message ?: e.toString())
+                    showSnackbar(errorText(e))
                 }
             }
             .setNegativeButton(R.string.cancel, null)
@@ -236,7 +273,7 @@ class SettingsActivity : AppCompatActivity() {
                     json.delete(); dicts.delete()
                     restartAfterImport(Intent().putExtra(EXTRA_SNACK, getString(R.string.import_undone)))
                 } catch (e: Exception) {
-                    showSnackbar(e.message ?: e.toString())
+                    showSnackbar(errorText(e))
                 }
             }
             .addCallback(object : Snackbar.Callback() {
@@ -387,7 +424,7 @@ class SettingsActivity : AppCompatActivity() {
         for (p in packs) {
             val row = layoutInflater.inflate(R.layout.item_pack, list, false)
             row.findViewById<TextView>(R.id.title).text = p.title
-            row.findViewById<TextView>(R.id.info).text = getString(R.string.pack_info, p.speakers.size, (p.size / 1048576).toInt(), p.license)
+            row.findViewById<TextView>(R.id.info).text = resources.getQuantityString(R.plurals.pack_info, p.speakers.size, p.speakers.size, (p.size / 1048576).toInt(), p.license)
             // TalkBack: у каждого пака своя «Удалить» — без имени их не различить
             row.findViewById<Button>(R.id.delete).contentDescription = getString(R.string.pack_delete_named, p.title)
             row.findViewById<Button>(R.id.delete).setOnClickListener {
@@ -415,13 +452,13 @@ class SettingsActivity : AppCompatActivity() {
         val progress = MaterialAlertDialogBuilder(this).setTitle(R.string.packs_installing).setMessage(R.string.packs_installing_hint).setCancelable(false).show()
         Thread {
             val result = runCatching {
-                contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException("Не удалось открыть файл")
+                contentResolver.openInputStream(uri)?.use { Packs.install(it, filesDir) } ?: throw IllegalStateException(getString(R.string.err_open_file))
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 progress.dismiss()
                 result.onSuccess { refreshPages(getString(R.string.pack_installed, it.title)) }
-                    .onFailure { showSnackbar(it.message ?: it.toString()) }
+                    .onFailure { showSnackbar(errorText(it)) }
             }
         }.start()
     }

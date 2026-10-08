@@ -25,13 +25,13 @@ class Pack(json: String, val dir: File) {
 
     init {
         val o = JSONObject(json)
-        require(o.optInt("format") == Packs.FORMAT) { "Пак собран для другой версии приложения (формат ${o.optString("format")})" }
+        if (o.optInt("format") != Packs.FORMAT) o.optString("format").let { throw UserError("Пак собран для другой версии приложения (формат $it)", R.string.err_pack_format, it) }
         id = o.getString("id")
         require(Packs.ID_RE.matches(id)) { "Недопустимый id пака: $id" }
         title = o.optString("title", id); license = o.optString("license", ""); source = o.optString("source", "")
         sym = Symbols.fromJson(o)
         speakers = o.getJSONObject("speakers").let { j -> j.keys().asSequence().associateWith { j.getInt(it) } }
-        require(speakers.isNotEmpty()) { "В паке нет голосов" }
+        if (speakers.isEmpty()) throw UserError("В паке нет голосов", R.string.err_pack_no_voices)
         types = o.optBoolean("types", false)
     }
 }
@@ -41,6 +41,7 @@ object Packs {
     val MODEL_FILES = listOf("tts_mel.ptl", "backbone.pte", "head.ptl")
     val ID_RE = Regex("[a-z0-9_]{1,40}")
     const val NOT_A_PACK = "Это не пак RuVoice"
+    private fun notAPack(cause: Throwable? = null) = UserError(NOT_A_PACK, R.string.err_not_pack, cause = cause)
     private const val TAG = SileroModels.TAG
 
     fun dir(filesDir: File) = File(filesDir, "packs")
@@ -90,17 +91,17 @@ object Packs {
                     }
                 }
             } catch (e: ZipException) {
-                throw IllegalArgumentException(NOT_A_PACK, e)
+                throw notAPack(e)
             } catch (e: EOFException) {
-                throw IllegalArgumentException(NOT_A_PACK, e)
+                throw notAPack(e)
             }
-            val text = json ?: throw IllegalArgumentException(NOT_A_PACK)
-            if (MODEL_FILES.any { !File(tmp, it).isFile }) throw IllegalArgumentException(NOT_A_PACK)
-            val pack = try { Pack(text, tmp) } catch (e: IllegalArgumentException) { throw e } catch (e: Exception) { throw IllegalArgumentException(NOT_A_PACK) }
+            val text = json ?: throw notAPack()
+            if (MODEL_FILES.any { !File(tmp, it).isFile }) throw notAPack()
+            val pack = try { Pack(text, tmp) } catch (e: IllegalArgumentException) { throw e } catch (e: Exception) { throw notAPack() }
             File(tmp, "pack.json").writeText(text)
             val dest = File(packs, pack.id)
             if (dest.exists()) dest.deleteRecursively()
-            if (!tmp.renameTo(dest)) throw IOException("Не удалось переместить пак в ${dest.name}")
+            if (!tmp.renameTo(dest)) throw UserError("Не удалось переместить пак в ${dest.name}", R.string.err_pack_move)
             synchronized(this) { snap = null }
             return Pack(text, dest)
         } catch (e: Exception) {

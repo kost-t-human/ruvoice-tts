@@ -10,7 +10,9 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.EditText
 import android.widget.TextView
+import android.content.Context
 import java.util.Locale
+import androidx.core.os.ConfigurationCompat
 import androidx.fragment.app.Fragment
 import androidx.core.widget.doAfterTextChanged
 import androidx.core.view.AccessibilityDelegateCompat
@@ -55,11 +57,14 @@ abstract class PageFragment(layout: Int) : Fragment(layout) {
     protected fun EditText.str() = text.toString()
 }
 
+/** Язык интерфейса (выбранный в «Язык и тема» или системный): для чисел и названий языков на экране. */
+internal val Context.uiLocale: Locale get() = ConfigurationCompat.getLocales(resources.configuration)[0] ?: Locale.getDefault()
+
 // Slider падает при layout, если значение не на сетке шага 0.05 (импорт «0.73»,
 // старые quote_rate из текстового поля) — округляем к шагу и зажимаем в диапазон.
 private fun snap(raw: Float, from: Float, to: Float) = (Math.round((raw - from) / 0.05f) * 0.05f + from).coerceIn(from, to)
 
-/** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок «1,25» при перетаскивании. TalkBack
+/** Слайдер темпа/высоты: подпись «×1.25» над ним, поплавок «1,25» (по-английски «1.25») при перетаскивании. TalkBack
  * слышит один элемент — слайдер с названием [label] и значением из поплавка: строка подписи над
  * ним скрыта, а «×» из значения голос не произносит (или называет «знак умножения»). */
 internal fun View.rateSlider(sliderId: Int, valueId: Int, raw: Float, label: String, from: Float = 0.5f, to: Float = 2f): Slider {
@@ -70,7 +75,7 @@ internal fun View.rateSlider(sliderId: Int, valueId: Int, raw: Float, label: Str
     (valueView.parent as View).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     return findViewById<Slider>(sliderId).apply {
         contentDescription = label
-        setLabelFormatter { "%.2f".format(Locale("ru"), it) }
+        setLabelFormatter { "%.2f".format(context.uiLocale, it) }
         this.value = value
         addOnChangeListener { _, v, _ -> valueView.text = format(v) }
     }
@@ -304,11 +309,12 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
                 val hintText = getString(if (sr) R.string.en_min_words_sr_hint else R.string.en_min_words_hint)
                 extra(inflater.inflate(R.layout.item_en_words, list, false).apply {
                     findViewById<TextView>(R.id.enWordsHint).text = hintText
+                    if (sr) findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.enMinWordsLayout).setHint(R.string.en_min_words_sr)
                     findViewById<EditText>(R.id.enMinWords).apply {
                         if (sr) id = R.id.enMinWordsSr
                         setText((if (sr) prefs.enMinWordsSr else prefs.enMinWords).toString())
                     }
-                }, getString(R.string.en_min_words) + " " + hintText)
+                }, getString(if (sr) R.string.en_min_words_sr else R.string.en_min_words) + " " + hintText)
                 if (sr) extra(inflater.inflate(R.layout.item_en_timeout, list, false).apply {
                     findViewById<EditText>(R.id.enSrTimeout).setText(prefs.enSrTimeoutMs.toString())
                 }, getString(R.string.en_sr_timeout) + " " + getString(R.string.en_sr_timeout_hint))
@@ -440,8 +446,12 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
             val toggle = row.findViewById<MaterialSwitch>(R.id.toggle)
             row.findViewById<TextView>(R.id.title).text = c.label
             fun describe() {
-                val manual = c.pkg in prefs.srForce || c.pkg in prefs.srNever
-                hint.text = getString(if (manual) R.string.caller_manual else if (c.auto) R.string.caller_auto_sr else R.string.caller_auto_app, c.pkg)
+                hint.text = getString(when {
+                    c.pkg in prefs.srForce -> R.string.caller_manual_sr
+                    c.pkg in prefs.srNever -> R.string.caller_manual_app
+                    c.auto -> R.string.caller_auto_sr
+                    else -> R.string.caller_auto_app
+                }, c.pkg)
             }
             toggle.isChecked = ScreenReaders.isScreenReader(prefs, c)
             describe()
@@ -555,7 +565,7 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
     /** Пункт списка голосов словами, без «·» и без технического имени целиком: «Английский (США), голос iol,
      * нужен интернет». Имя вида en-us-x-iol-local TalkBack читал бы по кускам. */
     private fun voiceLabel(v: EnglishProxy.VoiceInfo): String =
-        listOfNotNull(EnglishProxy.voiceTitle(v.name, v.locale, Locale("ru"), getString(R.string.en_voice_word)),
+        listOfNotNull(EnglishProxy.voiceTitle(v.name, v.locale, requireContext().uiLocale, getString(R.string.en_voice_word)),
             getString(R.string.en_voice_network).takeIf { v.network },
             getString(R.string.en_voice_not_installed).takeIf { !v.installed }).joinToString(", ")
 
@@ -570,9 +580,9 @@ class RulesFragment : PageFragment(R.layout.fragment_rules) {
      * в строке предупреждаем, что текст может уходить в интернет. */
     private fun describeVoice(row: View) {
         row.findViewById<TextView>(R.id.hint).text = if (prefs.enVoice.isNotEmpty() && enVoiceMissing)
-            getString(R.string.en_voice_missing, EnglishProxy.voiceTitle(prefs.enVoice, null, Locale("ru"), getString(R.string.en_voice_word)))
+            getString(R.string.en_voice_missing, EnglishProxy.voiceTitle(prefs.enVoice, null, requireContext().uiLocale, getString(R.string.en_voice_word)))
         else if (prefs.enVoice.isNotEmpty())
-            getString(R.string.en_voice_value, EnglishProxy.voiceTitle(prefs.enVoice, null, Locale("ru"), getString(R.string.en_voice_word)))
+            getString(R.string.en_voice_value, EnglishProxy.voiceTitle(prefs.enVoice, null, requireContext().uiLocale, getString(R.string.en_voice_word)))
         else when (offline) {
             false -> getString(R.string.en_voice_default_online)
             true -> getString(R.string.en_voice_default_offline)

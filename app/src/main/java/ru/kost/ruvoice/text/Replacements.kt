@@ -343,20 +343,24 @@ class Replacements private constructor(private val rules: List<Rule>, private va
         fun patternError(pattern: String): String? =
             try { userRegex(pattern); null } catch (e: PatternSyntaxException) { e.description }
 
+        /** Почему замена упадёт на подстановке; текст ошибки по [ValueError] выбирает экран. */
+        enum class ValueErrorKind { TRAILING_BACKSLASH, LONE_DOLLAR, NO_GROUP }
+        data class ValueError(val kind: ValueErrorKind, val group: Int = 0, val groups: Int = 0)
+
         /** Почему замена упадёт на подстановке ($N больше числа групп, одинокий «$», «\» в конце);
          * null — всё в порядке или сам regex битый (это уже сказал patternError).
          * Именованные группы ${name} не проверяются. */
-        fun replacementError(pattern: String, value: String): String? {
+        fun replacementError(pattern: String, value: String): ValueError? {
             val groups = try { Regex(pattern).toPattern().matcher("").groupCount() }
                 catch (e: PatternSyntaxException) { return null }
             var i = 0
             while (i < value.length) {
                 when (value[i]) {
-                    '\\' -> { if (i + 1 >= value.length) return "«\\» в конце: нечего экранировать"; i++ }
+                    '\\' -> { if (i + 1 >= value.length) return ValueError(ValueErrorKind.TRAILING_BACKSLASH); i++ }
                     '$' -> {
                         val c = value.getOrNull(i + 1)
-                        if (c == null || !(c.isDigit() || c == '{')) return "одинокий «$»: перед ним нужен «\\»"
-                        if (c.isDigit() && c.digitToInt() > groups) return "группы \$$c нет: в ключе групп — $groups"
+                        if (c == null || !(c.isDigit() || c == '{')) return ValueError(ValueErrorKind.LONE_DOLLAR)
+                        if (c.isDigit() && c.digitToInt() > groups) return ValueError(ValueErrorKind.NO_GROUP, c.digitToInt(), groups)
                     }
                 }
                 i++
