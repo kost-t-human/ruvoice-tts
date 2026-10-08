@@ -2006,7 +2006,8 @@ object Normalizer {
     // Путь к файлу книги («/home/…/Telegram Desktop/07 E TNOS. CHast pervaya.fb2») — AlReaderX отдаёт его в конце книги
     // (жалоба 08.10.2026). В пути бывают пробелы и «. », поэтому до расширения книжного файла, а не до пробела.
     private const val filePath = """(?<![\w.:/])/(?:home|storage|sdcard|mnt|data|media|Users|tmp)/[^\n<>«»"|]{1,250}?\.(?:fb2|epub|txt|pdf|docx?|rtf|mobi|azw3?|djvu|html?|odt|zip)(?:\.zip)?(?![\p{L}\d])"""
-    val urlRe = Regex("""$filePath|(?:https?://|www\.)$urlTail|(?<![\w@./-])(?:[a-z0-9][a-z0-9-]*\.)+(?:$urlZones)/$urlTail|[\w.+-]+@[\w-]+(?:\.[\w-]+)+""", RegexOption.IGNORE_CASE)
+    // «https://www .author .today/work/1» — пробелы перед точками имени сайта в книге (жалоба 08.10.2026): адрес не рвём на «https://author»
+    val urlRe = Regex("""$filePath|(?:https?://|www ?\.)(?:(?=[\w-]+(?: ?\.[\w-]+)+[/?#])(?:[\w-]+ ?\.)+)?$urlTail|(?<![\w@./-])(?:[a-z0-9][a-z0-9-]*\.)+(?:$urlZones)/$urlTail|[\w.+-]+@[\w-]+(?:\.[\w-]+)+""", RegexOption.IGNORE_CASE)
     private val urlSeparators = mapOf(':' to "двоеточие", '/' to "слэш", '.' to "точка", '?' to "вопрос", '&' to "амперсанд",
         '=' to "равно", '-' to "дефис", '_' to "нижнее подчёркивание", '#' to "решётка", '%' to "процент", '+' to "плюс",
         '@' to "собака", '~' to "тильда")
@@ -2022,7 +2023,7 @@ object Normalizer {
         return urlSingleLetterRe.replace(sb, { Abbrev.latLetterNames.getValue(it.value[0].uppercaseChar()) })
             .replace(Regex(" {2,}"), " ").trim()
     }
-    private val urlHostRe = Regex("""^(?:https?://)?(?:www\.)?([^/?#:]+)""", RegexOption.IGNORE_CASE)
+    private val urlHostRe = Regex("""^(?:https?://)?(?:www ?\.)?([^/?#:]+)""", RegexOption.IGNORE_CASE)
     private fun urlHost(url: String) = urlHostRe.find(url)?.groupValues?.get(1) ?: url
     // Без read_links адрес остаётся как есть: на время обработки прячем его за плейсхолдером
     // без цифр и букв, чтобы «5Mb» внутри не стало числом, потом возвращаем.

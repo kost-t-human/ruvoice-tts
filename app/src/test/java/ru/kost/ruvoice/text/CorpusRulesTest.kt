@@ -139,6 +139,14 @@ class CorpusRulesTest {
         assertEquals("Подробнее: ссылка, youtube точка com и ссылка, habr точка com, почта эй собака би точка ru",
             Normalizer.numbers("Подробнее: https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=4 и habr.com/ru/1, почта a@b.ru", Rules()))
         assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules(setOf("drop_links"))))
+        assertEquals("ссылка, author точка today", Normalizer.numbers("https://author .today/work/268335", Rules()))
+        assertEquals("ссылка, author точка today и", Normalizer.numbers("www.author .today/work/268335 и", Rules()))
+        assertEquals("ссылка, author точка today и", Normalizer.numbers("www .author .today/work/268335 и", Rules()))
+        assertEquals("ссылка, author точка today и", Normalizer.numbers("https://www .author .today/work/268335 и", Rules()))
+        assertEquals("Тут и.", Normalizer.numbers("Тут www .author .today/work/268335 и.", Rules(setOf("drop_links"))))
+        assertEquals("ссылка, site точка ru . Дальше", Normalizer.numbers("https://site.ru . Дальше", Rules()))
+        assertEquals("Тут и.", Normalizer.numbers("Тут https://author .today/work/268335 и.", Rules(setOf("drop_links"))))
+        assertEquals("Тут и.", Normalizer.numbers("Тут www.author .today/work/268335 и.", Rules(setOf("drop_links", "link_domain"))))
         assertEquals("Откройте и.", Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules(setOf("drop_links")).screenReader()))
         assertTrue(Normalizer.numbers("Откройте https://a.b/5Mb/s и.", Rules().screenReader()).contains("слэш"))
         assertEquals("Ryzen пять тысяч восемьсот экс три ди, джи пи т+и-четыре оу, экран одна тысяча восемьдесят пи, витамин-ди",
