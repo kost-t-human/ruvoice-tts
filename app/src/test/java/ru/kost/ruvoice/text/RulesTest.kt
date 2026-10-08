@@ -37,6 +37,23 @@ class RulesTest {
         assertEquals("глава один двести читателей", n("глава 1 200 читателей"))
     }
 
+    @Test fun latinMark() {
+        // «(лат. Rosa)», «(лат.)» — «латынь» (жалоба 08.10.2026), «от лат.» — по-прежнему «от латинского»
+        assertEquals("Роза (латынь Rosa) цветёт.", n("Роза (лат. Rosa) цветёт."))
+        assertEquals("Роза (латынь) цветёт.", n("Роза (лат.) цветёт."))
+        assertEquals("от латинского homo", n("от лат. homo"))
+    }
+
+    @Test fun filePathIsLink() {
+        // путь к книге в конце от AlReaderX (жалоба 08.10.2026): по read_links — по частям, иначе выкидываем
+        val path = "/home/kost/Загрузки/Telegram Desktop/07 E TNOS. CHast pervaya Paradigma.fb2"
+        assertEquals("Конец. Дальше.", Normalizer.numbers("Конец. $path Дальше.", Rules(setOf("drop_links"))))
+        assertEquals("Конец. Дальше.", Normalizer.numbers("Конец. $path Дальше.").replace("  ", " "))
+        // без link_domain — по частям, как адрес
+        assert(Normalizer.numbers("Конец. $path Дальше.", Rules(setOf("link_domain"))).contains("слэш"))
+        assertEquals("Дробь одна вторая.", n("Дробь 1/2."))
+    }
+
     @Test fun footnotes() {
         assertEquals("текст дальше", n("текст[1] дальше"))
     }
@@ -66,6 +83,11 @@ class RulesTest {
         assertEquals("Екатерина вторая", n("Екатерина II"))
         assertEquals("Людовик четырнадцатый", n("Людовик XIV"))
         assertEquals("Иоанн Павел второй", n("Иоанн Павел II"))
+        // имя без окончания — мужское (жалоба 08.10.2026: «Александр V» читалось «пятая»)
+        assertEquals("Александр пятый", n("Александр V"))
+        assertEquals("Филипп второй", n("Филипп II"))
+        assertEquals("Иоанн четвёртый", n("Иоанн IV"))
+        assertEquals("Александра второго", n("Александра II"))
         assertEquals("Глава первая", n("Глава I"))
         assertEquals("часть вторая", n("часть II"))
         assertEquals("Россия двадцатого века", n("Россия XX века"))

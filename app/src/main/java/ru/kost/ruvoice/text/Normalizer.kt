@@ -159,7 +159,7 @@ object Normalizer {
         return sb.append(f(s.substring(at))).toString()
     }
     fun hasUrl(s: String) = s.contains("http", ignoreCase = true) || s.contains("www.", ignoreCase = true) || '@' in s ||
-        ('/' in s && '.' in s) // сайт без схемы: «habr.com/ru/…»
+        ('/' in s && '.' in s) // сайт без схемы: «habr.com/ru/…», путь к файлу
     fun punctuation(text: String, rules: Rules = Rules()): String {
         if (!rules.on("punct")) return text
         var s = multiExclQuestRe.replace(text) { if ('?' in it.value && '!' in it.value) "?!" else it.value.first().toString() }
@@ -450,7 +450,7 @@ object Normalizer {
     private val femaleStems = setOf("екатерин", "елизавет", "анн", "мари", "виктори", "изабелл", "матильд", "иоанн", "хуан",
         "маргарит", "кристин", "христин", "ульрик", "беатрикс", "вильгельмин", "юлиан", "луиз", "елен", "ирин", "феодор",
         "зо", "клеопатр", "береник", "арсино", "джейн", "софь", "софи", "ядвиг", "констанци", "бланк", "джованн", "тамар",
-        "русудан", "мод", "элеонор", "филипп", "урак", "санч", "петронил", "агнесс", "ольг", "александр")
+        "русудан", "мод", "элеонор", "урак", "санч", "петронил", "агнесс", "ольг")
     // «Елизаветы 3-й» — «-й» у женского имени в косвенном падеже: «третьей» (корпус ru-normalizr).
     private val arabicAfterFemaleNameRe = Regex("""(?<![\p{L}])([А-ЯЁ][а-яё]+)\s+(\d+)-й(?![а-яё\d])""")
     private fun romanAfterName(text: String): String {
@@ -486,7 +486,9 @@ object Normalizer {
             n.last() in "аяуюеиы" -> n.dropLast(1)
             else -> n
         }
-        val female = stem in femaleStems || (stem.length > 3 && stem.dropLast(1) in femaleStems)
+        // без окончания имя мужское: «Иоанн IV», «Хуан II» (основы «иоанн», «хуан» — от Иоанны, Хуаны). «Александр V»
+        // читалось «пятая» (жалоба 08.10.2026); «александр», «филипп» из списка убраны — «Александра II» это Александр
+        val female = stem != n && stem in femaleStems || (stem.length > 3 && stem.dropLast(1) in femaleStems)
         val case = when {
             n.endsWith("ой") || n.endsWith("ей") -> Case.INS
             n.endsWith("ом") || n.endsWith("ем") -> Case.INS
@@ -1362,6 +1364,11 @@ object Normalizer {
         // 10. «от лат. homo» — после «от/с/из» форма одна: «от латинского»
         Regex("""(?<![\p{L}\d])(от|с|из)\s+лат\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "$1 латинского",
         Regex("""(?<![\p{L}\d])(от|с|из)\s+греч\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "$1 греческого",
+        // «С. Петербург» — Санкт, а не инициал (Abbrev иначе прочтёт «эс Петербург»)
+        Regex("""(?<![\p{L}\d])С\.\s*-?\s*(?=Петербург)""") to "Санкт-",
+        // «Роза (лат. Rosa)», «(лат.)» — пометка языка, а не прилагательное: «латынь» (жалоба 08.10.2026).
+        // Перед русским существительным («лат. название») раскрывает adjAbbrevRe ниже
+        Regex("""(?<![\p{L}\d])лат\.(?=\s*(?:[A-Za-z]|[)\],;:—–]|$))""", RegexOption.IGNORE_CASE) to "латынь",
         Regex("""(?<![\p{L}\d])стр\.(?![\p{L}])""", RegexOption.IGNORE_CASE) to "страница",
         // «рис» — ещё и крупа: «На ужин был рис.» — сокращение только с номером следом («рис. 3», «рис. № 2»)
         Regex("""(?<![\p{L}\d])рис\.(?=\s*(?:№\s*)?\d)""", RegexOption.IGNORE_CASE) to "рисунок",
@@ -1483,8 +1490,8 @@ object Normalizer {
     }
 
     /** Сокращение в конце предложения («и т. д. Потом», «100 руб. Дорого») — точка остаётся, иначе предложения
-     * склеиваются. Кроме тех, за которыми обычно имя с заглавной: «ул. Ленина», «проф. Иванов», «см. Иванов». */
-    private val abbrevBeforeName = setOf("ул", "проф", "акад", "св", "ср", "см", "напр", "им", "mr", "mrs", "dr", "г", "н")
+     * склеиваются. Кроме тех, за которыми обычно имя с заглавной: «ул. Ленина», «проф. Иванов», «см. Иванов», «лат. Rosa». */
+    private val abbrevBeforeName = setOf("ул", "проф", "акад", "св", "ср", "см", "напр", "им", "mr", "mrs", "dr", "г", "н", "лат")
     private fun expandAbbrev(s: String, re: Regex, rep: String): String {
         if ('$' in rep) return re.replace(s, rep)
         return re.replace(s) { m ->
@@ -1996,7 +2003,10 @@ object Normalizer {
     // без пути «vk.com» остаётся словом, а зона из списка не даёт принять за адрес «Node.js/Express».
     private const val urlTail = """[^\s<>«»"']*[^\s<>«»"'.,;:!?)\]}/]"""
     private const val urlZones = "com|ru|org|net|io|me|info|su|ua|by|kz|uz|de|uk|co|tv|dev|app|gov|edu|biz|pro|xyz|ai|cc|to|ly|gl|gg|fm|be|us|eu|site|online|store|blog|news"
-    val urlRe = Regex("""(?:https?://|www\.)$urlTail|(?<![\w@./-])(?:[a-z0-9][a-z0-9-]*\.)+(?:$urlZones)/$urlTail|[\w.+-]+@[\w-]+(?:\.[\w-]+)+""", RegexOption.IGNORE_CASE)
+    // Путь к файлу книги («/home/…/Telegram Desktop/07 E TNOS. CHast pervaya.fb2») — AlReaderX отдаёт его в конце книги
+    // (жалоба 08.10.2026). В пути бывают пробелы и «. », поэтому до расширения книжного файла, а не до пробела.
+    private const val filePath = """(?<![\w.:/])/(?:home|storage|sdcard|mnt|data|media|Users|tmp)/[^\n<>«»"|]{1,250}?\.(?:fb2|epub|txt|pdf|docx?|rtf|mobi|azw3?|djvu|html?|odt|zip)(?:\.zip)?(?![\p{L}\d])"""
+    val urlRe = Regex("""$filePath|(?:https?://|www\.)$urlTail|(?<![\w@./-])(?:[a-z0-9][a-z0-9-]*\.)+(?:$urlZones)/$urlTail|[\w.+-]+@[\w-]+(?:\.[\w-]+)+""", RegexOption.IGNORE_CASE)
     private val urlSeparators = mapOf(':' to "двоеточие", '/' to "слэш", '.' to "точка", '?' to "вопрос", '&' to "амперсанд",
         '=' to "равно", '-' to "дефис", '_' to "нижнее подчёркивание", '#' to "решётка", '%' to "процент", '+' to "плюс",
         '@' to "собака", '~' to "тильда")
@@ -2021,6 +2031,12 @@ object Normalizer {
         val kept = mutableListOf<String>()
         val masked = urlRe.replace(text) {
             when {
+                // у пути нет сайта для «ссылка, …»: где ссылка сократилась бы до сайта или выкинута — выкидываем
+                it.value.startsWith('/') -> when {
+                    rules.on(Rules.LINK_WORD) || rules.on("link_domain") || rules.on("drop_links") -> ""
+                    rules.on("read_links") -> spellUrl(it.value)
+                    else -> { kept += it.value; "\u0001${"\u0002".repeat(kept.size)}\u0001" }
+                }
                 '@' !in it.value && (rules.on(Rules.LINK_WORD) || rules.on("link_domain") && !rules.on("drop_links")) -> "ссылка, " + spellUrl(urlHost(it.value))
                 rules.on(if ('@' in it.value) "drop_emails" else "drop_links") -> ""
                 rules.on("read_links") -> spellUrl(it.value)

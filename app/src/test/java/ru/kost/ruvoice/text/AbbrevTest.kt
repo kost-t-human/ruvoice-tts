@@ -15,6 +15,18 @@ class AbbrevTest {
         assertEquals("в сэ шэ +а", Abbrev.apply("в США"))
     }
 
+    @Test fun initialsByLetterName() {
+        // «Джона Ф. Кеннеди» читалось «джонаф», пауза (жалоба 08.10.2026)
+        assertEquals("Джона эф Кеннеди", Abbrev.apply("Джона Ф. Кеннеди"))
+        assertEquals("эл энн Толстой", Abbrev.apply("Л. Н. Толстой"))
+        assertEquals("а эс Пушкин", Abbrev.apply("А.С. Пушкин"))
+    }
+
+    @Test fun sfryuSpelled() {
+        // с гласной «Ю» читалась словом «сфрю» (жалоба 08.10.2026)
+        assertEquals("эс эф ээр +ю", Abbrev.apply("СФРЮ"))
+    }
+
     @Test fun singleVowelLetterNameGetsStressOnItself() {
         assertEquals("сдал е гэ +э", Abbrev.apply("сдал ЕГЭ"))
     }
