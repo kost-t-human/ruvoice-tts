@@ -529,6 +529,7 @@ class SileroTtsService : TextToSpeechService() {
             // Чистое время синтеза: в него не входит ожидание плеера (audioAvailable блокирует, пока
             // непроигранного больше 500 мс), поэтому RTF = синтез / звук показывает, успевает ли телефон.
             val synthMs = java.util.concurrent.atomic.AtomicLong()
+            val perf = Perf.snap()
             if (callback.start(sr, AudioFormat.ENCODING_PCM_16BIT, 1) != TextToSpeech.SUCCESS) { stopped = true; return }
             val continuous = System.currentTimeMillis() - lastAudioAt <= LEAD_GAP_MS
             if (rules.on("lead_in") && !continuous) { val sil = Pcm.silence(sr, LEAD_IN_MS); if (!write(callback, sil)) return; written += sil.size; firstAudioAt = 0L }
@@ -786,6 +787,8 @@ class SileroTtsService : TextToSpeechService() {
             note("запрос ${request.charSequenceText.length} симв., ${segments.size} сегм., $ms мс" +
                 (if (firstAudioAt > 0) ", первый звук через ${firstAudioAt - t0} мс" else "") + ", звук $audioMs мс, синтез ${synthMs.get()} мс" +
                 (if (audioMs > 0) ", RTF %.2f".format(synthMs.get().toDouble() / audioMs) else "") +
+                // синтез не успевает — чем занят телефон (Perf); с «Подробным журналом» — всегда
+                (if (rules.on("verbose_log") || audioMs > 0 && synthMs.get() >= Perf.SLOW_RTF * audioMs) Perf.describe(this, perf) else "") +
                 (if (pre != null) ", из заготовки ${pre.futures.size} сегм." else "") +
                 (if (!foreground) ", без foreground" else "") +
                 (if (enCount > 0) ", по-английски $enCount через ${enEngine?.pkg}" else "") +
