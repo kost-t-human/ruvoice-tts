@@ -175,14 +175,21 @@ class SileroModels(private val context: Context) : StressModels {
         }
         val out = mel!!.forward(*args.toTypedArray()).toTuple()
         val melT = out[0].toTensor()
+        val tb = System.nanoTime()
         val hid = backbone!!.forward(EValue.from(org.pytorch.executorch.Tensor.fromBlob(melT.dataAsFloatArray, melT.shape())))[0].toTensor()
+        val th = System.nanoTime()
         val audio = head!!.forward(IValue.from(Tensor.fromBlob(hid.dataAsFloatArray, hid.shape())), IValue.from(sampleRate.toLong()),
             IValue.from(0.0), IValue.from(true)).toTensor().dataAsFloatArray
+        backboneMs.addAndGet((th - tb) / 1_000_000)
+        liteMs.addAndGet((tb - t + System.nanoTime() - th) / 1_000_000)
         Log.i(TAG, "forward ${(System.nanoTime() - t) / 1_000_000} мс, звук ${audio.size * 1000L / sampleRate} мс, $n симв.")
         return Synth(audio, out[1].toTensor().dataAsFloatArray)
     }
 
     companion object {
+        /** Время forward с запуска процесса: mel + head (TorchScript Lite) и бэкбон (ExecuTorch) — для Perf. */
+        val liteMs = java.util.concurrent.atomic.AtomicLong()
+        val backboneMs = java.util.concurrent.atomic.AtomicLong()
         /** Один экземпляр на процесс: сервис и настройки живут в одном процессе, и «Разбор» берёт те же
          * акцентор и BERT, что синтез, а не вторую копию на 50 МБ. Жизнью управляет сервис (выгрузка по
          * простою, onDestroy); release() лишь снимает модули, следующий ensure* грузит заново. */
