@@ -368,6 +368,12 @@ class StressTest {
         }
         assertEquals("в сует+е", Stress(d, yo2).apply("в сует+е"))
         assertEquals("в суёте", Stress(d, yo2).apply("в суете").replace("+", ""))
+        // 13.11.2026: «+е» из фразы у слов списка plusE остаётся «е» («суета су+ет», «я съ+ем»); у прочих слов «ё» от
+        // акцентора по-прежнему вписывается в слово с «+» — системные фразы пишут «сч+ета» и ждут «счёта»
+        assertEquals("сует+а су+ет", Stress(d, yo2).apply("сует+а су+ет"))
+        assertEquals("+я съ+ем", Stress(d, yo2).apply("я съ+ем"))
+        assertEquals("н+омер сч+ёта", Stress(d, yo2).apply("н+омер сч+ета"))
+        assertEquals("су+ёт", Stress(d, yo2).apply("сует"))
     }
     @Test fun systemStressFixesOct28() {
         // жалобы 28.10.2026: однозначные слова, модель ставила иначе

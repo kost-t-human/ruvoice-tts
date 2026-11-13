@@ -549,6 +549,11 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
     private fun noLeadDash(spoken: String) = spoken.replace(leadDashRe, "")
     private val leadDashRe = Regex("^[–—]\\s*")
 
+    /** Слова, где «+е» из фразы значит «е», а акцентор вписал бы «ё»: «суета су+ет», «я съ+ем», «М+ел Гибсон», «ст+ек».
+     * Общее правило «не ставить ё в слово с +» нельзя: системные фразы пишут «ещ+е», «сч+ета», «пад+еж» и ждут «ё» от
+     * акцентора (прогон 2762 фраз, 13.11.2026). */
+    private val plusE = setOf("сует", "съем", "мел", "стек")
+
     private fun tokenize(sentence: String): Triple<List<String>, List<String>, List<Boolean>> {
         val tokens = ArrayList<String>(); val inputs = ArrayList<String>(); val mask = ArrayList<Boolean>()
         for (word in splitKeep(sentence)) {
@@ -619,7 +624,8 @@ class Stress(private val d: SileroData, private val models: StressModels, privat
             val yoPred = yp.indices.maxByOrNull { yp[it] } ?: 0
             val yoVowelIds = listOf(yoPred)
             // акцентор без второго выхода (пак bel/ukr) отдаёт пустые строки «ё»
-            val setYo = yp.isNotEmpty() && yp[yoPred] > 0.5f && cleanWord !in userDict   // «бытие быти+е» в словаре: модель не ставит «ё», иначе словарь слово не найдёт
+            val setYo = yp.isNotEmpty() && yp[yoPred] > 0.5f && cleanWord !in userDict &&   // «бытие быти+е» в словаре: модель не ставит «ё», иначе словарь слово не найдёт
+                !(haveStress && cleanWord in plusE)
             // номер гласной перед каждым «+» с начала слова; кусок после последнего «+» не ударение — иначе «сует+е»
             // давало [2, 1], и «ё» акцентора на гласной 1 вписывалась: «суёт+е» (жалоба 28.10.2026)
             if (haveStress) stressedVowelIds = lower.split("+").dropLast(1).map { part -> part.count { it in vowels } }.runningReduce(Int::plus)
