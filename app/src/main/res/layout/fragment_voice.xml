@@ -39,6 +39,13 @@
                 android:saveEnabled="false" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- пробное чтение сразу под голосом: выбрал — тут же прослушал -->
+        <TextView
+            style="@style/Section"
+            android:text="@string/section_preview" />
+
+        <include layout="@layout/preview_box" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="match_parent"
@@ -161,11 +168,5 @@
             android:layout_height="wrap_content"
             android:layout_gravity="end"
             android:text="@string/sys_tts_settings" />
-
-        <TextView
-            style="@style/Section"
-            android:text="@string/section_preview" />
-
-        <include layout="@layout/preview_box" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
