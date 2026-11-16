@@ -109,7 +109,15 @@ class LargeTextTest {
             assertTabLabelsWhole(langs.size)
             for (code in langs) {
                 val label = ctx.getString(ctx.resources.getIdentifier("rules_lang_$code", "string", ctx.packageName))
-                onView(allOf(withText(label), isDescendantOfA(withId(R.id.rulesTabs)))).perform(scrollTo(), click()) // при трёх языках полоса прокручивается
+                // При трёх языках и 200 % полоса прокручивается, но scrollTo() не годится: TabLayout на следующем проходе
+                // разметки возвращает прокрутку к выбранной вкладке, «Белорусские голоса» видны наполовину (A32, 16.11.2026).
+                // Вкладку выбираем самим TabLayout, как сделал бы свайп и тап.
+                onView(withId(R.id.rulesTabs)).check { v, _ ->
+                    val tabs = v as com.google.android.material.tabs.TabLayout
+                    // check выполняется в главном потоке, выбор вкладки — прямо здесь
+                    ((0 until tabs.tabCount).map { tabs.getTabAt(it)!! }.firstOrNull { it.text == label } ?: throw AssertionError("нет вкладки «$label»")).select()
+                }
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
                 assertNoClippedText()
             }
         }
