@@ -222,7 +222,10 @@ class RulesOffTest {
         assertEquals("– вс+ёё…", stress.stretchShort("– вс+ё…"))
         assertEquals("п+ишут см+ии.", stress.stretchShort("п+ишут см+и."))
         assertEquals("к см+и п+адает.", stress.stretchShort("к см+и п+адает."))
-        for (s in listOf("д+а", "н+у д+а.", "м+оя.", "н+ет.", "+я.", "стр+о.", "– д+а, к+онечно.", "– д+а. +я пойд+у."))
+        assertEquals("оо...", stress.stretchShort("о..."))
+        assertEquals("– +ии…", stress.stretchShort("– +и…"))
+        assertEquals("+аа?", stress.stretchShort("+а?"))
+        for (s in listOf("д+а", "н+у д+а.", "м+оя.", "н+ет.", "+я.", "стр+о.", "– д+а, к+онечно.", "– д+а. +я пойд+у.", "+я...", "+е?", "о, д+а.", "и т+ак.", "+и.", "– +а."))
             assertEquals(s, stress.stretchShort(s))
         assertEquals("– д+а.", Stress(d, firstVowel, rules = off("short_word")).stretchShort("– д+а."))
     }
