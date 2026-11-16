@@ -151,6 +151,16 @@ class NumbersTest {
         assertEquals("сеть сто двадцать семь вольт, потом триста восемьдесят вольт.", Normalizer.prepare("Сеть 127 В, потом 380 В.", allowed))
     }
 
+    /** Заголовок без точки перед текстом: «Глава 5 В глубине души» — предлог, не вольты (жалоба 16.11.2026). */
+    @Test fun headingNumberThenPrepositionIsNotUnit() {
+        val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
+        assertEquals("глава пятая в глубине души.", Normalizer.prepare("Глава 5 В глубине души.", allowed))
+        assertEquals("часть вторая а потом пришёл он.", Normalizer.prepare("Часть 2 А потом пришёл он.", allowed))
+        assertEquals("книга вторая в поисках.", Normalizer.prepare("Книга 2 В поисках.", allowed))
+        assertEquals("глава пятая в глубине души.", Normalizer.prepare("Глава 5\nВ глубине души.", allowed))
+        assertEquals("напряжение двести двадцать вольт в сети.", Normalizer.prepare("Напряжение 220 В в сети.", allowed))
+    }
+
     @Test fun arabicCenturyReadAsOrdinal() {
         val allowed = "_~|!+,-.:;?абвгдежзийклмнопрстуфхцчшщъыьэюяё–… "
         assertEquals("построен в двенадцатом веке. потом ушли.", Normalizer.prepare("Построен в 12 в. Потом ушли.", allowed))

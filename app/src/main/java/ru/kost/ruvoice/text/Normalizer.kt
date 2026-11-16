@@ -1465,9 +1465,10 @@ object Normalizer {
     private val unitAccBehindRe = Regex(
         """(?<![\p{L}])(?:на|за|через|про|спустя|сто(?:ит|ил[аио]?|ят)|вес(?:ит|ил[аио]?|ят)|ждал[аио]?|ждать|занял[аио]?|занимает|""" +
         """длит(?:ся|ься)|длил(?:ся|ась|ось)|каждую|всю|целую|ещё|еще)\s+$""", RegexOption.IGNORE_CASE)
+    private val headingNumBehindRe = Regex("""(?<![\p{L}])$romanNounBeforeAlt\s+$""", RegexOption.IGNORE_CASE)
     private val unitTriggerAlt = unitTriggerCase.keys.joinToString("|") { it.replace(" ", "\\s+") }
     private val unitRe = Regex(
-        """(?:(?<![\p{L}])($unitTriggerAlt|ок\.)\s+)?(?<![\d/])(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(?=\p{L}{2})|\s*)($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё,;:])))?""",
+        """(?:(?<![\p{L}])($unitTriggerAlt|ок\.)\s+)?(?<![\d/])(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(?=\p{L}{2})|[^\S\n]*)($unitAltPattern)(?![\p{L}\d/])(?!\.\d)(?:\.(?=\s*(?-i:[а-яё,;:])))?""",
         RegexOption.IGNORE_CASE
     )
     // Диапазон с единицей: «между 2 и 5 км» — оба числа и единица в творительном, «с/от 2 до 5 км»
@@ -1582,6 +1583,8 @@ object Normalizer {
         unitTable.keys.firstOrNull { it.equals("$left/$right", true) || it.equals("$left·$right", true) } ?: m.value
     }) { m ->
         var (trigger, numStr, unitKey) = m.destructured
+        // «Глава 5 В глубине души», «Часть 2 А потом» — заголовок без точки, дальше предлог/союз, не вольты и не амперы (жалоба 16.11.2026)
+        if (trigger.isEmpty() && headingNumBehindRe.containsMatchIn(text.substring(0, m.range.first))) return@replace m.value
         // «220 В.» в конце предложения — вольты, не века: века больше тридцатого не бывает (сеть 110–400 В), дробных
         // тоже; заглавная «В.» — всегда вольты («1,15 В.»). Строчное «в.» больше тридцати перед «от/до» — вёрсты
         // старых книг: «в 75 в. от Казани» (было «в семидесяти пяти вольтах»).
