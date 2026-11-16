@@ -133,4 +133,21 @@ class AbbrevTest {
         assertEquals("бой ю эф с+и прошёл", Abbrev.apply("бой UFC прошёл"))
         assertEquals("канал эйч би +оу", Abbrev.apply("канал HBO"))
     }
+
+    /** Буква рядом с «класс/категория» — именем (правило class_letter, свой словарь пользователя 16.11.2026). */
+    @Test fun classLetterByName() {
+        assertEquals("корабль класса бэ", Abbrev.apply("корабль класса Б"))
+        assertEquals("класс эс", Abbrev.apply("класс С"))
+        assertEquals("классов эс и бэ", Abbrev.apply("классов С и Б"))
+        assertEquals("права категории вэ, цэ", Abbrev.apply("права категории В, Ц"))
+        assertEquals("бэ класса", Abbrev.apply("Б класса"))
+        assertEquals("ученик класса ка", Abbrev.apply("ученик класса К"))
+        // предлог перед словом и чужие слова не трогаем
+        assertEquals("В классе было тихо", Abbrev.apply("В классе было тихо"))
+        assertEquals("С класса начинали", Abbrev.apply("С класса начинали"))
+        assertEquals("классный В", Abbrev.apply("классный В"))
+        assertEquals("корабль класса бэ. Он ушёл", Abbrev.apply("корабль класса Б. Он ушёл"))
+        assertEquals("учитель класса вэ эс Петров", Abbrev.apply("учитель класса В.С. Петров"))  // инициалы читает spell_cyr, не class_letter
+        assertEquals("корабль класса Б", Abbrev.apply("корабль класса Б", Rules(setOf("class_letter"))))
+    }
 }

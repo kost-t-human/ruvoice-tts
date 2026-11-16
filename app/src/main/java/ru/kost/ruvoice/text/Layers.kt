@@ -145,7 +145,7 @@ object BeLayer : TextLayer {
      * Логическое ударение (focus, exclaim, question) — тоже: у белорусских голосов (cis_be, Pack.types = false) входа
      * focus_mask нет, метка `*слово*` до модели не доходит ([ru.kost.ruvoice.SileroModels.synthesize]). */
     override val unsupported = setOf(
-        "gram", "first_pl", "homo", "yo", "hard_e", "prefix_space", "focus", "exclaim", "question")
+        "gram", "first_pl", "homo", "yo", "hard_e", "prefix_space", "focus", "exclaim", "question", "class_letter")
     override fun prepare(text: String, allowed: String, rules: Rules): String = BelNormalizer.prepare(text, allowed, rules)
     override fun questions(d: SileroData): QuestionLists = BE_QUESTIONS
     override fun dictWord(w: String): String = w.replace(BelNormalizer.APOSTROPHE, "")

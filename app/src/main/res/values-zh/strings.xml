@@ -459,6 +459,8 @@
     <string name="rule_spell_cyr_hint">逐字母读出：«ФСБ» 读作 «эф эс бэ»，«МГУ» 读作 «эм гэ у»，«ЛКИ» 读作 «эл ка и»。关闭时由模型自行朗读。</string>
     <string name="rule_spell_cyr_hint_be">逐字母读出：«БДУ» 读作 «бэ-дэ-у»，«ЗША» 读作 «зэ-ша-а»，«РБ» 读作 «эр-бэ»，首字母缩写 «Я. Купала» 读作 «я купала»。关闭时由模型自行朗读。</string>
     <string name="rule_spell_cyr_hint_uk">逐字母读出：«ЗСУ» 读作 «зе-ес-у»，«США» 读作 «ес-ша-а»，«ЄС» 读作 «є-ес»，首字母缩写 «Т. Г. Шевченко» 读作 «те ге Шевченко»。关闭时由模型自行朗读。</string>
+    <string name="rule_class_letter">«класс» 后的字母</string>
+    <string name="rule_class_letter_hint">紧挨 «класс»（等级）或 «категория»（类别）的单个大写字母按字母名读出：«класс Б» 读作 «класс бэ»，«классов С и Б» 读作 «эс и бэ»，«категории В» 读作 «вэ»，«М класса» 读作 «эмм класса»。关闭时 «В»、«С» 读作介词，«Б» 只读辅音。</string>
     <string name="rule_spell_lat">拉丁字母缩略词</string>
     <string name="rule_spell_lat_hint">逐字母读出：«USB» 读作 «ю эс би»，«FBI» 读作 «эф би ай»。</string>
     <string name="rule_spell_lat_hint_be">逐字母读出：«FBI» 读作 «эф-бэ-і»，«LTE» 读作 «эл-тэ-е»。</string>

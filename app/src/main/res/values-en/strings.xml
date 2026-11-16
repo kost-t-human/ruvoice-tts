@@ -458,6 +458,8 @@
     <string name="rule_spell_cyr_hint">Spelled letter by letter: «ФСБ» as «эф эс бэ», «МГУ» as «эм гэ у», «ЛКИ» as «эл ка и». When off, the model reads them its own way.</string>
     <string name="rule_spell_cyr_hint_be">Spelled letter by letter: «БДУ» as «бэ-дэ-у», «ЗША» as «зэ-ша-а», «РБ» as «эр-бэ», initials «Я. Купала» as «я купала». When off, the model reads them its own way.</string>
     <string name="rule_spell_cyr_hint_uk">Spelled letter by letter: «ЗСУ» as «зе-ес-у», «США» as «ес-ша-а», «ЄС» as «є-ес», initials «Т. Г. Шевченко» as «те ге Шевченко». When off, the model reads them its own way.</string>
+    <string name="rule_class_letter">Letter after «класс»</string>
+    <string name="rule_class_letter_hint">A single capital letter next to «класс» (class) or «категория» (category) is read by its name: «класс Б» as «класс бэ», «классов С и Б» as «эс и бэ», «категории В» as «вэ», «М класса» as «эмм класса». When off, «В» and «С» are read as prepositions and «Б» as a bare consonant.</string>
     <string name="rule_spell_lat">Latin acronyms</string>
     <string name="rule_spell_lat_hint">Spelled letter by letter: «USB» as «ю эс би», «FBI» as «эф би ай».</string>
     <string name="rule_spell_lat_hint_be">Spelled letter by letter: «FBI» as «эф-бэ-і», «LTE» as «эл-тэ-е».</string>

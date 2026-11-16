@@ -111,16 +111,31 @@ object Abbrev {
     // Второй инициал после первого — и перед строчным словом: «Артемьев Т. Е. пришёл», «А.С. Пушкин»
     private val initialRe = Regex("""(?<![\p{L}\d])[А-ЯЁ]\.(?=\s*[А-ЯЁ](?:[а-яё]|\.))|(?<=(?<![\p{L}\d])[А-ЯЁ]\.\s?)[А-ЯЁ]\.""")
 
+    // Буква-класс: «класс Б», «класса С», «классов С и Б», «категории В» — именем буквы (без правила «в»/«с» читались
+    // предлогом, «б» голой согласной; свой словарь пользователя 16.11.2026). Буква перед словом — только не совпадающая
+    // с предлогом/союзом: «Б класса» — «бэ класса», а «В классе было тихо», «С класса начинали» — предлоги.
+    // Точка после буквы — конец предложения («класса Б.»), но не инициалы («класса В.С. Петров»)
+    private const val classWord = """(?:класс(?:а|у|ом|е|ы|ов|ам|ами|ах)?|категори(?:я|и|ю|ей|ям|ями|ях))"""
+    private const val classLetter = """[А-ЯЁ](?![\p{L}\d])(?!\.[\p{L}\d])"""
+    private val classAfterRe = Regex("""(?<![\p{L}])$classWord(?:\s+$classLetter(?:\s*(?:,|и|или|/)\s*$classLetter)*)""")
+    private val classBeforeRe = Regex("""(?<![\p{L}\d])[БГДЕЖЗЛМНПРТФХЦЧШЩЭЮ](?=\s+$classWord(?![\p{L}]))""")
+    private val classLetterRe = Regex("""(?<![\p{L}])$classLetter""")
+    private fun classLetters(text: String): String = classBeforeRe.replace(classAfterRe.replace(text) { m ->
+        val head = m.value.takeWhile { it.isLetter() }
+        head + classLetterRe.replace(m.value.substring(head.length)) { cyrLetterNames.getValue(it.value[0]) }
+    }) { cyrLetterNames.getValue(it.value[0]) }
+
     fun apply(text: String, rules: Rules = Rules()): String {
-        val inits = if (rules.on("spell_cyr")) initialRe.replace(text) { m ->
-            cyrLetterNames.getValue(m.value[0]) + if (text.getOrNull(m.range.last + 1)?.isLetter() == true) " " else ""
-        } else text
+        val src = if (rules.on("class_letter")) classLetters(text) else text
+        val inits = if (rules.on("spell_cyr")) initialRe.replace(src) { m ->
+            cyrLetterNames.getValue(m.value[0]) + if (src.getOrNull(m.range.last + 1)?.isLetter() == true) " " else ""
+        } else src
         val withCyr = if (rules.on("spell_cyr")) cyrLowerToken.replace(cyrToken.replace(inits) { m ->
             // соседнее слово капсом — заголовок или крик («ЧТО ДЕЛАТЬ»), не аббревиатура
             val caps = capsWordBefore.containsMatchIn(inits.substring(maxOf(0, m.range.first - 40), m.range.first)) ||
                 capsWordAfter.containsMatchIn(inits.substring(m.range.last + 1, minOf(inits.length, m.range.last + 41)))
             spellCyr(m.value, !caps)
-        }) { m -> if (lowerAbbr(m.value)) spellOut(m.value.uppercase(), cyrLetterNames) else m.value } else text
+        }) { m -> if (lowerAbbr(m.value)) spellOut(m.value.uppercase(), cyrLetterNames) else m.value } else src
         return if (rules.on("spell_lat")) latToken.replace(withCyr) { spellLat(it.value) } else withCyr
     }
 

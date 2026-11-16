@@ -64,7 +64,7 @@ class Rules(val off: Set<String> = emptySet(), val maxLen: Int = MAX_LEN_DEFAULT
             "symbol_names", "emoji", "letter_name", "letter_echo_all", "lead_in", "fast_start", "prefetch", "drop_links", "link_domain", "drop_emails", "drop_images", "read_links",
             "phones", "codes", "numbers", "arith", "cases", "roman", "roman_name", "dates", "day_month", "years", "times", "units",
             "degrees", "currency", "fractions", "spoons", "gen_suffix", "sections", "thousands", "footnotes",
-            "abbrev", "spell_cyr", "spell_lat", "letter_digit", "latin", "homoglyphs",
+            "abbrev", "spell_cyr", "class_letter", "spell_lat", "letter_digit", "latin", "homoglyphs",
             "en_proxy_books", "en_proxy_sr",
             "dehyphen", "soft_break", "punct", "ssml",
             "gram", "first_pl", "homo", "accentor", "yo", "hard_e", "prefix_space", "end_dot", "end_oxy", "short_word", "intonation", "focus", "exclaim", "question",
